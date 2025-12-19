@@ -78,4 +78,7 @@ run: all
 	virtualbox --startvm "CimpleOS" &
 
 clean:
-	rm
+	@echo "Cleaning build files..."
+	rm -rf build
+	rm -rf isodir
+	rm -f CimpleOS.iso
