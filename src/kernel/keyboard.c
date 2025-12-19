@@ -5,6 +5,7 @@
 char terminal_buffer[256]; // Stores what you typed
 int term_idx = 0;          // Current cursor position
 int backspace_pressed = 0; // Flag for main loop
+int irq_count = 0;         // Debug counter
 
 // Standard US QWERTY Map
 char kbd_US[128] = {
@@ -19,8 +20,10 @@ char kbd_US[128] = {
 
 extern void outb(uint16_t port, uint8_t val);
 extern uint8_t inb(uint16_t port);
+extern void cmd_process(const char* cmd);
 
 void keyboard_handler() {
+    irq_count++;
     uint8_t scancode = inb(0x60);
 
     // If key is pressed (not released)
@@ -34,6 +37,10 @@ void keyboard_handler() {
                 backspace_pressed = 1;
             }
         }
+        else if (c == '\n') { // Handle Enter - Process command!
+            terminal_buffer[term_idx] = '\0';
+            cmd_process(terminal_buffer);
+        }
         else if (c != 0) { // Regular character
             if (term_idx < 255) {
                 terminal_buffer[term_idx] = c;
@@ -42,5 +49,4 @@ void keyboard_handler() {
             }
         }
     }
-    outb(0x20, 0x20); // End of Interrupt
 }

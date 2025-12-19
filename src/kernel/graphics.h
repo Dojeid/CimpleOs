@@ -13,5 +13,6 @@ void swap_buffers();
 void clear_screen(uint32_t color);
 
 extern int screen_w, screen_h;
+extern uint32_t* video_memory;
 
 #endif

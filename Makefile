@@ -20,7 +20,7 @@ ifeq ($(ARCH),x86_64)
     LDFLAGS := -n -nostdlib -z max-page-size=0x1000
 else
     # 32-bit settings (Current Default)
-    CFLAGS := -ffreestanding -m32 -g -c
+    CFLAGS := -ffreestanding -m32 -g -c -mno-sse -mno-sse2 -mno-mmx
     ASMFLAGS := -felf32
     LDFLAGS := -m elf_i386
 endif

@@ -4,7 +4,8 @@
 
 uint32_t* video_memory;
 int screen_w, screen_h;
-uint32_t back_buffer[1024 * 768]; 
+// Increased to support up to 1920x1080 (prevents overflow)
+uint32_t back_buffer[1920 * 1080];
 
 void *memcpy(void *dest, const void *src, size_t count) {
     uint32_t *d = (uint32_t *)dest;

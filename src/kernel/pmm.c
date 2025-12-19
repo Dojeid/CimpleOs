@@ -37,7 +37,7 @@ void pmm_init_region(uint32_t base, uint32_t size) {
         mmap_unset(align++);
         used_blocks--;
     }
-    mmap_set(0); // First block always used
+    // Removed: mmap_set(0) - this was marking block 0 as used every time!
 }
 
 void pmm_deinit_region(uint32_t base, uint32_t size) {
