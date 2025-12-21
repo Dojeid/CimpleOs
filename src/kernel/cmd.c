@@ -17,7 +17,7 @@ void cmd_print(const char* str) {
 
 void cmd_process(const char* cmd) {
     if (strcmp(cmd, "help") == 0) {
-        cmd_print("Commands: help, clear, time, mem, about");
+        cmd_print("Commands: help, clear, time, mem, about, sysinfo");
     }
     else if (strcmp(cmd, "clear") == 0) {
         output_y = 150;
@@ -37,9 +37,13 @@ void cmd_process(const char* cmd) {
         cmd_print(buf);
     }
     else if (strcmp(cmd, "about") == 0) {
-        cmd_print("CimpleOS v0.3");
+        cmd_print("CimpleOS v0.4");
         cmd_print("By: You!");
         cmd_print("A simple hobby OS");
+    }
+    else if (strcmp(cmd, "sysinfo") == 0) {
+        extern void sysinfo_print();
+        sysinfo_print();
     }
     else if (strlen(cmd) > 0) {
         cmd_print("Unknown command. Type 'help'");

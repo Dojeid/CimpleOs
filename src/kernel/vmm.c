@@ -17,7 +17,7 @@
 uint32_t page_directory[1024] __attribute__((aligned(4096)));
 
 // Pre-allocated page tables for kernel space (first 256MB)
-// This avoids dynamic allocation after paging is enabled!
+// REVERTED: Back to 64 for stability (was causing VirtualBox crash)
 uint32_t kernel_page_tables[64][1024] __attribute__((aligned(4096)));
 
 // High memory page table for framebuffer (maps 3.5GB - 4GB region)
@@ -30,7 +30,7 @@ void vmm_init() {
     }
 
     // 2. Identity map first 256MB (kernel, PMM bitmap, low memory)
-    // Using pre-allocated page tables to avoid runtime allocation!
+    // REVERTED: Back to 256MB for stability
     for (int i = 0; i < 64; i++) {
         // Fill the page table with identity mappings
         for (int j = 0; j < 1024; j++) {

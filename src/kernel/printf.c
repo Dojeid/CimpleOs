@@ -100,7 +100,7 @@ static void do_printf(char* output, const char* fmt, va_list args) {
 }
 
 void printf(const char* fmt, ...) {
-    char buffer[1024];
+    char buffer[512];  // Reduced from 1024 - saves stack space
     va_list args;
     va_start(args, fmt);
     do_printf(buffer, fmt, args);
@@ -114,6 +114,10 @@ void sprintf(char* buf, const char* fmt, ...) {
     va_start(args, fmt);
     do_printf(buf, fmt, args);
     va_end(args);
+}
+
+void vsprintf(char* buf, const char* fmt, va_list args) {
+    do_printf(buf, fmt, args);
 }
 
 // Logging with levels

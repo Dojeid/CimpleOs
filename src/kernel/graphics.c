@@ -1,26 +1,27 @@
 #include "graphics.h"
 #include "font.h"
+#include "string.h"
+#include "heap.h"
 #include <stddef.h>
 
 uint32_t* video_memory;
 int screen_w, screen_h;
-// Increased to support up to 1920x1080 (prevents overflow)
-uint32_t back_buffer[1920 * 1080];
 
-void *memcpy(void *dest, const void *src, size_t count) {
-    uint32_t *d = (uint32_t *)dest;
-    const uint32_t *s = (const uint32_t *)src;
-    size_t n = count / 4;
-    while (n--) {
-        *d++ = *s++;
-    }
-    return dest;
-}
+// Dynamic back buffer - allocated based on actual resolution
+uint32_t* back_buffer = NULL;
 
 void graphics_init(struct multiboot_info* mb) {
     video_memory = (uint32_t*) (uint32_t) mb->framebuffer_addr;
     screen_w = (int) mb->framebuffer_width;
     screen_h = (int) mb->framebuffer_height;
+    
+    // TEMPORARY: Disable dynamic allocation for debugging
+    // This might be causing the VirtualBox crash
+    // uint32_t buffer_size = screen_w * screen_h * sizeof(uint32_t);
+    // back_buffer = (uint32_t*)malloc(buffer_size);
+    
+    // Use direct rendering (no double buffering) for now
+    back_buffer = video_memory;
 }
 
 void put_pixel(int x, int y, uint32_t color) {

@@ -13,6 +13,7 @@
 #include "heap.h"
 #include "string.h"
 #include "common.h"
+#include "sysinfo.h"
 
 extern char terminal_buffer[];
 extern int term_idx;
@@ -83,10 +84,13 @@ void kmain(void* mb_info_ptr) {
     // 6. Initialize Heap
     heap_init();
     
+    // 7. Initialize System Info
+    sysinfo_init();
+    
     asm volatile("sti"); 
     vga_print("Interrupts Enabled!\n");
     
-    // 7. Initialize USB (if available)
+    // 8. Initialize USB (if available)
     vga_print("Checking for USB...\n");
     usb_init();
     

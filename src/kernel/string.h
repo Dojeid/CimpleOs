@@ -13,10 +13,11 @@ int strcmp(const char* s1, const char* s2);
 // String copy
 char* strcpy(char* dest, const char* src);
 
-// Integer to ASCII (decimal)
+// Integer to ASCII
 void itoa(int value, char* str, int base);
 
-// Memory set
+// Memory operations
 void* memset(void* dest, int val, size_t count);
+void* memcpy(void* dest, const void* src, size_t n);
 
 #endif
