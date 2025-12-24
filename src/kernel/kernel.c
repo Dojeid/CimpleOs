@@ -4,9 +4,9 @@
 #include "graphics.h"
 #include "pmm.h"
 #include "vmm.h"
-#include "idt.h"
 #include "io.h"
 #include "gdt.h"
+#include "pci.h"
 #include "vga.h"
 #include "usb.h"
 #include "timer.h"
@@ -14,6 +14,15 @@
 #include "string.h"
 #include "common.h"
 #include "sysinfo.h"
+#include "terminal.h"
+#include "window_manager.h"
+#include "desktop.h"
+#include "taskbar.h"
+#include "cursor.h"
+#include "cmd.h"
+#include "idt.h"  // Now 64-bit compatible
+#include "mouse.h"
+#include "keyboard.h"
 
 extern char terminal_buffer[];
 extern int term_idx;
@@ -21,8 +30,8 @@ extern int mouse_x, mouse_y;
 extern void init_mouse();
 
 // --- MAIN KERNEL ---
-void kmain(void* mb_info_ptr) {
-    struct multiboot_info* mb = (struct multiboot_info*)mb_info_ptr;
+void kmain(void* multiboot_info_addr) {
+    multiboot_info_t* mbi = (multiboot_info_t*)multiboot_info_addr;
     
     // EMERGENCY FALLBACK: Use VGA text mode to show we're alive
     // This always works, even if graphics fail
@@ -52,24 +61,13 @@ void kmain(void* mb_info_ptr) {
     vga_print("Paging enabled!\n");
 
     // 3. Setup Graphics
-    // Try to use multiboot framebuffer info, with fallback to common values
-    if (mb_fb_addr != 0) {
-        video_memory = (uint32_t*) (uint32_t) mb_fb_addr;
-        screen_w = (int) mb_fb_width;
-        screen_h = (int) mb_fb_height;
-    } else {
-        // Fallback: Use VGA linear framebuffer at realistic low address
-        // 0xFD000000 is typical for some configs, but let's use 0x0FC00000 (252MB) to be safe
-        // This ensures it's within the 256MB we'd map if VMM were enabled
-        video_memory = (uint32_t*) 0x0FC00000; // 252MB - within 256MB if VMM enabled
-        screen_w = 1024;
-        screen_h = 768;
-    }
+    vga_print("Initializing Graphics...\n");
+    graphics_init(mb);  // THIS WAS MISSING! Sets up video_memory, screen size, and back_buffer
     
     clear_screen(0x000000); // Black background
     
     // Welcome Message
-    draw_string(10, 10, 0x00FF00, "CimpleOS v0.3 - Protected Mode + Paging Enabled!");
+    draw_string(10, 10, 0x00FF00, "CimpleOS v0.4 - Protected Mode + Paging Enabled!");
     draw_string(10, 30, 0xFFFFFF, "Memory Management: PMM + VMM Active");
     draw_string(10, 50, 0xFFFFFF, "Graphics: Initialized");
 
@@ -90,51 +88,145 @@ void kmain(void* mb_info_ptr) {
     asm volatile("sti"); 
     vga_print("Interrupts Enabled!\n");
     
-    // 8. Initialize USB (if available)
+    // asm volatile("sti"); // Interrupts enabled later after full hardware setup
+    // vga_print("Interrupts Enabled!\n");
+    
+    // 7. Initialize USB (if available)
     vga_print("Checking for USB...\n");
     usb_init();
     
-    vga_print("Press any key or move mouse...\n");
+    vga_print("System ready! Starting GUI...\n");
     
-    // Debug vars
-    extern int irq_count;
-    int last_count = 0;
+    // Initialize hardware
+    gdt_init();
+    init_idt();  // Now 64-bit compatible
+    timer_init(100);
+    desktop_init();
+    taskbar_init();
+    cursor_init();
+    
+    // Enable interrupts after all critical hardware is set up
+    asm volatile("sti");
+    vga_print("Interrupts Enabled!\n");
+
+    // Initialize GUI subsystems
+    terminal_init();
+    wm_init();
+    
+    // Create terminal window
+    window_t* term_win = wm_create_window(50, 80, 700, 480, "Terminal");
+    if (term_win) {
+        // FEATURE 1: Create independent terminal instance
+        term_win->user_data = terminal_create_instance();
+        taskbar_add_button(term_win->id, "Terminal");
+        term_win->render_content = NULL;
+        
+        // Print welcome to this instance (or global if malloc failed)
+        terminal_instance_t* term = (terminal_instance_t*)term_win->user_data;
+        if (term) {
+            terminal_instance_print(term, "Welcome to CimpleOS v0.4 GUI!");
+            terminal_instance_print(term, "Windowing system active.");
+            terminal_instance_print(term, "");
+            terminal_instance_print(term, "Type 'help' for available commands.");
+            terminal_instance_print(term, "Use UP/DOWN arrows for history.");
+            terminal_instance_print(term, "Drag windows by title bar!");
+            terminal_instance_print(term, "Click green 'Terminal' button for more terminals.");
+            terminal_instance_print(term, "");
+        } else {
+            // Fallback to global terminal
+            terminal_print("Welcome to CimpleOS v0.4 GUI!");
+            terminal_print("Windowing system active.");
+            terminal_print("");
+            terminal_print("Type 'help' for available commands.");
+            terminal_print("WARNING: Terminal instance creation failed - using shared global terminal");
+            terminal_print("");
+        }
+    }
+    
+    // Mouse state for click detection
+    int last_mouse_btn = 0;  // Moved outside loop for clarity
 
     while (1) {
-        // Update VGA with interrupt count if it changed
-        if (irq_count != last_count) {
-            vga_print("INT! ");
-            last_count = irq_count;
+        // Handle mouse interactions
+        int mouse_btn = mouse_button_left();
+        
+        // Mouse button pressed
+        if (mouse_btn && !last_mouse_btn) {
+            // Check taskbar first
+            if (mouse_y >= screen_h - 30) {
+                taskbar_handle_click(mouse_x, mouse_y);
+            } else {
+                wm_handle_mouse_down(mouse_x, mouse_y);
+            }
         }
-        // Simple Shell UI
-        draw_rect(0, 0, screen_w, screen_h, 0x111111); // Background
         
-        // Top Bar
-        draw_rect(0, 0, screen_w, 20, 0x333333);
-        draw_string(5, 5, 0xFFFFFF, "CimpleOS");
-
-        // Terminal Window
-        draw_rect(10, 100, 600, 400, 0x000000);
-        draw_rect(10, 100, 600, 20, 0xCCCCCC); // Title bar
-        draw_string(15, 105, 0x000000, "Terminal");
+        // Mouse button released
+        if (!mouse_btn && last_mouse_btn) {
+            wm_handle_mouse_up(mouse_x, mouse_y);
+        }
         
-        // Draw Terminal Content
-        draw_string(15, 130, 0x00FF00, "$ ");
-        draw_string(35, 130, 0xFFFFFF, terminal_buffer);
+        // Mouse dragging
+        if (mouse_btn) {
+            wm_handle_mouse_move(mouse_x, mouse_y);
+        }
         
-        // Cursor
-        draw_rect(35 + (term_idx * 8), 130, 8, 8, 0xFFFFFF);
-
-        // Mouse
-        draw_rect(mouse_x, mouse_y, 5, 5, 0xFF0000); 
-
-        // Debug Info
-        // We need a simple itoa here or just print hex manually? 
-        // For now, let's just assume we can see if it changes.
-        // (I will implement a quick hex printer in graphics.c if needed, but for now let's rely on visual feedback)
-        // Actually, let's just draw a pixel counter at the bottom
-        draw_rect(10 + (irq_count % 100), 600, 5, 5, 0x00FF00); // Moving dot = interrupts working
-
+        last_mouse_btn = mouse_btn;
+        
+        // Update cursor position
+        cursor_set_position(mouse_x, mouse_y);
+        
+        // === RENDER EVERYTHING ===
+        
+        // 1. Desktop background
+        desktop_render_background();
+        desktop_render_topbar();
+        
+        // 2. FEATURE 1: Render ALL terminal windows (not just first one!)
+        window_manager_t* wm_state = wm_get_state();
+        for (int i = 0; i < MAX_WINDOWS; i++) {
+            window_t* win = &wm_state->windows[i];
+            
+            // Skip invalid or minimized windows
+            if (win->id == -1) continue;
+            if (!(win->flags & WIN_FLAG_VISIBLE)) continue;
+            if (win->flags & WIN_FLAG_MINIMIZED) continue;
+            
+            // Check if this window has a terminal instance
+            terminal_instance_t* term = (terminal_instance_t*)win->user_data;
+            if (!term) continue;  // Not a terminal window
+            
+            // Render this terminal's content
+            int win_content_x = win->x;
+            int win_content_y = win->y + TITLEBAR_HEIGHT;
+            int win_content_h = win->height;
+            
+            // Terminal output area
+            terminal_instance_render(term, win_content_x + 10, win_content_y + 10);
+            
+            // Input line at bottom of window (only for focused terminal)
+            if (win->id == wm_state->focused_window_id) {
+                int input_y = win_content_y + win_content_h - 25;
+                draw_string(win_content_x + 10, input_y, 0x00FF00, "$ ");
+                draw_string(win_content_x + 30, input_y, 0xFFFFFF, terminal_buffer);
+                
+                // Cursor blink
+                extern int irq_count;
+                if ((irq_count / 25) % 2 == 0) {
+                    draw_rect(win_content_x + 30 + (term_idx * 8), input_y, 8, 12, 0xFFFFFF);
+                }
+            }
+        }
+        
+        // Render window frames (title bars, buttons, borders)
+        wm_render_all();
+        
+        // 3. Taskbar (always on top)
+        taskbar_render();
+        
+        // 4. Cursor (absolutely last - on top of everything)
+        cursor_render();
+        
+        // Swap buffers to display
         swap_buffers();
     }
 }

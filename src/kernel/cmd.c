@@ -1,55 +1,87 @@
 #include "cmd.h"
 #include "string.h"
-#include "graphics.h"
+#include "terminal.h"
 #include "timer.h"
 #include "pmm.h"
 
 extern char terminal_buffer[];
 extern int term_idx;
 
-static int output_y = 150; // Where to print command output
+// FEATURE 1: Active terminal instance (set by keyboard handler)
+terminal_instance_t* active_terminal = NULL;
 
-void cmd_print(const char* str) {
-    draw_string(15, output_y, 0xFFFF00, str);
-    output_y += 10;
-    if (output_y > 480) output_y = 150; // Wrap around
+// Helper to print to active terminal or fallback to global
+static void cmd_print(const char* text) {
+    if (active_terminal) {
+        terminal_instance_print(active_terminal, text);
+    } else {
+        terminal_print(text);  // Fallback to global
+    }
 }
 
 void cmd_process(const char* cmd) {
+    if (strlen(cmd) == 0) {
+        cmd_print("");
+        return;
+    }
+    
+    // Add to history
+    terminal_add_to_history(cmd);
+    
     if (strcmp(cmd, "help") == 0) {
-        cmd_print("Commands: help, clear, time, mem, about, sysinfo");
+        cmd_print("Available commands:");
+        cmd_print("  help      - Show this help");
+        cmd_print("  clear     - Clear screen");
+        cmd_print("  sysinfo   - System information");
+        cmd_print("  time      - Show uptime");
+        cmd_print("");
     }
     else if (strcmp(cmd, "clear") == 0) {
-        output_y = 150;
-        // Clear will happen on next frame redraw
-    }
-    else if (strcmp(cmd, "time") == 0) {
-        char buf[32];
-        itoa(timer_get_ticks(), buf, 10);
-        cmd_print("Ticks: ");
-        cmd_print(buf);
-    }
-    else if (strcmp(cmd, "mem") == 0) {
-        char buf[64];
-        uint32_t free_mem = pmm_get_free_memory() / 1024; // KB
-        itoa(free_mem, buf, 10);
-        cmd_print("Free Memory (KB): ");
-        cmd_print(buf);
-    }
-    else if (strcmp(cmd, "about") == 0) {
-        cmd_print("CimpleOS v0.4");
-        cmd_print("By: You!");
-        cmd_print("A simple hobby OS");
+        if (active_terminal) {
+            terminal_instance_clear(active_terminal);
+        } else {
+            terminal_clear();
+        }
     }
     else if (strcmp(cmd, "sysinfo") == 0) {
         extern void sysinfo_print();
         sysinfo_print();
     }
-    else if (strlen(cmd) > 0) {
-        cmd_print("Unknown command. Type 'help'");
+    else if (strcmp(cmd, "time") == 0) {
+        extern volatile uint32_t timer_ticks;
+        uint32_t seconds = timer_ticks / 100;
+        uint32_t minutes = seconds / 60;
+        uint32_t hours = minutes / 60;
+        seconds = seconds % 60;
+        minutes = minutes % 60;
+        
+        char buf[32];
+        buf[0] = 'U'; buf[1] = 'p'; buf[2] = 't'; buf[3] = 'i'; buf[4] = 'm'; buf[5] = 'e'; buf[6] = ':'; buf[7] = ' ';
+        int idx = 8;
+        if (hours > 0) {
+            if (hours >= 10) buf[idx++] = '0' + (hours / 10);
+            buf[idx++] = '0' + (hours % 10);
+            buf[idx++] = 'h'; buf[idx++] = ' ';
+        }
+        if (minutes >= 10) buf[idx++] = '0' + (minutes / 10);
+        buf[idx++] = '0' + (minutes % 10);
+        buf[idx++] = 'm'; buf[idx++] = ' ';
+        if (seconds >= 10) buf[idx++] = '0' + (seconds / 10);
+        buf[idx++] = '0' + (seconds % 10);
+        buf[idx++] = 's';
+        buf[idx] = '\0';
+        cmd_print(buf);
+        cmd_print("");
+    }
+    else {
+        cmd_print("Unknown command. Type 'help' for available commands.");
+        cmd_print("");
     }
     
-    // Clear terminal buffer
-    for (int i = 0; i < 256; i++) terminal_buffer[i] = 0;
+    // Reset input
+    terminal_buffer[0] = '\0';
     term_idx = 0;
+    
+    // Reset history position
+    terminal_reset_history_pos();
 }

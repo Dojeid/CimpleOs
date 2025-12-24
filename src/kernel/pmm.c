@@ -1,28 +1,30 @@
 #include "pmm.h"
+#include "string.h"
 
-static uint32_t memory_size = 0;
-static uint32_t used_blocks = 0;
-static uint32_t max_blocks = 0;
-static uint32_t* memory_map = 0;
+#define PAGE_SIZE 4096
+#define BITMAP_SIZE 32768
 
-void mmap_set(int bit) {
-    memory_map[bit / 32] |= (1 << (bit % 32));
+static uint32_t bitmap[BITMAP_SIZE];
+static uint64_t total_memory;  // 64-bit
+static uint64_t used_frames;   // 64-bit
+
+static void mmap_set(int bit) {
+    bitmap[bit / 32] |= (1 << (bit % 32));
 }
 
-void mmap_unset(int bit) {
-    memory_map[bit / 32] &= ~(1 << (bit % 32));
+static void mmap_unset(int bit) {
+    bitmap[bit / 32] &= ~(1 << (bit % 32));
 }
 
-int mmap_test(int bit) {
-    return memory_map[bit / 32] & (1 << (bit % 32));
+static int mmap_test(int bit) {
+    return bitmap[bit / 32] & (1 << (bit % 32));
 }
 
-int mmap_first_free() {
-    for (uint32_t i = 0; i < max_blocks / 32; i++) {
-        if (memory_map[i] != 0xFFFFFFFF) {
+static int mmap_first_free() {
+    for (uint32_t i = 0; i < BITMAP_SIZE; i++) {
+        if (bitmap[i] != 0xFFFFFFFF) {
             for (int j = 0; j < 32; j++) {
-                int bit = 1 << j;
-                if (!(memory_map[i] & bit))
+                if (!(bitmap[i] & (1 << j)))
                     return i * 32 + j;
             }
         }
@@ -30,89 +32,37 @@ int mmap_first_free() {
     return -1;
 }
 
-void pmm_init_region(uint32_t base, uint32_t size) {
-    int align = base / BLOCK_SIZE;
-    int blocks = size / BLOCK_SIZE;
-    for (; blocks > 0; blocks--) {
-        mmap_unset(align++);
-        used_blocks--;
-    }
-    // Removed: mmap_set(0) - this was marking block 0 as used every time!
-}
-
-void pmm_deinit_region(uint32_t base, uint32_t size) {
-    int align = base / BLOCK_SIZE;
-    int blocks = size / BLOCK_SIZE;
-    for (; blocks > 0; blocks--) {
-        mmap_set(align++);
-        used_blocks++;
-    }
-}
-
-void pmm_init(struct multiboot_info* mb_info) {
-    memory_size = 0;
-    multiboot_memory_map_t* mmap = (multiboot_memory_map_t*)mb_info->mmap_addr;
+void pmm_init(uint64_t mem_size) {
+    total_memory = mem_size;
+    used_frames = 0;
     
-    // Calculate total memory
-    while((uint32_t)mmap < mb_info->mmap_addr + mb_info->mmap_length) {
-        if (mmap->type == 1) { // Available memory
-            memory_size += mmap->len_low; // Assuming 32-bit for now
-        }
-        mmap = (multiboot_memory_map_t*)((unsigned int)mmap + mmap->size + sizeof(unsigned int));
+    for (int i = 0; i < BITMAP_SIZE; i++) {
+        bitmap[i] = 0;
     }
-
-    max_blocks = memory_size / BLOCK_SIZE;
-    used_blocks = max_blocks;
-
-    // Place bitmap at the end of the kernel (hardcoded for now, ideally use a symbol)
-    // Assuming kernel ends around 1MB + size. Let's put it at 4MB mark for safety or after modules.
-    // For simplicity in this step, we'll put it at 0x1000000 (16MB) to avoid collisions if we have enough RAM.
-    // Better: Put it right after the kernel.
-    // Let's assume we have at least 32MB.
-    // Place bitmap at 4MB (0x00400000) to ensure it's inside the 16MB identity map
-    // (0x1000000 was causing a Page Fault because it was just outside the mapped range)
-    memory_map = (uint32_t*)0x00400000; 
-
-    // By default, all memory is "used"
-    for(uint32_t i=0; i<max_blocks/32; i++) {
-        memory_map[i] = 0xFFFFFFFF;
-    }
-
-    // Now mark available regions as free
-    mmap = (multiboot_memory_map_t*)mb_info->mmap_addr;
-    while((uint32_t)mmap < mb_info->mmap_addr + mb_info->mmap_length) {
-        if (mmap->type == 1) {
-            pmm_init_region(mmap->addr_low, mmap->len_low);
-        }
-        mmap = (multiboot_memory_map_t*)((unsigned int)mmap + mmap->size + sizeof(unsigned int));
-    }
-    
-    // Mark kernel and bitmap as used!
-    // Kernel (0 - ~1MB+), Bitmap (16MB - ...)
-    pmm_deinit_region(0, 0x200000); // Reserve first 2MB for kernel/BIOS/GRUB
-    pmm_deinit_region((uint32_t)memory_map, (max_blocks / 8)); // Reserve bitmap itself
 }
 
-void* pmm_alloc_block() {
-    if (pmm_get_free_memory() <= 0) return 0;
+void* pmm_alloc_frame(void) {
     int frame = mmap_first_free();
-    if (frame == -1) return 0;
+    if (frame == -1) return NULL;
+    
     mmap_set(frame);
-    used_blocks++;
-    return (void*)(frame * BLOCK_SIZE);
+    used_frames++;
+    
+    uint64_t addr = (uint64_t)frame * PAGE_SIZE;
+    return (void*)addr;
 }
 
-void pmm_free_block(void* p) {
-    uint32_t addr = (uint32_t)p;
-    int frame = addr / BLOCK_SIZE;
-    mmap_unset(frame);
-    used_blocks--;
+void pmm_free_frame(void* frame) {
+    uint64_t addr = (uint64_t)frame;
+    int frame_num = addr / PAGE_SIZE;
+    mmap_unset(frame_num);
+    used_frames--;
 }
 
-uint32_t pmm_get_free_memory() {
-    return (max_blocks - used_blocks) * BLOCK_SIZE;
+uint64_t pmm_get_total_memory(void) {
+    return total_memory;
 }
 
-uint32_t pmm_get_total_memory() {
-    return memory_size;
+uint64_t pmm_get_free_memory(void) {
+    return total_memory - (used_frames * PAGE_SIZE);
 }

@@ -1,0 +1,64 @@
+# Minimal test build for 64-bit kernel
+
+ARCH := x86_64
+
+SRCDIR := src
+BUILDDIR := build
+ISODIR := isodir
+
+ASM := nasm
+CC := gcc
+LD := ld
+GRUB := grub-mkrescue
+
+# 64-bit flags
+CFLAGS := -ffreestanding -m64 -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -c -g
+ASMFLAGS := -felf64
+LDFLAGS := -n -nostdlib -z max-page-size=0x1000
+
+# Include path
+CFLAGS += -I$(SRCDIR)/kernel
+
+# Source files for minimal test
+ASM_SRC := $(SRCDIR)/arch/$(ARCH)/boot.asm $(SRCDIR)/arch/$(ARCH)/interrupts.asm
+ASM_OBJ := $(BUILDDIR)/arch/$(ARCH)/boot.o $(BUILDDIR)/arch/$(ARCH)/interrupts.o
+
+# Minimal kernel files
+KERNEL_SRC := $(SRCDIR)/kernel/kernel64_test.c $(SRCDIR)/kernel/idt64.c $(SRCDIR)/kernel/io.c
+KERNEL_OBJ := $(BUILDDIR)/kernel/kernel64_test.o $(BUILDDIR)/kernel/idt64.o $(BUILDDIR)/kernel/io.o
+
+LINKER_SCRIPT := $(SRCDIR)/arch/$(ARCH)/linker.ld
+GRUB_CFG := $(SRCDIR)/arch/$(ARCH)/grub.cfg
+
+all: CimpleOS.iso
+
+CimpleOS.bin: $(ASM_OBJ) $(KERNEL_OBJ)
+	@echo "Linking 64-bit kernel..."
+	$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) -o $(BUILDDIR)/CimpleOS.bin $(ASM_OBJ) $(KERNEL_OBJ)
+
+$(BUILDDIR)/kernel/%.o: $(SRCDIR)/kernel/%.c
+	@mkdir -p $(dir $@)
+	@echo "Compiling C: $<"
+	$(CC) $(CFLAGS) $< -o $@
+
+$(BUILDDIR)/arch/$(ARCH)/%.o: $(SRCDIR)/arch/$(ARCH)/%.asm
+	@mkdir -p $(dir $@)
+	@echo "Assembling: $<"
+	$(ASM) $(ASMFLAGS) $< -o $@
+
+CimpleOS.iso: CimpleOS.bin
+	@mkdir -p $(ISODIR)/boot/grub
+	cp $(BUILDDIR)/CimpleOS.bin $(ISODIR)/boot/CimpleOS.bin
+	cp $(GRUB_CFG) $(ISODIR)/boot/grub/grub.cfg
+	@echo "Generating ISO..."
+	$(GRUB) -o CimpleOS.iso $(ISODIR)
+	@echo "Build Complete: CimpleOS.iso (64-bit)"
+
+run: all
+	qemu-system-x86_64 -cdrom CimpleOS.iso -m 256M
+
+clean:
+	@echo "Cleaning build files..."
+	rm -rf build
+	rm -rf isodir
+	rm -f CimpleOS.iso

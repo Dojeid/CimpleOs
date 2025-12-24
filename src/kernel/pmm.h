@@ -2,16 +2,11 @@
 #define PMM_H
 
 #include <stdint.h>
-#include <stddef.h>
-#include "multiboot.h"
 
-#define BLOCK_SIZE 4096
-#define BLOCKS_PER_BYTE 8
-
-void pmm_init(struct multiboot_info* mb_info);
-void* pmm_alloc_block();
-void pmm_free_block(void* p);
-uint32_t pmm_get_free_memory();
-uint32_t pmm_get_total_memory();
+void pmm_init(uint64_t mem_size);
+void* pmm_alloc_frame(void);
+void pmm_free_frame(void* frame);
+uint64_t pmm_get_total_memory(void);
+uint64_t pmm_get_free_memory(void);
 
 #endif

@@ -16,7 +16,7 @@ struct gdt_entry {
 // GDT pointer structure
 struct gdt_ptr {
     uint16_t limit;
-    uint32_t base;
+    uint64_t base;  // 64-bit pointer
 } __attribute__((packed));
 
 // Function to install the GDT

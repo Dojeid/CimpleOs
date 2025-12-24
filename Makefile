@@ -1,5 +1,5 @@
-# Default architecture is i386 (32-bit).
-ARCH ?= i386
+# Default architecture is x86_64 (64-bit)
+ARCH ?= x86_64
 
 # Paths
 SRCDIR := src

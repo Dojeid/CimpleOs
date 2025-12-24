@@ -1,43 +1,45 @@
 #include "gdt.h"
 
-// GDT with 3 entries: null, code, data
-struct gdt_entry gdt[3];
-struct gdt_ptr gp;
+// 64-bit GDT (simpler than 32-bit - segmentation mostly unused)
+struct gdt_entry gdt_entries[5];
+struct gdt_ptr gdt_ptr;
 
-// External assembly function to load GDT
-extern void gdt_flush(uint32_t);
+extern void gdt_flush(uint64_t);
 
-// Set a GDT gate/entry
-void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran) {
-    // Base address
-    gdt[num].base_low = (base & 0xFFFF);
-    gdt[num].base_middle = (base >> 16) & 0xFF;
-    gdt[num].base_high = (base >> 24) & 0xFF;
-
-    // Limits
-    gdt[num].limit_low = (limit & 0xFFFF);
-    gdt[num].granularity = (limit >> 16) & 0x0F;
-
-    // Granularity and access flags
-    gdt[num].granularity |= gran & 0xF0;
-    gdt[num].access = access;
+static void gdt_set_gate(int32_t num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran) {
+    gdt_entries[num].base_low = (base & 0xFFFF);
+    gdt_entries[num].base_middle = (base >> 16) & 0xFF;
+    gdt_entries[num].base_high = (base >> 24) & 0xFF;
+    
+    gdt_entries[num].limit_low = (limit & 0xFFFF);
+    gdt_entries[num].granularity = (limit >> 16) & 0x0F;
+    gdt_entries[num].granularity |= gran & 0xF0;
+    gdt_entries[num].access = access;
 }
 
-// Install the GDT
-void gdt_install(void) {
-    // Set up the GDT pointer
-    gp.limit = (sizeof(struct gdt_entry) * 3) - 1;
-    gp.base = (uint32_t)&gdt;
-
-    // NULL descriptor (required)
+void gdt_init() {
+    gdt_ptr.limit = (sizeof(struct gdt_entry) * 5) - 1;
+    gdt_ptr.base  = (uint64_t)&gdt_entries;
+    
+    // Null segment
     gdt_set_gate(0, 0, 0, 0, 0);
-
-    // Code segment: base=0, limit=0xFFFFFFFF, access=0x9A, granularity=0xCF
-    gdt_set_gate(1, 0, 0xFFFFFFFF, 0x9A, 0xCF);
-
-    // Data segment: base=0, limit=0xFFFFFFFF, access=0x92, granularity=0xCF
-    gdt_set_gate(2, 0, 0xFFFFFFFF, 0x92, 0xCF);
-
-    // Load the GDT
-    gdt_flush((uint32_t)&gp);
+    
+    // 64-bit Code segment
+    // Base = 0, Limit = 0xFFFFF (4GB)
+    // Access = 0x9A (Present, DPL=0, Executable, Readable)
+    // Granularity = 0xAF (64-bit code, 4KB granularity)
+    gdt_set_gate(1, 0, 0xFFFFF, 0x9A, 0xAF);
+    
+    // 64-bit Data segment  
+    // Access = 0x92 (Present, DPL=0, Writable)
+    // Granularity = 0xCF (32-bit operand, 4KB granularity)
+    gdt_set_gate(2, 0, 0xFFFFF, 0x92, 0xCF);
+    
+    // User mode code (ring 3)
+    gdt_set_gate(3, 0, 0xFFFFF, 0xFA, 0xAF);
+    
+    // User mode data (ring 3)
+    gdt_set_gate(4, 0, 0xFFFFF, 0xF2, 0xCF);
+    
+    gdt_flush((uint64_t)&gdt_ptr);
 }
