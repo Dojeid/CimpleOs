@@ -2,7 +2,7 @@
 #define TASKBAR_H
 
 #include <stdint.h>
-#include "window_manager.h"
+#include "gui/window_manager.h"
 
 #define TASKBAR_HEIGHT 30
 #define MAX_TASKBAR_BUTTONS 8

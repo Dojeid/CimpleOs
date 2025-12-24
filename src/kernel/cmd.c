@@ -1,8 +1,8 @@
 #include "cmd.h"
-#include "string.h"
-#include "terminal.h"
-#include "timer.h"
-#include "pmm.h"
+#include "lib/string.h"
+#include "gui/terminal.h"
+#include "kernel/timer.h"
+#include "mm/pmm.h"
 
 extern char terminal_buffer[];
 extern int term_idx;

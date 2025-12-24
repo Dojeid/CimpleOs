@@ -1,8 +1,8 @@
 #include "debug.h"
-#include "printf.h"
-#include "vga.h"
-#include "string.h"
-#include "timer.h"
+#include "lib/printf.h"
+#include "drivers/video/vga.h"
+#include "lib/string.h"
+#include "kernel/timer.h"
 #include <stdarg.h>
 
 static log_buffer_t kernel_log;

@@ -1,7 +1,7 @@
 #ifndef CMD_H
 #define CMD_H
 
-#include "terminal.h"
+#include "gui/terminal.h"
 
 // FEATURE 1: Currently active terminal instance for command output
 extern terminal_instance_t* active_terminal;

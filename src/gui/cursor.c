@@ -1,5 +1,5 @@
 #include "cursor.h"
-#include "graphics.h"
+#include "drivers/video/graphics.h"
 
 static cursor_t cursor = {0, 0, 1, CURSOR_ARROW};
 

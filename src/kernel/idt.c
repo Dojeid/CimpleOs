@@ -1,87 +1,5 @@
 #include "idt.h"
-#include "io.h"
-
-// 64-bit IDT entries (16 bytes each)
-struct idt_entry_64 {
-    uint16_t base_low;
-    uint16_t selector;
-    uint8_t ist;
-    uint8_t flags;
-    uint16_t base_mid;
-    uint32_t base_high;
-    uint32_t reserved;
-} __attribute__((packed));
-
-struct idt_ptr_64 {
-    uint16_t limit;
-    uint64_t base;
-} __attribute__((packed));
-
-struct idt_entry_64 idt_entries[256];
-struct idt_ptr_64 idt_ptr;
-
-// External ISR handlers
-extern void isr0(void);  extern void isr1(void);  extern void isr2(void);  extern void isr3(void);
-extern void isr4(void);  extern void isr5(void);  extern void isr6(void);  extern void isr7(void);
-extern void isr8(void);  extern void isr9(void);  extern void isr10(void); extern void isr11(void);
-extern void isr12(void); extern void isr13(void); extern void isr14(void); extern void isr15(void);
-extern void isr16(void); extern void isr17(void); extern void isr18(void); extern void isr19(void);
-extern void isr20(void); extern void isr21(void); extern void isr22(void); extern void isr23(void);
-extern void isr24(void); extern void isr25(void); extern void isr26(void); extern void isr27(void);
-extern void isr28(void); extern void isr29(void); extern void isr30(void); extern void isr31(void);
-extern void irq0(void);  extern void irq1(void);  extern void irq2(void);  extern void irq3(void);
-extern void irq4(void);  extern void irq5(void);  extern void irq6(void);  extern void irq7(void);
-extern void irq8(void);  extern void irq9(void);  extern void irq10(void); extern void irq11(void);
-extern void irq12(void); extern void irq13(void); extern void irq14(void); extern void irq15(void);
-
-static void idt_set_gate(uint8_t num, uint64_t base, uint16_t selector, uint8_t flags) {
-    idt_entries[num].base_low = base & 0xFFFF;
-    idt_entries[num].base_mid = (base >> 16) & 0xFFFF;
-    idt_entries[num].base_high = (base >> 32) & 0xFFFFFFFF;
-    idt_entries[num].selector = selector;
-    idt_entries[num].ist = 0;
-    idt_entries[num].flags = flags;
-    idt_entries[num].reserved = 0;
-}
-
-void init_idt(void) {
-    idt_ptr.limit = sizeof(idt_entries) - 1;
-    idt_ptr.base = (uint64_t)&idt_entries;
-    
-    // Clear IDT
-    for (int i = 0; i < 256; i++) {
-        idt_set_gate(i, 0, 0, 0);
-    }
-    
-    // Remap PIC
-    outb(0x20, 0x11); outb(0xA0, 0x11);
-    outb(0x21, 0x20); outb(0xA1, 0x28);
-    outb(0x21, 0x04); outb(0xA1, 0x02);
-    outb(0x21, 0x01); outb(0xA1, 0x01);
-    outb(0x21, 0x0);  outb(0xA1, 0x0);
-    
-    // Set ISRs
-    idt_set_gate(0, (uint64_t)isr0, 0x08, 0x8E);   idt_set_gate(1, (uint64_t)isr1, 0x08, 0x8E);
-    idt_set_gate(2, (uint64_t)isr2, 0x08, 0x8E);   idt_set_gate(3, (uint64_t)isr3, 0x08, 0x8E);
-    idt_set_gate(4, (uint64_t)isr4, 0x08, 0x8E);   idt_set_gate(5, (uint64_t)isr5, 0x08, 0x8E);
-    idt_set_gate(6, (uint64_t)isr6, 0x08, 0x8E);   idt_set_gate(7, (uint64_t)isr7, 0x08, 0x8E);
-    idt_set_gate(8, (uint64_t)isr8, 0x08, 0x8E);   idt_set_gate(9, (uint64_t)isr9, 0x08, 0x8E);
-    idt_set_gate(10, (uint64_t)isr10, 0x08, 0x8E); idt_set_gate(11, (uint64_t)isr11, 0x08, 0x8E);
-    idt_set_gate(12, (uint64_t)isr12, 0x08, 0x8E); idt_set_gate(13, (uint64_t)isr13, 0x08, 0x8E);
-    idt_set_gate(14, (uint64_t)isr14, 0x08, 0x8E); idt_set_gate(15, (uint64_t)isr15, 0x08, 0x8E);
-    idt_set_gate(16, (uint64_t)isr16, 0x08, 0x8E); idt_set_gate(17, (uint64_t)isr17, 0x08, 0x8E);
-    idt_set_gate(18, (uint64_t)isr18, 0x08, 0x8E); idt_set_gate(19, (uint64_t)isr19, 0x08, 0x8E);
-    idt_set_gate(20, (uint64_t)isr20, 0x08, 0x8E); idt_set_gate(21, (uint64_t)isr21, 0x08, 0x8E);
-    idt_set_gate(22, (uint64_t)isr22, 0x08, 0x8E); idt_set_gate(23, (uint64_t)isr23, 0x08, 0x8E);
-    idt_set_gate(24, (uint64_t)isr24, 0x08, 0x8E); idt_set_gate(25, (uint64_t)isr25, 0x08, 0x8E);
-    idt_set_gate(26, (uint64_t)isr26, 0x08, 0x8E); idt_set_gate(27, (uint64_t)isr27, 0x08, 0x8E);
-    idt_set_gate(28, (uint64_t)isr28, 0x08, 0x8E); idt_set_gate(29, (uint64_t)isr29, 0x08, 0x8E);
-    idt_set_gate(30, (uint64_t)isr30, 0x08, 0x8E); idt_set_gate(31, (uint64_t)isr31, 0x08, 0x8E);
-    
-    // Set IRQs
-    idt_set_gate(32, (uint64_t)irq0, 0x08, 0x8E);  idt_set_gate(33, (uint64_t)irq1, 0x08, 0x8E);
-#include "idt.h"
-#include "io.h"
+#include "lib/io.h"
 
 // 64-bit IDT entries (16 bytes each)
 struct idt_entry_64 {
@@ -168,7 +86,7 @@ void init_idt(void) {
     idt_set_gate(40, (uint64_t)irq8, 0x08, 0x8E);  idt_set_gate(41, (uint64_t)irq9, 0x08, 0x8E);
     idt_set_gate(42, (uint64_t)irq10, 0x08, 0x8E); idt_set_gate(43, (uint64_t)irq11, 0x08, 0x8E);
     idt_set_gate(44, (uint64_t)irq12, 0x08, 0x8E); idt_set_gate(45, (uint64_t)irq13, 0x08, 0x8E);
-    idt_set_gate(46, (uint64_t)irq14, 0x08, 0x8E);    idt_set_gate(47, (uint64_t)irq15, 0x08, 0x8E);
+    idt_set_gate(46, (uint64_t)irq14, 0x08, 0x8E); idt_set_gate(47, (uint64_t)irq15, 0x08, 0x8E);
     
     asm volatile("lidt %0" : : "m"(idt_ptr));
     asm volatile("sti");

@@ -1,7 +1,7 @@
 #include "terminal.h"
-#include "string.h"
-#include "graphics.h"
-#include "heap.h"
+#include "lib/string.h"
+#include "drivers/video/graphics.h"
+#include "mm/heap.h"
 
 // Global default instance for backwards compatibility
 static terminal_instance_t* default_instance = NULL;

@@ -1,28 +1,34 @@
 #include <stdint.h>
 #include <stddef.h>
-#include "multiboot.h"
-#include "graphics.h"
-#include "pmm.h"
-#include "vmm.h"
-#include "io.h"
-#include "gdt.h"
-#include "pci.h"
-#include "vga.h"
-#include "usb.h"
-#include "timer.h"
-#include "heap.h"
-#include "string.h"
-#include "common.h"
-#include "sysinfo.h"
-#include "terminal.h"
-#include "window_manager.h"
-#include "desktop.h"
-#include "taskbar.h"
-#include "cursor.h"
-#include "cmd.h"
-#include "idt.h"  // Now 64-bit compatible
-#include "mouse.h"
-#include "keyboard.h"
+// Include headers
+#include "include/multiboot.h"
+#include "include/common.h"
+// Drivers
+#include "drivers/video/graphics.h"
+#include "drivers/video/vga.h"
+#include "drivers/bus/pci.h"
+#include "drivers/bus/usb.h"
+#include "drivers/input/mouse.h"
+#include "drivers/input/keyboard.h"
+// Memory management
+#include "mm/pmm.h"
+#include "mm/vmm.h"
+#include "mm/heap.h"
+// Library
+#include "lib/io.h"
+#include "lib/string.h"
+// Kernel
+#include "kernel/gdt.h"
+#include "kernel/idt.h"
+#include "kernel/timer.h"
+#include "kernel/sysinfo.h"
+#include "kernel/cmd.h"
+// GUI
+#include "gui/terminal.h"
+#include "gui/window_manager.h"
+#include "gui/desktop.h"
+#include "gui/taskbar.h"
+#include "gui/cursor.h"
 
 extern char terminal_buffer[];
 extern int term_idx;
@@ -41,17 +47,17 @@ void kmain(void* multiboot_info_addr) {
     
     // Capture Multiboot Info BEFORE enabling paging!
     // (mb pointer might become invalid if it's outside identity mapped region)
-    uint32_t mb_flags = mb->flags;
-    uint64_t mb_fb_addr = mb->framebuffer_addr;
-    uint32_t mb_fb_width = mb->framebuffer_width;
-    uint32_t mb_fb_height = mb->framebuffer_height;
+    uint32_t mb_flags = mbi->flags;
+    uint64_t mb_fb_addr = mbi->framebuffer_addr;
+    uint32_t mb_fb_width = mbi->framebuffer_width;
+    uint32_t mb_fb_height = mbi->framebuffer_height;
 
     // 1. Setup GDT
     gdt_install();
 
     // 2. Setup Memory Management
     // We need to initialize PMM first to know what's free.
-    pmm_init(mb);
+    pmm_init(mbi);
     
     // FIXED VMM: Now uses pre-allocated page tables and maps high memory!
     // This identity maps the first 256MB + framebuffer region
@@ -98,7 +104,7 @@ void kmain(void* multiboot_info_addr) {
     vga_print("System ready! Starting GUI...\n");
     
     // Initialize hardware
-    gdt_init();
+    gdt_install();
     init_idt();  // Now 64-bit compatible
     timer_init(100);
     desktop_init();
@@ -210,7 +216,7 @@ void kmain(void* multiboot_info_addr) {
                 draw_string(win_content_x + 30, input_y, 0xFFFFFF, terminal_buffer);
                 
                 // Cursor blink
-                extern int irq_count;
+                extern volatile int irq_count;
                 if ((irq_count / 25) % 2 == 0) {
                     draw_rect(win_content_x + 30 + (term_idx * 8), input_y, 8, 12, 0xFFFFFF);
                 }

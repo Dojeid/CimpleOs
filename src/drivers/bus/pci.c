@@ -1,5 +1,5 @@
 #include "pci.h"
-#include "io.h"
+#include "lib/io.h"
 
 uint32_t pci_read_config(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset) {
     uint32_t address = (uint32_t)((bus << 16) | (slot << 11) | 

@@ -1,9 +1,9 @@
 #include "taskbar.h"
-#include "graphics.h"
-#include "string.h"
-#include "window_manager.h"
-#include "terminal.h"  // FEATURE 1: For terminal instances
-#include "pmm.h"
+#include "drivers/video/graphics.h"
+#include "lib/string.h"
+#include "gui/window_manager.h"
+#include "gui/terminal.h"
+#include "mm/pmm.h"
 
 #define COLOR_TASKBAR_BG 0x34495E
 #define COLOR_BUTTON_BG 0x2C3E50

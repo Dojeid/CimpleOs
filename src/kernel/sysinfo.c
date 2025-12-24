@@ -1,8 +1,8 @@
 #include "sysinfo.h"
-#include "cpuid.h"
-#include "pmm.h"
-#include "pci.h"
-#include "printf.h"
+#include "kernel/cpuid.h"
+#include "mm/pmm.h"
+#include "drivers/bus/pci.h"
+#include "lib/printf.h"
 
 void sysinfo_init() {
     // Initialize CPUID

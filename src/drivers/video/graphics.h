@@ -2,7 +2,7 @@
 #define GRAPHICS_H
 
 #include <stdint.h>
-#include "multiboot.h"
+#include "include/multiboot.h"
 
 void graphics_init(struct multiboot_info* mb);
 void put_pixel(int x, int y, uint32_t color);

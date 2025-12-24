@@ -1,6 +1,6 @@
 #include <stdint.h>
-#include "idt.h"
-#include "io.h"
+#include "kernel/idt.h"
+#include "lib/io.h"
 
 // --- MOUSE STATE ---
 // SECURITY: All ISR-modified variables marked volatile to prevent compiler caching

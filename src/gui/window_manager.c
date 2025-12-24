@@ -1,6 +1,6 @@
 #include "window_manager.h"
-#include "graphics.h"
-#include "string.h"
+#include "drivers/video/graphics.h"
+#include "lib/string.h"
 
 // Forward declaration for error messages
 extern void terminal_print(const char*);

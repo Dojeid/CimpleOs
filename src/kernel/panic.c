@@ -1,7 +1,7 @@
 #include "panic.h"
-#include "graphics.h"
-#include "printf.h"
-#include "vga.h"
+#include "drivers/video/graphics.h"
+#include "lib/printf.h"
+#include "drivers/video/vga.h"
 
 // Exception messages
 const char* exception_messages[32] = {

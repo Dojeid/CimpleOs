@@ -1,5 +1,5 @@
 #include "vmm.h"
-#include "pmm.h"
+#include "mm/pmm.h"
 
 // 64-bit Virtual Memory Manager (stub - boot.asm handles paging)
 

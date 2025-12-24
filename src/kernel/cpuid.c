@@ -1,6 +1,6 @@
 #include "cpuid.h"
-#include "printf.h"
-#include "string.h"
+#include "lib/printf.h"
+#include "lib/string.h"
 
 cpu_info_t cpu_info;
 
@@ -15,27 +15,27 @@ static inline void cpuid(uint32_t code, uint32_t* eax, uint32_t* ebx, uint32_t* 
 
 // Check if CPUID is supported
 int cpuid_is_supported() {
-    uint32_t eax, edx;
+    uint64_t rax, rdx;
     
-    // Try to flip ID bit (bit 21) in EFLAGS
-    // Note: Use pushfl/popfl (AT&T syntax) not pushfd/popfd
+    // Try to flip ID bit (bit 21) in RFLAGS
+    // In 64-bit mode: use pushfq/popfq and 64-bit registers
     asm volatile(
-        "pushfl\n"
-        "pop %%eax\n"
-        "mov %%eax, %%edx\n"
-        "xor $0x200000, %%eax\n"
-        "push %%eax\n"
-        "popfl\n"
-        "pushfl\n"
-        "pop %%eax\n"
-        "xor %%edx, %%eax\n"
-        "and $0x200000, %%eax\n"
-        : "=a"(eax), "=d"(edx)
+        "pushfq\n"
+        "pop %%rax\n"
+        "mov %%rax, %%rdx\n"
+        "xor $0x200000, %%rax\n"
+        "push %%rax\n"
+        "popfq\n"
+        "pushfq\n"
+        "pop %%rax\n"
+        "xor %%rdx, %%rax\n"
+        "and $0x200000, %%rax\n"
+        : "=a"(rax), "=d"(rdx)
         :
         : "cc"
     );
     
-    return eax != 0;
+    return rax != 0;
 }
 
 // Get CPU vendor string

@@ -1,5 +1,5 @@
 #include "pmm.h"
-#include "string.h"
+#include "lib/string.h"
 
 #define PAGE_SIZE 4096
 #define BITMAP_SIZE 32768

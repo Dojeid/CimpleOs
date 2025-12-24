@@ -1,7 +1,7 @@
 #include "desktop.h"
-#include "graphics.h"
-#include "string.h"
-#include "timer.h"
+#include "drivers/video/graphics.h"
+#include "lib/string.h"
+#include "kernel/timer.h"
 
 static desktop_t desktop;
 

@@ -1,8 +1,8 @@
-#include "idt.h"
-#include "io.h"
-#include "terminal.h"
-#include "string.h"
-#include "window_manager.h"
+#include "kernel/idt.h"
+#include "lib/io.h"
+#include "gui/terminal.h"
+#include "lib/string.h"
+#include "gui/window_manager.h"
 
 // --- KEYBOARD STATE ---
 char terminal_buffer[256];

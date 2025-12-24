@@ -1,7 +1,7 @@
 #include "graphics.h"
-#include "font.h"
-#include "string.h"
-#include "heap.h"
+#include "include/font.h"
+#include "lib/string.h"
+#include "mm/heap.h"
 #include <stddef.h>
 
 uint32_t* video_memory;

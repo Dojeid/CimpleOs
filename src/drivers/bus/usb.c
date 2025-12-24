@@ -1,7 +1,7 @@
-#include "pci.h"
-#include "io.h"
+#include "drivers/bus/pci.h"
+#include "lib/io.h"
 #include "usb.h"
-#include "vga.h"
+#include "drivers/video/vga.h"
 
 // Simplified USB implementation - focuses on getting keyboard/mouse working
 // This is a minimal implementation that polls USB devices
