@@ -1,4 +1,4 @@
-# Default architecture is x86_64 (64-bit)
+# CimpleOS 64-bit Makefile
 ARCH ?= x86_64
 
 # Paths
@@ -14,8 +14,8 @@ GRUB := grub-mkrescue
 
 # --- Architecture Specific Flags ---
 ifeq ($(ARCH),x86_64)
-    # 64-bit settings (Future Proofing)
-    CFLAGS := -ffreestanding -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -c
+    # 64-bit settings
+    CFLAGS := -ffreestanding -m64 -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -c
     ASMFLAGS := -felf64
     LDFLAGS := -n -nostdlib -z max-page-size=0x1000
 else

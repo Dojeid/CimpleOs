@@ -1,7 +1,7 @@
 #include "vga.h"
 
-// VGA Text Mode (80x25)
-uint16_t* vga_buffer = (uint16_t*)0xB8000;
+// VGA Text Mode (80x25) - 64-bit safe
+uint16_t* vga_buffer = (uint16_t*)(uintptr_t)0xB8000;
 const int VGA_WIDTH = 80;
 const int VGA_HEIGHT = 25;
 
