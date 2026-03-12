@@ -1,3 +1,7 @@
+## THE NAME Cimple is a conflict so the name has to be changed , i have no idea.
+because out there are hundreds of things named cimple , i need to change the naming soon.
+
+
 # CimpleOs
 
 CimpleOs — a small, educational, and opinionated hobby operating system written to teach OS concepts clearly and simply.
