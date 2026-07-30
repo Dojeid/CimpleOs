@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 // Panic with detailed error information
-void kernel_panic(const char* message, uint32_t error_code);
+void kernel_panic(const char* message, uint64_t error_code);
 
 // Exception names
 extern const char* exception_messages[32];

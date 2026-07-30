@@ -4,13 +4,13 @@
 #include <stdarg.h>
 #include <stdint.h>
 
-// Helper to print a number
-static void print_num(char* buf, int* pos, unsigned int num, int base, int uppercase) {
+// Helper to print a 64-bit number
+static void print_num64(char* buf, int* pos, uint64_t num, int base, int uppercase) {
     char digits_lower[] = "0123456789abcdef";
     char digits_upper[] = "0123456789ABCDEF";
     char* digits = uppercase ? digits_upper : digits_lower;
     
-    char temp[32];
+    char temp[64];
     int i = 0;
     
     if (num == 0) {
@@ -28,44 +28,61 @@ static void print_num(char* buf, int* pos, unsigned int num, int base, int upper
     }
 }
 
-// Core formatting function
+// Core formatting function (64-bit compatible)
 static void do_printf(char* output, const char* fmt, va_list args) {
     int pos = 0;
     
     while (*fmt) {
         if (*fmt == '%') {
             fmt++;
+            
+            // Check for 'l' modifier (e.g. %lx, %lX, %ld)
+            int is_long = 0;
+            if (*fmt == 'l') {
+                is_long = 1;
+                fmt++;
+            }
+
             switch (*fmt) {
                 case 'd':
                 case 'i': {
-                    int num = va_arg(args, int);
-                    if (num < 0) {
-                        output[pos++] = '-';
-                        num = -num;
+                    if (is_long) {
+                        int64_t num = va_arg(args, int64_t);
+                        if (num < 0) {
+                            output[pos++] = '-';
+                            num = -num;
+                        }
+                        print_num64(output, &pos, (uint64_t)num, 10, 0);
+                    } else {
+                        int num = va_arg(args, int);
+                        if (num < 0) {
+                            output[pos++] = '-';
+                            num = -num;
+                        }
+                        print_num64(output, &pos, (uint64_t)num, 10, 0);
                     }
-                    print_num(output, &pos, num, 10, 0);
                     break;
                 }
                 case 'u': {
-                    unsigned int num = va_arg(args, unsigned int);
-                    print_num(output, &pos, num, 10, 0);
+                    uint64_t num = is_long ? va_arg(args, uint64_t) : va_arg(args, unsigned int);
+                    print_num64(output, &pos, num, 10, 0);
                     break;
                 }
                 case 'x': {
-                    unsigned int num = va_arg(args, unsigned int);
-                    print_num(output, &pos, num, 16, 0);
+                    uint64_t num = is_long ? va_arg(args, uint64_t) : va_arg(args, unsigned int);
+                    print_num64(output, &pos, num, 16, 0);
                     break;
                 }
                 case 'X': {
-                    unsigned int num = va_arg(args, unsigned int);
-                    print_num(output, &pos, num, 16, 1);
+                    uint64_t num = is_long ? va_arg(args, uint64_t) : va_arg(args, unsigned int);
+                    print_num64(output, &pos, num, 16, 1);
                     break;
                 }
                 case 'p': {
                     output[pos++] = '0';
                     output[pos++] = 'x';
-                    void* ptr = va_arg(args, void*);
-                    print_num(output, &pos, (unsigned int)ptr, 16, 0);
+                    uintptr_t ptr = (uintptr_t)va_arg(args, void*);
+                    print_num64(output, &pos, (uint64_t)ptr, 16, 1);
                     break;
                 }
                 case 's': {
