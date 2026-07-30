@@ -1,4 +1,4 @@
-# CimpleOS 64-bit Makefile - Linux-Style Structure
+# Falkon-OS 64-bit Makefile - Linux-Style Structure
 ARCH ?= x86_64
 
 # Paths
@@ -71,12 +71,12 @@ GRUB_CFG := $(SRCDIR)/arch/$(ARCH)/boot/grub.cfg
 
 # --- BUILD RULES ---
 
-all: CimpleOS.iso
+all: FalkonOS.iso
 
 # 1. Link everything together
-CimpleOS.bin: $(ALL_OBJ)
+FalkonOS.bin: $(ALL_OBJ)
 	@echo "Linking Kernel..."
-	$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) -o $(BUILDDIR)/CimpleOS.bin $(ALL_OBJ)
+	$(LD) $(LDFLAGS) -T $(LINKER_SCRIPT) -o $(BUILDDIR)/FalkonOS.bin $(ALL_OBJ)
 
 # 2. Compile C files from each directory
 $(BUILDDIR)/kernel/%.o: $(SRCDIR)/kernel/%.c
@@ -126,24 +126,29 @@ $(BUILDDIR)/arch/$(ARCH)/kernel/%.o: $(SRCDIR)/arch/$(ARCH)/kernel/%.asm
 	$(ASM) $(ASMFLAGS) $< -o $@
 
 # 4. Create the ISO
-CimpleOS.iso: CimpleOS.bin
+FalkonOS.iso: FalkonOS.bin
 	@mkdir -p $(ISODIR)/boot/grub
-	cp $(BUILDDIR)/CimpleOS.bin $(ISODIR)/boot/CimpleOS.bin
+	cp $(BUILDDIR)/FalkonOS.bin $(ISODIR)/boot/FalkonOS.bin
 	cp $(GRUB_CFG) $(ISODIR)/boot/grub/grub.cfg
 	@echo "Generating ISO..."
-	$(GRUB) -o CimpleOS.iso $(ISODIR)
-	@echo "Build Complete: CimpleOS.iso"
+	$(GRUB) -o FalkonOS.iso $(ISODIR)
+	@echo "Build Complete: FalkonOS.iso"
 
-# Run in Emulator
+# Run in VirtualBox (Recommended)
 run: all
-	virtualbox --startvm "CimpleOS" &
+	virtualbox --startvm "FalkonOS" &
+
+# Run in QEMU (Alternative)
+qemu: all
+	qemu-system-x86_64 -cdrom FalkonOS.iso -m 512M -vga std
 
 # Clean build files
 clean:
 	@echo "Cleaning build files..."
 	rm -rf build
 	rm -rf isodir
-	rm -f CimpleOS.iso
+	rm -f FalkonOS.iso
+	rm -f FalkonOS.bin
 
 # Show what files will be compiled (for debugging)
 info:
@@ -160,4 +165,4 @@ info:
 	@echo "=== OBJECT FILES ==="
 	@echo "Total objects: $(words $(ALL_OBJ))"
 
-.PHONY: all clean run info
+.PHONY: all clean run qemu info

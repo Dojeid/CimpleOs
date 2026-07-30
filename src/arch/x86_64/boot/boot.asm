@@ -1,4 +1,4 @@
-; CimpleOS 64-bit Bootloader
+; Falkon-OS 64-bit Bootloader
 ; Long mode entry with 4-level page tables
 
 MBALIGN  equ  1 << 0

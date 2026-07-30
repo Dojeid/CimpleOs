@@ -26,8 +26,8 @@ void desktop_render_topbar() {
     // Top bar background
     draw_rect(0, 0, screen_w, DESKTOP_TOPBAR_HEIGHT, desktop.topbar_color);
     
-    // CimpleOS logo text
-    draw_string(8, 7, 0xECF0F1, "CimpleOS v0.4 GUI");
+    // Falkon-OS logo text
+    draw_string(8, 7, 0xECF0F1, "Falkon-OS v0.4 GUI");
     
     // System info on right side
     char timestr[32];
@@ -88,4 +88,26 @@ desktop_t* desktop_get_state() {
 
 void desktop_set_bg_color(uint32_t color) {
     desktop.bg_color = color;
+}
+
+void desktop_set_theme(int theme_id) {
+    switch (theme_id) {
+        case 2: // Cyber Blue
+            desktop.bg_color = 0x0F172A;
+            desktop.topbar_color = 0x1E293B;
+            break;
+        case 3: // Emerald Forest
+            desktop.bg_color = 0x064E3B;
+            desktop.topbar_color = 0x047857;
+            break;
+        case 4: // Sunset Purple
+            desktop.bg_color = 0x3B0764;
+            desktop.topbar_color = 0x581C87;
+            break;
+        case 1: // Midnight Dark (Default)
+        default:
+            desktop.bg_color = 0x1E1E1E;
+            desktop.topbar_color = 0x2C3E50;
+            break;
+    }
 }

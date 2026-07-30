@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Falkon-OS Documentation - 64-bit Hobby Operating System</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+    <header class="top-nav">
+        <div class="nav-brand">
+            <span class="logo-icon">🦅</span>
+            <div class="brand-text">
+                <h1>Falkon-OS</h1>
+                <span class="tagline">64-bit Custom OS & GUI Documentation</span>
+            </div>
+        </div>
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="Search documentation (e.g. build.py, Windows, VirtualBox, PMM, Keyboard)..." onkeyup="filterDocs()">
+        </div>
+        <div class="nav-actions">
+            <button class="btn btn-outline" id="themeToggle" onclick="toggleTheme()">☀️ Light Mode</button>
+            <a href="https://github.com/Saravanan-Codez/Falkon-Os" target="_blank" class="btn btn-primary">GitHub Repository ↗</a>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <nav class="sidebar-nav">
+                <div class="nav-section-title">GETTING STARTED</div>
+                <a href="#overview" class="nav-link active" onclick="showSection('overview')">📌 Overview</a>
+                <a href="#setup-windows" class="nav-link" onclick="showSection('setup-windows')">1. 🪟 Windows Setup (Windows First)</a>
+                <a href="#setup-linux" class="nav-link" onclick="showSection('setup-linux')">2. 🐧 Linux Setup Guide (Linux Second)</a>
+                <a href="#setup-wsl" class="nav-link" onclick="showSection('setup-wsl')">3. ⚙️ WSL2 Setup Guide (WSL Third)</a>
+                <a href="#build-py" class="nav-link" onclick="showSection('build-py')">🐍 Unified build.py Script Explained</a>
+                <a href="#vbox-guide" class="nav-link" onclick="showSection('vbox-guide')">📦 VirtualBox Setup (Recommended)</a>
+
+                <div class="nav-section-title">ARCHITECTURE & CORE</div>
+                <a href="#architecture" class="nav-link" onclick="showSection('architecture')">🧠 System Architecture Overview</a>
+                <a href="#bootloader" class="nav-link" onclick="showSection('bootloader')">🚀 Bootloader & Long Mode (x86_64)</a>
+                <a href="#memory-mgmt" class="nav-link" onclick="showSection('memory-mgmt')">💾 Memory Management (PMM / VMM / Heap)</a>
+                <a href="#interrupts" class="nav-link" onclick="showSection('interrupts')">⚡ Interrupts (GDT & IDT & PIC)</a>
+
+                <div class="nav-section-title">DRIVERS & GUI</div>
+                <a href="#drivers" class="nav-link" onclick="showSection('drivers')">🎮 Device Drivers (Graphics, PS/2, PCI, USB)</a>
+                <a href="#gui-system" class="nav-link" onclick="showSection('gui-system')">🖥️ Desktop GUI & Window Manager</a>
+                <a href="#terminal-cmds" class="nav-link" onclick="showSection('terminal-cmds')">💻 Built-in Shell & Upgraded Commands</a>
+
+                <div class="nav-section-title">HELP & TROUBLESHOOTING</div>
+                <a href="#troubleshooting" class="nav-link" onclick="showSection('troubleshooting')">🔧 Troubleshooting Matrix</a>
+                <a href="#license-info" class="nav-link" onclick="showSection('license-info')">⚖️ License & Contributing</a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="content">
+
+            <!-- OVERVIEW SECTION -->
+            <section id="overview" class="doc-section active">
+                <div class="hero-card">
+                    <span class="badge badge-accent">Version 0.4 - Protected Mode + Paging</span>
+                    <h2>Falkon-OS: A 64-bit Educational Hobby Operating System</h2>
+                    <p>
+                        Falkon-OS is an opinionated, modern 64-bit operating system written from scratch in C and NASM assembly. 
+                        It features a full custom <strong>Framebuffer Desktop GUI</strong>, dynamic <strong>Window Manager</strong>, 
+                        interactive <strong>Terminal Shell</strong>, <strong>Physical & Virtual Memory Management</strong>, and hardware drivers.
+                    </p>
+                    <div class="hero-buttons">
+                        <a href="#setup-windows" class="btn btn-success" onclick="showSection('setup-windows')">🪟 Windows Setup (Windows First)</a>
+                        <a href="#build-py" class="btn btn-secondary" onclick="showSection('build-py')">🐍 build.py Script Explained</a>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="card">
+                        <h3>✨ Key Features</h3>
+                        <ul class="feature-list">
+                            <li><strong>64-bit Long Mode:</strong> Bootstrapped via GRUB Multiboot into 64-bit mode with 4-level paging enabled.</li>
+                            <li><strong>Custom Windowing GUI:</strong> Real-time window manager supporting dragging, focus, layering, taskbar, and double buffering.</li>
+                            <li><strong>Hardware Drivers:</strong> VBE Framebuffer Video, PS/2 Mouse cursor, PS/2 Keyboard IRQ engine, PIT Timer, and PCI enumeration.</li>
+                            <li><strong>Memory Subsystem:</strong> Page Frame Allocator (PMM), Virtual Memory Manager (VMM identity mapped), and Kernel Heap (`kmalloc`/`kfree`).</li>
+                            <li><strong>Interactive Shell:</strong> Terminal supporting commands (`fetch`, `calc`, `theme`, `uname`, `whoami`, `sysinfo`), history, and multiple window instances.</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>📂 Core Subsystem Map</h3>
+                        <div class="tree-view">
+                            <div>📄 <code>build.py</code> - Unified Python build & VirtualBox manager</div>
+                            <div>📁 <code>src/arch/x86_64/</code> - 64-bit Assembly Entry, GDT, IDT, Linker</div>
+                            <div>📁 <code>src/kernel/</code> - Kernel entry (`main.c`), CPUID, Shell commands, Panic handling</div>
+                            <div>📁 <code>src/mm/</code> - Physical Memory (PMM), Virtual Paging (VMM), Kernel Heap</div>
+                            <div>📁 <code>src/drivers/</code> - Video Framebuffer, VGA fallback, PS/2 Input, PCI & USB</div>
+                            <div>📁 <code>src/gui/</code> - Desktop background, Taskbar, Window Manager, Hardware Cursor</div>
+                            <div>📁 <code>src/lib/</code> - Custom C Standard Library (`printf`, `string`, `io`)</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 1. WINDOWS SETUP SECTION -->
+            <section id="setup-windows" class="doc-section">
+                <div class="section-header">
+                    <h2>1. 🪟 Windows Setup Guide (Windows First)</h2>
+                    <p>Building and running Falkon-OS natively on Windows using VirtualBox and Python.</p>
+                </div>
+
+                <div class="card">
+                    <h3>Tools Needed on Windows:</h3>
+                    <ul>
+                        <li><strong>Python 3.8+</strong> (From <a href="https://www.python.org/downloads/" target="_blank">python.org</a> — Make sure to check <i>"Add python.exe to PATH"</i>).</li>
+                        <li><strong>Oracle VM VirtualBox</strong> (From <a href="https://www.virtualbox.org/" target="_blank">virtualbox.org</a>).</li>
+                        <li><strong>Git for Windows</strong> (From <a href="https://git-scm.com/" target="_blank">git-scm.com</a>).</li>
+                        <li><strong>Toolchain</strong>: WSL2 Ubuntu or MSYS2 (for `nasm`, `gcc`, `make`, `grub-mkrescue`).</li>
+                    </ul>
+                </div>
+
+                <h3>Step-by-Step Execution on Windows:</h3>
+                <ol class="step-list">
+                    <li>Open Command Prompt (`cmd`) or PowerShell:
+                        <pre><code>git clone https://github.com/Saravanan-Codez/Falkon-Os.git
+cd Falkon-Os</code></pre>
+                    </li>
+                    <li>Run the singular unified Python script:
+                        <pre><code>python build.py --vbox</code></pre>
+                    </li>
+                    <li>The script will verify your environment, compile the 64-bit kernel, generate `FalkonOS.iso`, create a VirtualBox VM named "FalkonOS", configure 512MB RAM + VMSVGA graphics, attach the ISO, and launch the virtual machine automatically!</li>
+                </ol>
+            </section>
+
+            <!-- 2. LINUX SETUP SECTION -->
+            <section id="setup-linux" class="doc-section">
+                <div class="section-header">
+                    <h2>2. 🐧 Linux Setup Guide (Linux Second)</h2>
+                    <p>Full instructions for installing required cross-compilers, NASM assembler, GRUB tools, and ISO utilities on Linux distribution families.</p>
+                </div>
+
+                <div class="tab-container">
+                    <div class="tab-headers">
+                        <button class="tab-btn active" onclick="switchTab(event, 'distro-ubuntu')">Ubuntu / Debian / Mint</button>
+                        <button class="tab-btn" onclick="switchTab(event, 'distro-fedora')">Fedora / RHEL</button>
+                        <button class="tab-btn" onclick="switchTab(event, 'distro-arch')">Arch Linux / Manjaro</button>
+                        <button class="tab-btn" onclick="switchTab(event, 'distro-alpine')">Alpine Linux</button>
+                    </div>
+
+                    <div id="distro-ubuntu" class="tab-content active">
+                        <pre><code>sudo apt update
+sudo apt install -y python3 build-essential nasm grub-pc-bin grub-common xorriso mtools virtualbox qemu-system-x86</code></pre>
+                    </div>
+                    <div id="distro-fedora" class="tab-content">
+                        <pre><code>sudo dnf groupinstall -y "Development Tools"
+sudo dnf install -y python3 gcc nasm grub2-tools-extra xorriso mtools virtualbox qemu-system-x86</code></pre>
+                    </div>
+                    <div id="distro-arch" class="tab-content">
+                        <pre><code>sudo pacman -S --needed python base-devel nasm grub xorriso mtools virtualbox qemu-desktop</code></pre>
+                    </div>
+                    <div id="distro-alpine" class="tab-content">
+                        <pre><code>sudo apk add python3 build-base nasm grub grub-efi xorriso mtools qemu-system-x86_64</code></pre>
+                    </div>
+                </div>
+
+                <h3 class="mt-4">Building & Launching on Linux</h3>
+                <pre><code># 1. Clone repository
+git clone https://github.com/Saravanan-Codez/Falkon-Os.git
+cd Falkon-Os
+
+# 2. Build ISO & Run VirtualBox
+python3 build.py --vbox</code></pre>
+            </section>
+
+            <!-- 3. WSL SETUP SECTION -->
+            <section id="setup-wsl" class="doc-section">
+                <div class="section-header">
+                    <h2>3. ⚙️ WSL2 Setup Guide (WSL Third)</h2>
+                    <p>Building Falkon-OS using Ubuntu inside Windows Subsystem for Linux (WSL2).</p>
+                </div>
+
+                <ol class="step-list">
+                    <li>Open PowerShell as Administrator: <code>wsl --install -d Ubuntu</code></li>
+                    <li>Launch Ubuntu from Windows Start menu and install tools:
+                        <pre><code>sudo apt update && sudo apt install -y python3 build-essential nasm grub-pc-bin grub-common xorriso mtools</code></pre>
+                    </li>
+                    <li>Navigate to your Windows repository directory:
+                        <pre><code>cd /mnt/d/Falkon_labs/Falkon-Os</code></pre>
+                    </li>
+                    <li>Compile the ISO image:
+                        <pre><code>python3 build.py</code></pre>
+                    </li>
+                    <li>Launch in VirtualBox on Windows:
+                        <pre><code>python build.py --vbox</code></pre>
+                    </li>
+                </ol>
+            </section>
+
+            <!-- UNIFIED BUILD.PY SECTION -->
+            <section id="build-py" class="doc-section">
+                <div class="section-header">
+                    <h2>🐍 Singular Unified Python Script (`build.py`) Explained</h2>
+                    <p>Understanding how <code>build.py</code> automates toolchain verification, kernel compilation, ISO generation, and VirtualBox VM creation.</p>
+                </div>
+
+                <div class="card">
+                    <h3>Step-by-Step Function Breakdown:</h3>
+                    <ul>
+                        <li><code>check_dependencies()</code>: Inspects your environment `PATH` for `gcc`, `nasm`, `ld`, and `grub-mkrescue`.</li>
+                        <li><code>clean()</code>: Safely removes `build/`, `isodir/`, and `FalkonOS.iso`.</li>
+                        <li><code>build_iso()</code>: Invokes the compilation pipeline (assembles assembly, compiles C files, links kernel, and runs `grub-mkrescue` to create `FalkonOS.iso`).</li>
+                        <li><code>run_vbox()</code>: Uses `VBoxManage` to automatically create a Linux 64-bit VM, assign 512MB RAM + VMSVGA graphics, mount `FalkonOS.iso` to an optical drive, and start the VM.</li>
+                        <li><code>run_qemu()</code>: Launches QEMU with `-cdrom FalkonOS.iso -m 512M -vga std`.</li>
+                    </ul>
+                </div>
+
+                <pre><code># Command Usage Options:
+python build.py          # Compile ISO image
+python build.py --vbox   # Build ISO & launch in VirtualBox (Recommended)
+python build.py --qemu   # Build ISO & launch in QEMU
+python build.py --check  # Check installed tool dependencies
+python build.py --clean  # Clean build artifacts</code></pre>
+            </section>
+
+            <!-- VIRTUALBOX GUIDE SECTION -->
+            <section id="vbox-guide" class="doc-section">
+                <div class="section-header">
+                    <h2>📦 VirtualBox Setup (Recommended)</h2>
+                </div>
+
+                <div class="alert alert-recommended">
+                    <strong>💡 Why VirtualBox?</strong> Falkon-OS provides full hardware PS/2 mouse cursor emulation and high-resolution VBE graphics. VirtualBox handles graphics acceleration and mouse integration seamlessly!
+                </div>
+
+                <h3>Manual VirtualBox Setup Steps</h3>
+                <ol class="step-list">
+                    <li>Open VirtualBox and click <strong>New</strong>.</li>
+                    <li>Name: <code>FalkonOS</code> | Type: <code>Linux</code> | Version: <code>Other Linux (64-bit)</code>.</li>
+                    <li>Base Memory (RAM): <code>512 MB</code> | Hard Disk: Select <i>"Do not add a virtual hard disk"</i>.</li>
+                    <li>Display: Set Video Memory to <code>16 MB</code> and Graphics Controller to <code>VMSVGA</code>.</li>
+                    <li>Storage: Attach <code>FalkonOS.iso</code> to the Optical Drive.</li>
+                    <li>Click <strong>Start 🟢</strong> to boot!</li>
+                </ol>
+            </section>
+
+            <!-- ARCHITECTURE SECTION -->
+            <section id="architecture" class="doc-section">
+                <div class="section-header">
+                    <h2>🧠 System Architecture Overview</h2>
+                </div>
+
+                <div class="card">
+                    <h3>Boot Sequence Lifecycle</h3>
+                    <div class="flow-diagram">
+                        <div class="flow-step">1. GRUB Multiboot Bootloader</div>
+                        <div class="flow-arrow">⬇️</div>
+                        <div class="flow-step">2. 32-bit Assembly Entry (src/arch/x86_64/boot/boot.asm)</div>
+                        <div class="flow-arrow">⬇️</div>
+                        <div class="flow-step">3. Identity Page Tables Setup (PML4 ➔ PDPT ➔ PD ➔ PT)</div>
+                        <div class="flow-arrow">⬇️</div>
+                        <div class="flow-step">4. Enable Long Mode (IA32_EFER MSR + CR0 Paging Bit)</div>
+                        <div class="flow-arrow">⬇️</div>
+                        <div class="flow-step">5. Far Jump to 64-bit Code Segment (src/kernel/main.c)</div>
+                        <div class="flow-arrow">⬇️</div>
+                        <div class="flow-step">6. Initialize GDT, IDT Interrupts, PMM, VMM & Kernel Heap</div>
+                        <div class="flow-arrow">⬇️</div>
+                        <div class="flow-step">7. Framebuffer Graphics Init ➔ Desktop GUI ➔ Window Manager Loop</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- BOOTLOADER SECTION -->
+            <section id="bootloader" class="doc-section">
+                <div class="section-header">
+                    <h2>🚀 Bootloader & x86_64 Long Mode Entry</h2>
+                </div>
+                <p>
+                    The bootloader entry point is defined in <a href="file:///d:/Falkon_labs/Falkon-Os/src/arch/x86_64/boot/boot.asm">boot.asm</a>.
+                    It defines the GRUB Multiboot header flags requesting 1024x768 32-bit color depth VBE mode.
+                </p>
+            </section>
+
+            <!-- MEMORY MGMT SECTION -->
+            <section id="memory-mgmt" class="doc-section">
+                <div class="section-header">
+                    <h2>💾 Memory Management (PMM / VMM / Heap)</h2>
+                </div>
+                <div class="grid-2">
+                    <div class="card">
+                        <h3>1. Physical Memory Manager (PMM)</h3>
+                        <p>Located in <a href="file:///d:/Falkon_labs/Falkon-Os/src/mm/pmm.c">src/mm/pmm.c</a>. Tracks 4KB physical page frames using a bitset bitmap derived from the GRUB memory map.</p>
+                    </div>
+                    <div class="card">
+                        <h3>2. Virtual Memory Manager (VMM)</h3>
+                        <p>Located in <a href="file:///d:/Falkon_labs/Falkon-Os/src/mm/vmm.c">src/mm/vmm.c</a>. Identity maps the first 256MB of physical RAM along with the VBE Video Framebuffer address range.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- INTERRUPTS SECTION -->
+            <section id="interrupts" class="doc-section">
+                <div class="section-header">
+                    <h2>⚡ Interrupts (GDT & IDT & PIC)</h2>
+                </div>
+                <p>Falkon-OS configures a 64-bit Global Descriptor Table (GDT) and Interrupt Descriptor Table (IDT) handling PIC remapping for PIT timer, keyboard, and mouse.</p>
+            </section>
+
+            <!-- DRIVERS SECTION -->
+            <section id="drivers" class="doc-section">
+                <div class="section-header">
+                    <h2>🎮 Device Drivers Overview</h2>
+                </div>
+                <p>Includes VBE Framebuffer Video Driver, PS/2 Keyboard & Mouse Drivers, and PCI/USB bus enumeration hints.</p>
+            </section>
+
+            <!-- GUI SYSTEM SECTION -->
+            <section id="gui-system" class="doc-section">
+                <div class="section-header">
+                    <h2>🖥️ Desktop GUI & Window Manager</h2>
+                </div>
+                <p>Dynamic windowing system supporting window dragging, title bars, focus management, taskbar integration, hardware cursor rendering, and theme switching.</p>
+            </section>
+
+            <!-- TERMINAL CMDS SECTION -->
+            <section id="terminal-cmds" class="doc-section">
+                <div class="section-header">
+                    <h2>💻 Built-in Shell & Upgraded Commands</h2>
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Command</th>
+                            <th>Description</th>
+                            <th>Source Location</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>help</code></td>
+                            <td>Lists all available terminal shell commands.</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>fetch</code> / <code>neofetch</code></td>
+                            <td>Displays Falkon-OS ASCII logo and kernel system specifications.</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>uname</code></td>
+                            <td>Prints OS release and architecture specs.</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>whoami</code></td>
+                            <td>Prints active session user (`root@falkon-os`).</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>calc &lt;expr&gt;</code></td>
+                            <td>Performs basic arithmetic calculations (e.g. `calc 50 + 25`).</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>echo &lt;text&gt;</code></td>
+                            <td>Echoes text input back to screen.</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>theme &lt;1-4&gt;</code></td>
+                            <td>Switches desktop background theme (Midnight, Cyber Blue, Emerald Forest, Sunset).</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>sysinfo</code></td>
+                            <td>Displays memory management status and CPUID vendor information.</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/sysinfo.c">sysinfo.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>time</code></td>
+                            <td>Displays system uptime timer.</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>clear</code></td>
+                            <td>Clears the active terminal window screen.</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- TROUBLESHOOTING SECTION -->
+            <section id="troubleshooting" class="doc-section">
+                <div class="section-header">
+                    <h2>🔧 Troubleshooting Matrix</h2>
+                </div>
+                <div class="card">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Issue / Error</th>
+                                <th>Root Cause</th>
+                                <th>Solution</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><code>grub-mkrescue: command not found</code></td>
+                                <td>Missing GRUB ISO utilities.</td>
+                                <td>Install <code>grub-pc-bin xorriso mtools</code> (Debian/Ubuntu) or <code>grub2-tools-extra</code> (Fedora).</td>
+                            </tr>
+                            <tr>
+                                <td>VirtualBox VM displays black screen on boot</td>
+                                <td>Graphics Controller misconfiguration or low VRAM.</td>
+                                <td>Set VM Display Graphics Controller to <code>VMSVGA</code> or <code>VBoxVGA</code> and increase VRAM to 16MB.</td>
+                            </tr>
+                            <tr>
+                                <td><code>nasm: command not found</code></td>
+                                <td>NASM assembler is not in PATH.</td>
+                                <td>Install <code>nasm</code> via package manager (e.g. <code>sudo apt install nasm</code>).</td>
+                            </tr>
+                            <tr>
+                                <td>Mouse cursor is not moving in VM</td>
+                                <td>VirtualBox USB tablet integration interfering with PS/2 mouse.</td>
+                                <td>In VirtualBox VM Settings ➔ System ➔ Motherboard, set <strong>Pointing Device</strong> to <code>PS/2 Mouse</code>.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- LICENSE SECTION -->
+            <section id="license-info" class="doc-section">
+                <div class="section-header">
+                    <h2>⚖️ License & Open Source Contribution</h2>
+                </div>
+                <p>Falkon-OS is released under the permissive <strong>MIT License</strong>.</p>
+                <div class="card">
+                    <pre><code>MIT License
+
+Copyright (c) 2026 Falkon OS Development Team...</code></pre>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

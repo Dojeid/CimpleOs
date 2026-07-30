@@ -1,0 +1,28 @@
+# Falkon-OS Build Artifacts
+build/
+isodir/
+*.iso
+*.bin
+*.o
+
+# Compiler & Linker temporary files
+*.d
+*.elf
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# VirtualBox Machine Artifacts
+*.vbox
+*.vbox-prev
+*.vmdk
+*.vdi
+*.log

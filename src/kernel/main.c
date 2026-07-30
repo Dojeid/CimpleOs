@@ -42,7 +42,7 @@ void kmain(void* multiboot_info_addr) {
     // EMERGENCY FALLBACK: Use VGA text mode to show we're alive
     // This always works, even if graphics fail
     vga_clear();
-    vga_print("CimpleOS Booting...\n");
+    vga_print("Falkon-OS Booting...\n");
     vga_print("Initializing GDT...\n");
     
     // Capture Multiboot Info BEFORE enabling paging!
@@ -73,7 +73,7 @@ void kmain(void* multiboot_info_addr) {
     clear_screen(0x000000); // Black background
     
     // Welcome Message
-    draw_string(10, 10, 0x00FF00, "CimpleOS v0.4 - Protected Mode + Paging Enabled!");
+    draw_string(10, 10, 0x00FF00, "Falkon-OS v0.4 - Protected Mode + Paging Enabled!");
     draw_string(10, 30, 0xFFFFFF, "Memory Management: PMM + VMM Active");
     draw_string(10, 50, 0xFFFFFF, "Graphics: Initialized");
 
@@ -130,7 +130,7 @@ void kmain(void* multiboot_info_addr) {
         // Print welcome to this instance (or global if malloc failed)
         terminal_instance_t* term = (terminal_instance_t*)term_win->user_data;
         if (term) {
-            terminal_instance_print(term, "Welcome to CimpleOS v0.4 GUI!");
+            terminal_instance_print(term, "Welcome to Falkon-OS v0.4 GUI!");
             terminal_instance_print(term, "Windowing system active.");
             terminal_instance_print(term, "");
             terminal_instance_print(term, "Type 'help' for available commands.");
@@ -140,7 +140,7 @@ void kmain(void* multiboot_info_addr) {
             terminal_instance_print(term, "");
         } else {
             // Fallback to global terminal
-            terminal_print("Welcome to CimpleOS v0.4 GUI!");
+            terminal_print("Welcome to Falkon-OS v0.4 GUI!");
             terminal_print("Windowing system active.");
             terminal_print("");
             terminal_print("Type 'help' for available commands.");

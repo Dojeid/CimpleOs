@@ -29,4 +29,7 @@ desktop_t* desktop_get_state();
 // Set background color
 void desktop_set_bg_color(uint32_t color);
 
+// Set desktop color theme
+void desktop_set_theme(int theme_id);
+
 #endif

@@ -1,22 +1,48 @@
 #!/bin/bash
 
-# Verify build dependencies for CimpleOS build
+# ==========================================
+# Falkon-OS Build Environment Configurator
+# ==========================================
 
-# List of required tools
+echo "=========================================="
+echo "        Falkon-OS Environment Check       "
+echo "=========================================="
+
 required_tools=(gcc nasm ld grub-mkrescue)
+missing_tools=()
 
 # Check for each required tool
 for tool in "${required_tools[@]}"; do
     if ! command -v $tool &> /dev/null; then
-        echo "$tool is not installed. Please install it and try again."
-        exit 1
+        missing_tools+=("$tool")
     fi
 done
 
-echo "All required tools are installed."
-echo "Setting up the environment for the CimpleOS build..."
+if [ ${#missing_tools[@]} -ne 0 ]; then
+    echo "ERROR: The following required tools are missing:"
+    for tool in "${missing_tools[@]}"; do
+        echo "  - $tool"
+    done
+    echo ""
+    echo "Please install missing packages:"
+    echo "  Ubuntu/Debian: sudo apt update && sudo apt install -y build-essential nasm grub-pc-bin grub-common xorriso mtools"
+    echo "  Fedora:        sudo dnf install gcc nasm grub2-tools-extra xorriso mtools"
+    echo "  Arch Linux:    sudo pacman -S base-devel nasm grub xorriso mtools"
+    echo "  macOS:         brew install x86_64-elf-gcc nasm i386-elf-grub xorriso"
+    exit 1
+fi
 
-# Additional environment setup commands can go here
-# e.g., export PATH=... or config settings
+echo "[✓] All core build tools are installed (gcc, nasm, ld, grub-mkrescue)."
 
-echo "Environment setup completed."
+# Optional VM checks
+if command -v VBoxManage &> /dev/null || command -v virtualbox &> /dev/null; then
+    echo "[✓] VirtualBox detected (Recommended emulator)."
+elif command -v qemu-system-x86_64 &> /dev/null; then
+    echo "[✓] QEMU detected (Alternative emulator)."
+else
+    echo "[!] Note: Neither VirtualBox nor QEMU were found in PATH."
+    echo "    To test the ISO, install VirtualBox (Recommended) or QEMU."
+fi
+
+echo "Environment check complete! You are ready to build Falkon-OS."
+echo "Run 'make' to build FalkonOS.iso."
