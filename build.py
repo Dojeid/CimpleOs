@@ -102,80 +102,156 @@ def parse_cli_args(args):
 
     return config
 
-def detect_detailed_os():
+def detect_os_type():
     """
-    Detects detailed OS environment and returns OS name & specific install command.
+    Detects detailed OS environment type.
     """
     system = platform.system().lower()
-    
     if "linux" in system:
-        # Check for WSL (Windows Subsystem for Linux)
         if os.path.exists("/proc/version"):
             try:
                 with open("/proc/version", "r") as f:
                     if "microsoft" in f.read().lower():
-                        return "WSL2 (Windows Subsystem for Linux - Ubuntu)", "sudo apt update && sudo apt install -y build-essential cmake nasm grub-pc-bin grub-common xorriso mtools virtualbox qemu-system-x86"
+                        return "wsl"
             except Exception:
                 pass
-        
-        # Check Linux distro via /etc/os-release
         if os.path.exists("/etc/os-release"):
             try:
                 with open("/etc/os-release", "r") as f:
                     content = f.read().lower()
                     if "ubuntu" in content or "debian" in content or "mint" in content:
-                        return "Linux (Ubuntu / Debian / Mint)", "sudo apt update && sudo apt install -y build-essential cmake nasm grub-pc-bin grub-common xorriso mtools virtualbox qemu-system-x86"
+                        return "ubuntu"
                     elif "fedora" in content or "rhel" in content or "centos" in content:
-                        return "Linux (Fedora / RHEL)", "sudo dnf install -y gcc cmake nasm grub2-tools-extra xorriso mtools virtualbox qemu-system-x86"
+                        return "fedora"
                     elif "arch" in content or "manjaro" in content:
-                        return "Linux (Arch Linux / Manjaro)", "sudo pacman -S --needed base-devel cmake nasm grub xorriso mtools virtualbox qemu-desktop"
+                        return "arch"
                     elif "alpine" in content:
-                        return "Linux (Alpine Linux)", "sudo apk add build-base cmake nasm grub grub-efi xorriso mtools qemu-system-x86_64"
+                        return "alpine"
             except Exception:
                 pass
-                
-        return "Generic Linux", "sudo apt update && sudo apt install -y build-essential cmake nasm grub-pc-bin grub-common xorriso mtools"
-        
+        return "linux"
     elif "windows" in system:
-        return "Windows (Native Command Prompt / PowerShell)", "Option A (WSL2 - Recommended):\n    Open PowerShell as Admin: wsl --install -d Ubuntu\n\n  Option B (Native Windows):\n    Install Chocolatey/MSYS2: choco install nasm virtualbox cmake -y"
-        
+        return "windows"
     elif "darwin" in system:
-        return "macOS", "brew install x86_64-elf-gcc cmake nasm i386-elf-grub xorriso mtools virtualbox"
-        
-    return "Unknown OS", "Install gcc, nasm, ld, grub-mkrescue, xorriso, mtools, and virtualbox."
+        return "mac"
+    return "unknown"
+
+def get_os_display_name(os_type):
+    names = {
+        "wsl": "WSL2 (Windows Subsystem for Linux - Ubuntu)",
+        "ubuntu": "Linux (Ubuntu / Debian / Mint)",
+        "fedora": "Linux (Fedora / RHEL)",
+        "arch": "Linux (Arch Linux / Manjaro)",
+        "alpine": "Linux (Alpine Linux)",
+        "linux": "Generic Linux",
+        "windows": "Windows (Native Command Prompt / PowerShell)",
+        "mac": "macOS",
+        "unknown": "Unknown OS"
+    }
+    return names.get(os_type, "Unknown OS")
 
 def run_check():
-    os_name, install_cmd = detect_detailed_os()
+    os_type = detect_os_type()
+    os_name = get_os_display_name(os_type)
+    
     print(f"\n[CHECK] Detected Operating System: \033[1;36m{os_name}\033[0m")
     print("[CHECK] Verifying Toolchain & Build Dependencies...")
     
-    required_tools = ["gcc", "nasm", "ld", "grub-mkrescue"]
+    required_tools = ["gcc", "nasm", "ld", "cmake", "grub-mkrescue"]
     missing = [tool for tool in required_tools if shutil.which(tool) is None]
 
-    if missing:
-        print(f"\n  \033[1;31m[!] ERROR: Missing required build tools: {', '.join(missing)}\033[0m")
-        print(f"\n  To install all required tools on {os_name}, run:")
-        print(f"  \033[1;32m{install_cmd}\033[0m\n")
-        return False
-
-    print("  + [✓] Core compilation tools found (gcc, nasm, ld, grub-mkrescue).")
-    
-    if shutil.which("cmake"):
-        print("  + [✓] CMake build system detected.")
-    else:
-        print("  + [!] CMake not found (Using Makefile build engine).")
-
-    if shutil.which("ninja"):
-        print("  + [✓] Ninja build generator detected.")
-
+    # Check optional tools
+    has_cmake = shutil.which("cmake") is not None
+    has_ninja = shutil.which("ninja") is not None
     vbox_found = shutil.which("VBoxManage") or shutil.which("vboxmanage") or os.path.exists(r"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe")
-    if vbox_found:
-        print("  + [✓] VirtualBox detected (Recommended VM launcher).")
-    else:
-        print("  + [!] VirtualBox not found. Install from https://www.virtualbox.org/")
+    has_qemu = shutil.which("qemu-system-x86_64") is not None
 
-    if shutil.which("qemu-system-x86_64"):
-        print("  + [✓] QEMU detected.")
+    # Status reporting
+    if shutil.which("gcc"): print("  + [OK] GCC host compiler found.")
+    if shutil.which("nasm"): print("  + [OK] NASM assembler found.")
+    if shutil.which("ld"): print("  + [OK] GNU Linker found.")
+    if shutil.which("grub-mkrescue"): print("  + [OK] GRUB ISO generator (grub-mkrescue) found.")
+
+    if has_cmake:
+        print("  + [OK] CMake build system detected.")
+    else:
+        print("  + [!] CMake not found (Fallback to Makefile).")
+
+    if has_ninja:
+        print("  + [OK] Ninja build generator detected.")
+
+    if vbox_found:
+        print("  + [OK] VirtualBox detected (Recommended VM launcher).")
+    else:
+        print("  + [!] VirtualBox not detected.")
+
+    if has_qemu:
+        print("  + [OK] QEMU detected.")
+
+    if missing:
+        print(f"\n  [!] Missing required tool(s): {', '.join(missing)}")
+        print("  -------------------------------------------------------------")
+        
+        # Build tailored installation command specifically for missing tools
+        if os_type == "windows":
+            has_winget = shutil.which("winget") is not None
+            has_choco = shutil.which("choco") is not None
+            has_scoop = shutil.which("scoop") is not None
+            
+            print("  To install missing tools on Windows, choose any of the options below:\n")
+            
+            if "nasm" in missing:
+                print("  [Option 1] Winget (Windows Built-in Package Manager):")
+                print("    winget install NASM.NASM")
+                
+                if has_choco:
+                    print("\n  [Option 2] Chocolatey:")
+                    print("    choco install nasm -y")
+                elif has_scoop:
+                    print("\n  [Option 2] Scoop:")
+                    print("    scoop install nasm")
+                    
+                print("\n  [Option 3] Direct Installer Download:")
+                print("    Download NASM installer: https://www.nasm.us/pub/nasm/releasebuilds/")
+                print("    (Make sure to add NASM installation folder to your PATH environment variable)")
+
+            if not vbox_found:
+                print("\n  VirtualBox Installation:")
+                if has_winget:
+                    print("    winget install Oracle.VirtualBox")
+                print("    Direct Download: https://www.virtualbox.org/wiki/Downloads")
+
+            if "grub-mkrescue" in missing:
+                print("\n  Note regarding ISO Creation:")
+                print("    grub-mkrescue requires GRUB tools. On Windows, you can install MSYS2 (https://www.msys2.org/)")
+                print("    or run 'python build.py -build' inside MSYS2 / MinGW64 terminal.")
+        elif os_type in ["ubuntu", "wsl"]:
+            apt_pkgs = []
+            if "gcc" in missing or "ld" in missing: apt_pkgs.append("build-essential")
+            if "nasm" in missing: apt_pkgs.append("nasm")
+            if "grub-mkrescue" in missing: apt_pkgs.extend(["grub-pc-bin", "grub-common", "xorriso", "mtools"])
+            print(f"  Run exact terminal command:\n  sudo apt update && sudo apt install -y {' '.join(apt_pkgs)}")
+        elif os_type == "fedora":
+            dnf_pkgs = []
+            if "gcc" in missing: dnf_pkgs.append("gcc")
+            if "nasm" in missing: dnf_pkgs.append("nasm")
+            if "grub-mkrescue" in missing: dnf_pkgs.extend(["grub2-tools-extra", "xorriso", "mtools"])
+            print(f"  Run exact terminal command:\n  sudo dnf install -y {' '.join(dnf_pkgs)}")
+        elif os_type == "arch":
+            pac_pkgs = []
+            if "gcc" in missing or "ld" in missing: pac_pkgs.append("base-devel")
+            if "nasm" in missing: pac_pkgs.append("nasm")
+            if "grub-mkrescue" in missing: pac_pkgs.extend(["grub", "xorriso", "mtools"])
+            print(f"  Run exact terminal command:\n  sudo pacman -S --needed {' '.join(pac_pkgs)}")
+        elif os_type == "mac":
+            brew_pkgs = []
+            if "gcc" in missing or "ld" in missing: brew_pkgs.append("x86_64-elf-gcc")
+            if "nasm" in missing: brew_pkgs.append("nasm")
+            if "grub-mkrescue" in missing: brew_pkgs.extend(["i386-elf-grub", "xorriso", "mtools"])
+            print(f"  Run exact terminal command:\n  brew install {' '.join(brew_pkgs)}")
+
+        print("  -------------------------------------------------------------")
+        return False
 
     print(f"\n[SUCCESS] Environment check passed for {os_name}!")
     return True
@@ -226,36 +302,29 @@ def run_build(os_tag, mode):
     build_dir = root_dir / ("build" if mode == "dev" else "build_release")
     out_dir = root_dir / f"falkon_{os_tag}_{mode}"
 
-    has_cmake = shutil.which("cmake") is not None
+    if not has_cmake:
+        print("[!] ERROR: CMake is required to build Falkon-OS.")
+        print("    Please install CMake (e.g. winget install Kitware.CMake / sudo apt install cmake)")
+        sys.exit(1)
 
-    if has_cmake:
-        print("[BUILD] Using CMake Build Engine...")
-        cmake_cmd = ["cmake", "-B", str(build_dir)]
-        if shutil.which("ninja"):
-            cmake_cmd.extend(["-G", "Ninja"])
-        cmake_cmd.append(f"-DCMAKE_BUILD_TYPE={build_type}")
+    print("[BUILD] Using CMake Build Engine...")
+    cmake_cmd = ["cmake", "-B", str(build_dir)]
+    if shutil.which("ninja"):
+        cmake_cmd.extend(["-G", "Ninja"])
+    cmake_cmd.append(f"-DCMAKE_BUILD_TYPE={build_type}")
 
-        print(f"> {' '.join(cmake_cmd)}")
-        res = subprocess.run(cmake_cmd, cwd=root_dir)
-        if res.returncode != 0:
-            print("[!] ERROR: CMake configuration failed.")
-            sys.exit(1)
+    print(f"> {' '.join(cmake_cmd)}")
+    res = subprocess.run(cmake_cmd, cwd=root_dir)
+    if res.returncode != 0:
+        print("[!] ERROR: CMake configuration failed.")
+        sys.exit(1)
 
-        build_cmd = ["cmake", "--build", str(build_dir), "--config", build_type]
-        print(f"> {' '.join(build_cmd)}")
-        res = subprocess.run(build_cmd, cwd=root_dir)
-        if res.returncode != 0:
-            print("[!] ERROR: Compilation failed.")
-            sys.exit(1)
-    else:
-        print("[BUILD] Fallback to GNU Makefile...")
-        make_cmd = "make"
-        if shutil.which("mingw32-make"):
-            make_cmd = "mingw32-make"
-        res = subprocess.run([make_cmd, "all", f"MODE={mode}"], cwd=root_dir)
-        if res.returncode != 0:
-            print("[!] ERROR: Makefile build failed.")
-            sys.exit(1)
+    build_cmd = ["cmake", "--build", str(build_dir), "--config", build_type]
+    print(f"> {' '.join(build_cmd)}")
+    res = subprocess.run(build_cmd, cwd=root_dir)
+    if res.returncode != 0:
+        print("[!] ERROR: Compilation failed.")
+        sys.exit(1)
 
     # Stage distribution output
     print(f"\n[STAGE] Packaging distribution in: {out_dir}")

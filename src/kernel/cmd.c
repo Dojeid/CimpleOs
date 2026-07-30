@@ -79,11 +79,18 @@ void cmd_process(const char* cmd) {
         cmd_print("");
     }
     else if (strcmp(cmd, "uname") == 0) {
-        cmd_print("Falkon-OS x86_64 0.4.0-generic Long_Mode GNU/Cimple");
+        cmd_print("Falkon-OS x86_64 0.4.0-generic Long_Mode GNU/Falkon");
         cmd_print("");
     }
     else if (strcmp(cmd, "whoami") == 0) {
         cmd_print("root@falkon-os");
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "matrix") == 0) {
+        cmd_print("\033[32m01100110 01100001 01101100 01101011 01101111 01101110");
+        cmd_print("01000110 01000001 01001100 01001011 01001111 01001110");
+        cmd_print("Wake up, Neo... Falkon-OS has you.");
+        cmd_print("System Security: Long Mode Paging Enforced.");
         cmd_print("");
     }
     else if (strncmp(cmd, "echo ", 5) == 0) {

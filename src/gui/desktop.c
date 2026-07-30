@@ -14,10 +14,26 @@ void desktop_init() {
 void desktop_render_background() {
     extern int screen_w, screen_h;
     
-    // Render desktop background (between topbar and taskbar)
-    draw_rect(0, DESKTOP_TOPBAR_HEIGHT, screen_w, 
-              screen_h - DESKTOP_TOPBAR_HEIGHT - DESKTOP_TASKBAR_HEIGHT, 
-              desktop.bg_color);
+    int desktop_h = screen_h - DESKTOP_TOPBAR_HEIGHT - DESKTOP_TASKBAR_HEIGHT;
+    
+    // Main solid background
+    draw_rect(0, DESKTOP_TOPBAR_HEIGHT, screen_w, desktop_h, desktop.bg_color);
+    
+    // Aesthetic geometric grid accents
+    uint32_t line_color = (desktop.bg_color == 0x1E1E1E) ? 0x2A2A2A : (desktop.bg_color + 0x0A0A0A);
+    for (int y = DESKTOP_TOPBAR_HEIGHT + 40; y < screen_h - DESKTOP_TASKBAR_HEIGHT; y += 60) {
+        draw_rect(0, y, screen_w, 1, line_color);
+    }
+    for (int x = 40; x < screen_w; x += 80) {
+        draw_rect(x, DESKTOP_TOPBAR_HEIGHT, 1, desktop_h, line_color);
+    }
+
+    // Centered Falkon OS Watermark Accent Box
+    int center_x = (screen_w / 2) - 140;
+    int center_y = (screen_h / 2) - 40;
+    draw_rect(center_x, center_y, 280, 50, 0x111827);
+    draw_rect(center_x + 2, center_y + 2, 276, 46, 0x1F2937);
+    draw_string(center_x + 25, center_y + 16, 0x38BDF8, "FALKON-OS 64-BIT GUI");
 }
 
 void desktop_render_topbar() {

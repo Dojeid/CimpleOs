@@ -19,15 +19,16 @@ void taskbar_init() {
     
     taskbar.button_count = 0;
     taskbar.y_position = screen_h - TASKBAR_HEIGHT;
+    taskbar.start_menu_open = 0;
     
     for (int i = 0; i < MAX_TASKBAR_BUTTONS; i++) {
         taskbar.buttons[i].window_id = -1;
     }
     
-    // UX FIX: Add permanent Terminal launcher button
+    // Add Start Menu launcher button
     launcher_btn.x = 10;
-    launcher_btn.width = 100;
-    strcpy(launcher_btn.label, "Terminal");
+    launcher_btn.width = 110;
+    strcpy(launcher_btn.label, "Falkon Menu");
     launcher_btn.enabled = 1;
 }
 
@@ -48,16 +49,13 @@ void taskbar_add_button(int window_id, const char* label) {
     
     taskbar.button_count++;
     
-    // BUG FIX #5: Recalculate ALL button positions dynamically to prevent overflow
     extern int screen_w;
-    int available_width = screen_w - 260;  // Reserve space for launcher (120px) + system tray (140px)
+    int available_width = screen_w - 270;
     int button_width = available_width / taskbar.button_count;
     
-    // Minimum button width of 80px, maximum 120px
     if (button_width < 80) button_width = 80;
     if (button_width > 120) button_width = 120;
     
-    // Reposition all buttons (start after launcher button)
     int start_x = launcher_btn.x + launcher_btn.width + 10;
     for (int i = 0; i < taskbar.button_count; i++) {
         taskbar.buttons[i].x = start_x + (i * (button_width + 5));
@@ -75,9 +73,8 @@ void taskbar_remove_button(int window_id) {
             taskbar.button_count--;
             taskbar.buttons[taskbar.button_count].window_id = -1;
             
-            // BUG FIX #5: Recalculate positions after removal
             extern int screen_w;
-            int available_width = screen_w - 160;
+            int available_width = screen_w - 170;
             int button_width = available_width / (taskbar.button_count > 0 ? taskbar.button_count : 1);
             
             if (button_width < 80) button_width = 80;
@@ -99,11 +96,12 @@ void taskbar_render() {
     // Taskbar background
     draw_rect(0, taskbar.y_position, screen_w, TASKBAR_HEIGHT, COLOR_TASKBAR_BG);
     
-    // UX FIX: Render launcher button (permanent Terminal launcher)
+    // Render launcher button (Falkon Menu)
     if (launcher_btn.enabled) {
-        draw_rect(launcher_btn.x, taskbar.y_position + 5, 
-                  launcher_btn.width, TASKBAR_HEIGHT - 10, COLOR_LAUNCHER_BTN);
-        draw_string(launcher_btn.x + 10, taskbar.y_position + 10, 0xFFFFFF, launcher_btn.label);
+        uint32_t btn_color = taskbar.start_menu_open ? COLOR_BUTTON_ACTIVE : COLOR_LAUNCHER_BTN;
+        draw_rect(launcher_btn.x, taskbar.y_position + 4, 
+                  launcher_btn.width, TASKBAR_HEIGHT - 8, btn_color);
+        draw_string(launcher_btn.x + 8, taskbar.y_position + 9, 0xFFFFFF, launcher_btn.label);
     }
     
     // Render window buttons
@@ -115,16 +113,13 @@ void taskbar_render() {
         
         if (!win) continue;
         
-        // Determine button color
         uint32_t btn_color = COLOR_BUTTON_BG;
         if (win->flags & WIN_FLAG_FOCUSED) {
             btn_color = COLOR_BUTTON_ACTIVE;
         }
         
-        // Draw button
-        draw_rect(btn->x, taskbar.y_position + 5, btn->width, TASKBAR_HEIGHT - 10, btn_color);
+        draw_rect(btn->x, taskbar.y_position + 4, btn->width, TASKBAR_HEIGHT - 8, btn_color);
         
-        // Draw label (truncate if needed)
         char display_label[20];
         if (strlen(btn->label) > 18) {
             strncpy(display_label, btn->label, 15);
@@ -136,57 +131,115 @@ void taskbar_render() {
             strcpy(display_label, btn->label);
         }
         
-        // Show minimize indicator
         if (win->flags & WIN_FLAG_MINIMIZED) {
-            draw_string(btn->x + 5, taskbar.y_position + 10, 0xBDC3C7, display_label);
-            draw_string(btn->x + btn->width - 15, taskbar.y_position + 10, 0xF39C12, "_");
+            draw_string(btn->x + 5, taskbar.y_position + 9, 0xBDC3C7, display_label);
+            draw_string(btn->x + btn->width - 15, taskbar.y_position + 9, 0xF39C12, "_");
         } else {
-            draw_string(btn->x + 5, taskbar.y_position + 10, 0xECF0F1, display_label);
+            draw_string(btn->x + 5, taskbar.y_position + 9, 0xECF0F1, display_label);
         }
     }
-    
-    // UX: RAM moved to top bar - taskbar now cleaner
-    // System tray area reserved for future use (clock, notifications, etc.)
+
+    // Render Start Menu Popup Overlay if open
+    if (taskbar.start_menu_open) {
+        int menu_x = 10;
+        int menu_y = taskbar.y_position - 145;
+        int menu_w = 180;
+        int menu_h = 140;
+
+        // Outer Shadow & Menu Background
+        draw_rect(menu_x + 3, menu_y + 3, menu_w, menu_h, 0x111111);
+        draw_rect(menu_x, menu_y, menu_w, menu_h, 0x1F2937);
+        draw_rect(menu_x, menu_y, menu_w, 24, 0x374151);
+        draw_string(menu_x + 10, menu_y + 5, 0x38BDF8, "Falkon-OS Menu");
+
+        // Menu Items
+        draw_rect(menu_x + 5, menu_y + 30, menu_w - 10, 24, 0x374151);
+        draw_string(menu_x + 12, menu_y + 35, 0xFFFFFF, "> Terminal");
+
+        draw_rect(menu_x + 5, menu_y + 58, menu_w - 10, 24, 0x374151);
+        draw_string(menu_x + 12, menu_y + 63, 0xFFFFFF, "> System Info");
+
+        draw_rect(menu_x + 5, menu_y + 86, menu_w - 10, 24, 0x374151);
+        draw_string(menu_x + 12, menu_y + 91, 0xFFFFFF, "> Toggle Theme");
+
+        draw_rect(menu_x + 5, menu_y + 114, menu_w - 10, 22, 0x991B1B);
+        draw_string(menu_x + 12, menu_y + 117, 0xFCA5A5, "> Panic Test");
+    }
 }
 
 void taskbar_handle_click(int x, int y) {
-    if (y < taskbar.y_position) return;
-    
-    // UX FIX: Check if clicking launcher button first
-    if (launcher_btn.enabled && 
-        x >= launcher_btn.x && 
-        x < launcher_btn.x + launcher_btn.width &&
-        y >= taskbar.y_position + 5 &&
-        y < taskbar.y_position + TASKBAR_HEIGHT - 5) {
+    int menu_x = 10;
+    int menu_y = taskbar.y_position - 145;
+    int menu_w = 180;
+    int menu_h = 140;
+
+    // Check if Start Menu is open and clicked inside Start Menu
+    if (taskbar.start_menu_open && 
+        x >= menu_x && x < menu_x + menu_w && 
+        y >= menu_y && y < menu_y + menu_h) {
         
-        // Launch new terminal!
-        extern window_t* wm_create_window(int, int, int, int, const char*);
-        extern terminal_instance_t* terminal_create_instance();
-        extern void terminal_instance_print(terminal_instance_t*, const char*);
-        
-        // Simple position offset (no rand in kernel)
-        static int term_counter = 0;
-        term_counter++;
-        int offset_x = 50 + ((term_counter * 30) % 200);
-        int offset_y = 80 + ((term_counter * 25) % 150);
-        
-        // FEATURE 1: Create fully functional independent terminal
-        window_t* new_term = wm_create_window(offset_x, offset_y, 700, 480, "Terminal");
-        if (new_term) {
-            // Create independent terminal instance
-            new_term->user_data = terminal_create_instance();
-            new_term->render_content = NULL;
-            taskbar_add_button(new_term->id, "Terminal");
+        // Item 1: Terminal
+        if (y >= menu_y + 30 && y < menu_y + 54) {
+            extern window_t* wm_create_window(int, int, int, int, const char*);
+            extern terminal_instance_t* terminal_create_instance();
+            extern void terminal_instance_print(terminal_instance_t*, const char*);
             
-            // Print welcome to this specific instance
-            terminal_instance_t* term = (terminal_instance_t*)new_term->user_data;
-            terminal_instance_print(term, "New independent terminal!");
-            terminal_instance_print(term, "This has its own buffer and history.");
-            terminal_instance_print(term, "");
+            static int term_counter = 0;
+            term_counter++;
+            int offset_x = 50 + ((term_counter * 30) % 200);
+            int offset_y = 80 + ((term_counter * 25) % 150);
+            
+            window_t* new_term = wm_create_window(offset_x, offset_y, 700, 480, "Terminal");
+            if (new_term) {
+                new_term->user_data = terminal_create_instance();
+                new_term->render_content = NULL;
+                taskbar_add_button(new_term->id, "Terminal");
+                terminal_instance_t* term = (terminal_instance_t*)new_term->user_data;
+                terminal_instance_print(term, "Falkon-OS Terminal Session");
+                terminal_instance_print(term, "Type 'help' or 'fetch' for commands.");
+                terminal_instance_print(term, "");
+            }
         }
+        // Item 2: System Info
+        else if (y >= menu_y + 58 && y < menu_y + 82) {
+            extern void sysinfo_print();
+            sysinfo_print();
+        }
+        // Item 3: Toggle Theme
+        else if (y >= menu_y + 86 && y < menu_y + 110) {
+            extern void desktop_set_theme(int);
+            static int curr_theme = 1;
+            curr_theme = (curr_theme % 4) + 1;
+            desktop_set_theme(curr_theme);
+        }
+        // Item 4: Panic Test
+        else if (y >= menu_y + 114 && y < menu_y + 136) {
+            extern void kpanic(const char*);
+            kpanic("User triggered kernel panic test from Falkon Start Menu!");
+        }
+
+        taskbar.start_menu_open = 0;
+        return;
+    }
+
+    if (y < taskbar.y_position) {
+        taskbar.start_menu_open = 0;
         return;
     }
     
+    // Check if clicking launcher button
+    if (launcher_btn.enabled && 
+        x >= launcher_btn.x && 
+        x < launcher_btn.x + launcher_btn.width &&
+        y >= taskbar.y_position + 4 &&
+        y < taskbar.y_position + TASKBAR_HEIGHT - 4) {
+        
+        taskbar.start_menu_open = !taskbar.start_menu_open;
+        return;
+    }
+    
+    taskbar.start_menu_open = 0;
+
     // Check if clicking a window button
     for (int i = 0; i < taskbar.button_count; i++) {
         taskbar_button_t* btn = &taskbar.buttons[i];
@@ -195,7 +248,6 @@ void taskbar_handle_click(int x, int y) {
             window_t* win = wm_get_window(btn->window_id);
             if (!win) continue;
             
-            // Toggle minimize/restore
             if (win->flags & WIN_FLAG_MINIMIZED) {
                 wm_restore_window(btn->window_id);
             } else {

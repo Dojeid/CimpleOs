@@ -27,6 +27,7 @@ typedef struct {
     taskbar_button_t buttons[MAX_TASKBAR_BUTTONS];
     int button_count;
     int y_position;
+    int start_menu_open;
 } taskbar_t;
 
 // Initialize taskbar

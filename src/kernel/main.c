@@ -56,19 +56,17 @@ void kmain(void* multiboot_info_addr) {
     gdt_install();
 
     // 2. Setup Memory Management
-    // We need to initialize PMM first to know what's free.
-    pmm_init(mbi);
+    // Calculate total RAM size from Multiboot (in bytes)
+    uint64_t total_mem_bytes = (uint64_t)(mbi->mem_upper + mbi->mem_lower) * 1024;
+    pmm_init(total_mem_bytes > 0 ? total_mem_bytes : 128 * 1024 * 1024);
     
-    // FIXED VMM: Now uses pre-allocated page tables and maps high memory!
-    // This identity maps the first 256MB + framebuffer region
-    // No dynamic allocation after paging is enabled = no crashes!
     vga_print("Enabling paging...\n");
     vmm_init();
     vga_print("Paging enabled!\n");
 
     // 3. Setup Graphics
     vga_print("Initializing Graphics...\n");
-    graphics_init(mb);  // THIS WAS MISSING! Sets up video_memory, screen size, and back_buffer
+    graphics_init(mbi);  // Fixed: pass mbi pointer
     
     clear_screen(0x000000); // Black background
     
@@ -77,36 +75,20 @@ void kmain(void* multiboot_info_addr) {
     draw_string(10, 30, 0xFFFFFF, "Memory Management: PMM + VMM Active");
     draw_string(10, 50, 0xFFFFFF, "Graphics: Initialized");
 
-    // 4. Initialize Interrupts
-    vga_print("Initializing Interrupts...\n");
+    // 4. Initialize Interrupts & Hardware
+    vga_print("Initializing Interrupts & Peripherals...\n");
     init_idt();
     init_mouse();
-    
-    // 5. Initialize Timer (100 Hz)
     timer_init(100);
-    
-    // 6. Initialize Heap
     heap_init();
-    
-    // 7. Initialize System Info
     sysinfo_init();
     
-    asm volatile("sti"); 
-    vga_print("Interrupts Enabled!\n");
-    
-    // asm volatile("sti"); // Interrupts enabled later after full hardware setup
-    // vga_print("Interrupts Enabled!\n");
-    
-    // 7. Initialize USB (if available)
+    // 5. Initialize USB (if available)
     vga_print("Checking for USB...\n");
     usb_init();
     
     vga_print("System ready! Starting GUI...\n");
     
-    // Initialize hardware
-    gdt_install();
-    init_idt();  // Now 64-bit compatible
-    timer_init(100);
     desktop_init();
     taskbar_init();
     cursor_init();

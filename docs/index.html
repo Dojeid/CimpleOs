@@ -112,9 +112,9 @@
                     <h3>Tools Needed on Windows:</h3>
                     <ul>
                         <li><strong>Python 3.8+</strong> (From <a href="https://www.python.org/downloads/" target="_blank">python.org</a> — Make sure to check <i>"Add python.exe to PATH"</i>).</li>
-                        <li><strong>Oracle VM VirtualBox</strong> (From <a href="https://www.virtualbox.org/" target="_blank">virtualbox.org</a>).</li>
-                        <li><strong>Git for Windows</strong> (From <a href="https://git-scm.com/" target="_blank">git-scm.com</a>).</li>
-                        <li><strong>Toolchain</strong>: WSL2 Ubuntu or MSYS2 (for `nasm`, `gcc`, `make`, `grub-mkrescue`).</li>
+                        <li><strong>Oracle VM VirtualBox</strong> (From <a href="https://www.virtualbox.org/" target="_blank">virtualbox.org</a> or <code>winget install Oracle.VirtualBox</code>).</li>
+                        <li><strong>NASM Assembler</strong> (From <a href="https://www.nasm.us/" target="_blank">nasm.us</a> or <code>winget install NASM.NASM</code> / <code>choco install nasm -y</code>).</li>
+                        <li><strong>Toolchain</strong>: MSYS2, MinGW64, or Chocolatey package manager.</li>
                     </ul>
                 </div>
 
@@ -363,6 +363,11 @@ python build.py -clean dev -build dev -run vbox # Full clean, rebuild & launch w
                         <tr>
                             <td><code>echo &lt;text&gt;</code></td>
                             <td>Echoes text input back to screen.</td>
+                            <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
+                        </tr>
+                        <tr>
+                            <td><code>matrix</code></td>
+                            <td>Engages Matrix digital rain mode in terminal.</td>
                             <td><a href="file:///d:/Falkon_labs/Falkon-Os/src/kernel/cmd.c">cmd.c</a></td>
                         </tr>
                         <tr>

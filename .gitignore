@@ -1,5 +1,7 @@
 # Falkon-OS Build Artifacts
 build/
+build_dev/
+build_release/
 isodir/
 *.iso
 *.bin

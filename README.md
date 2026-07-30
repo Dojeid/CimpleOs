@@ -7,7 +7,7 @@
 ![Architecture](https://img.shields.io/badge/Architecture-x86__64-orange.svg)
 ![Mode](https://img.shields.io/badge/Mode-64--bit_Long_Mode-purple.svg)
 ![VirtualBox Ready](https://img.shields.io/badge/VirtualBox-Recommended-brightgreen.svg)
-![Build Driver](https://img.shields.io/badge/Build_Driver-build.py-blue.svg)
+![Build System](https://img.shields.io/badge/Build_System-CMake_%7C_Python-blue.svg)
 
 ---
 
@@ -35,11 +35,9 @@ Windows is the primary supported environment for building and running Falkon-OS 
 
 #### Tools Needed on Windows:
 1. **Python 3.8+**: Download from [python.org](https://www.python.org/downloads/) (Check *"Add python.exe to PATH"* during installation).
-2. **Oracle VM VirtualBox (v7.0+)**: Download from [virtualbox.org](https://www.virtualbox.org/).
-3. **Git for Windows**: Download from [git-scm.com](https://git-scm.com/).
-4. **Compiler Toolchain (Choice of WSL2 or MSYS2)**:
-   - **Option A (WSL2 - Recommended)**: Allows native Linux compilation with VirtualBox launch on Windows.
-   - **Option B (MSYS2)**: Installs `nasm`, `gcc`, `cmake`, and `make` natively on Windows.
+2. **Oracle VM VirtualBox (v7.0+)**: Download from [virtualbox.org](https://www.virtualbox.org/) or install via `winget install Oracle.VirtualBox`.
+3. **NASM Assembler**: Download from [nasm.us](https://www.nasm.us/) or install via `winget install NASM.NASM` or `choco install nasm -y`.
+4. **Build Toolchain (MSYS2 / MinGW64)**: Installs `nasm`, `gcc`, `cmake`, `make`, and GRUB tools natively on Windows.
 
 #### Step-by-Step Compilation & VM Creation on Windows:
 
@@ -195,6 +193,7 @@ Examples:
 | `whoami` | Displays active user session | `root@falkon-os` |
 | `calc <expr>` | Performs basic math operations | `calc 25 + 15` ➔ `Result: 40` |
 | `echo <text>` | Echoes input text back to screen | `echo Hello OS World` |
+| `matrix` | Engages Matrix digital rain mode | Green binary rain |
 | `theme <id>` | Switches wallpaper theme live | `theme 2` (Cyber Blue), `theme 3` (Forest) |
 | `sysinfo` | Displays RAM memory map and CPU specs | PMM & VMM status |
 | `time` | Displays uptime clock timer | `Uptime: 00h 02m 14s` |
