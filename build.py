@@ -127,13 +127,16 @@ fix_windows_path()
 
 def ensure_grub_tools():
     """
-    Download grub-2.06-for-windows.zip from GNU FTP and extract grub-mkrescue
+    Download grub-2.06-for-windows.zip from GNU FTP and extract grub-mkimage
     + required i386-pc modules into tools/grub/ if not already present.
-    Returns path to grub-mkrescue.exe or None.
+    Returns path to grub-mkrescue.exe or grub-mkimage.exe or None.
     """
     local_gmr = GRUB_TOOLS_DIR / "grub-mkrescue.exe"
+    local_gmi = GRUB_TOOLS_DIR / "grub-mkimage.exe"
     if local_gmr.exists():
         return str(local_gmr)
+    if local_gmi.exists() and (GRUB_TOOLS_DIR / "i386-pc").exists():
+        return str(local_gmi)
 
     if not GRUB_WIN_ZIP.exists():
         print(f"  -> Downloading GRUB 2.06 for Windows from GNU FTP (~12 MB)...")
@@ -162,35 +165,26 @@ def ensure_grub_tools():
     try:
         with zipfile.ZipFile(GRUB_WIN_ZIP, "r") as zf:
             for member in zf.namelist():
-                # Extract grub-mkrescue.exe, grub-bios-setup.exe and the i386-pc module directory
-                basename = member.split("/")[-1]
-                if member.endswith("grub-mkrescue.exe") or member.endswith("grub-bios-setup.exe"):
-                    zf.extract(member, GRUB_TOOLS_DIR / "_raw")
-                    src = GRUB_TOOLS_DIR / "_raw" / member
-                    dst = GRUB_TOOLS_DIR / basename
-                    shutil.copy2(src, dst)
-                elif "/i386-pc/" in member and not member.endswith("/"):
-                    rel = "/".join(member.split("/")[1:])   # strip top-level dir
-                    dst = GRUB_TOOLS_DIR / rel
-                    dst.parent.mkdir(parents=True, exist_ok=True)
-                    data = zf.read(member)
-                    dst.write_bytes(data)
-                elif "/locale/" in member or "/themes/" in member:
-                    pass  # skip bloat
-                elif not member.endswith("/"):
-                    rel = "/".join(member.split("/")[1:])
-                    dst = GRUB_TOOLS_DIR / rel
-                    dst.parent.mkdir(parents=True, exist_ok=True)
-                    data = zf.read(member)
-                    dst.write_bytes(data)
-        # Clean temp dir
-        raw = GRUB_TOOLS_DIR / "_raw"
-        if raw.exists():
-            shutil.rmtree(raw, ignore_errors=True)
+                if member.endswith("/"):
+                    continue
+                parts = member.split("/")
+                if len(parts) > 1 and parts[0].startswith("grub-"):
+                    rel = "/".join(parts[1:])
+                else:
+                    rel = member
+                if not rel or "/locale/" in member or "/themes/" in member:
+                    continue
+                dst = GRUB_TOOLS_DIR / rel
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                dst.write_bytes(zf.read(member))
         if local_gmr.exists():
             print(f"  [OK] grub-mkrescue extracted -> {local_gmr}")
             fix_windows_path()
             return str(local_gmr)
+        elif local_gmi.exists():
+            print(f"  [OK] GRUB tools extracted -> {local_gmi}")
+            fix_windows_path()
+            return str(local_gmi)
     except Exception as e:
         print(f"  [!] Extraction failed: {e}")
     return None
@@ -409,9 +403,14 @@ def run_check():
     has_cmake  = shutil.which("cmake") is not None
     has_ninja  = shutil.which("ninja") is not None
     has_nasm   = shutil.which("nasm") is not None
-    has_gcc    = shutil.which("gcc") is not None
-    has_ld     = shutil.which("ld") is not None
+    cross_gcc  = find_cross_gcc()
     has_grub   = find_grub_mkrescue() is not None
+    try:
+        import pycdlib
+        has_pycdlib = True
+    except ImportError:
+        has_pycdlib = False
+    has_grub_mkimage = shutil.which("grub-mkimage") is not None or (GRUB_TOOLS_DIR / "grub-mkimage.exe").exists()
     has_qemu   = shutil.which("qemu-system-x86_64") is not None or os.path.exists(r"C:\Program Files\qemu\qemu-system-x86_64.exe")
     has_vbox   = bool(shutil.which("VBoxManage") or shutil.which("vboxmanage") or os.path.exists(r"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe"))
     has_xorriso = shutil.which("xorriso") is not None
@@ -425,15 +424,15 @@ def run_check():
     def ok(label): print(f"  + [OK] {label}")
     def warn(label): print(f"  + [!] {label}")
 
-    if has_gcc:   ok("GCC cross-compiler found")
-    else:         warn("GCC not found")
+    if cross_gcc: ok(f"x86_64-elf-gcc cross-compiler found -> {cross_gcc}")
+    else:        warn("x86_64-elf-gcc cross-compiler not found")
     if has_nasm:  ok("NASM assembler found")
     else:         warn("NASM not found")
-    if has_ld:    ok("GNU Linker found")
     if has_cmake: ok("CMake found")
     else:         warn("CMake not found — required for build")
     if has_ninja: ok("Ninja build generator found")
     if has_grub:  ok(f"grub-mkrescue found -> {find_grub_mkrescue()}")
+    elif has_pycdlib and has_grub_mkimage: ok("pycdlib + grub-mkimage ready (Bootable ISO creation engine)")
     elif has_msys2_xorriso: ok("MSYS2 xorriso found (ISO creation fallback)")
     elif has_xorriso: ok("System xorriso found (ISO creation fallback)")
     else:         warn("No ISO creator found — run 'python build.py -setup'")
@@ -505,22 +504,14 @@ def build_bootable_iso(kernel_bin: Path, grub_cfg: Path, target_iso: Path) -> bo
 
     # --- Try 1: find grub-mkrescue anywhere ---
     gmr = find_grub_mkrescue()
-
-    if not gmr:
-        # --- Try 2: auto-download & extract ---
-        print("  -> grub-mkrescue not found. Bootstrapping bundled GRUB tools...")
-        gmr = ensure_grub_tools()
-
     if gmr:
         print(f"  -> Building ISO with grub-mkrescue: {gmr}")
         env = os.environ.copy()
-        # Ensure grub can find its prefix/modules from our tools dir
         grub_prefix = GRUB_TOOLS_DIR / "i386-pc"
         if grub_prefix.exists():
             env["GRUB_MKRESCUE_SED"] = str(GRUB_TOOLS_DIR)
 
         cmd = [gmr, "-o", str(target_iso), str(isodir)]
-        # If using our extracted copy, explicitly pass lib dir
         if str(GRUB_TOOLS_DIR) in gmr:
             lib_dir = GRUB_TOOLS_DIR
             cmd = [gmr, f"--directory={lib_dir}", "-o", str(target_iso), str(isodir)]
@@ -532,6 +523,56 @@ def build_bootable_iso(kernel_bin: Path, grub_cfg: Path, target_iso: Path) -> bo
         else:
             print(f"  [!] grub-mkrescue failed:\n{res.stderr or res.stdout}")
 
+    # --- Try 2: pycdlib + grub-mkimage (Cross-platform / Native Windows) ---
+    try:
+        import pycdlib
+    except ImportError:
+        print("  -> Installing pycdlib dependency for ISO creation...")
+        subprocess.run([sys.executable, "-m", "pip", "install", "pycdlib"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            import pycdlib
+        except ImportError:
+            pycdlib = None
+
+    gmi = shutil.which("grub-mkimage") or str(GRUB_TOOLS_DIR / "grub-mkimage.exe")
+    if not os.path.exists(gmi):
+        ensure_grub_tools()
+        gmi = shutil.which("grub-mkimage") or str(GRUB_TOOLS_DIR / "grub-mkimage.exe")
+
+    i386_dir = GRUB_TOOLS_DIR / "i386-pc"
+    if not i386_dir.exists():
+        ensure_grub_tools()
+
+    if pycdlib and os.path.exists(gmi) and i386_dir.exists():
+        print("  -> Building bootable El-Torito ISO with pycdlib + grub-mkimage...")
+        eltorito_bin = target_iso.parent / "eltorito.img"
+        cmd = [
+            gmi, "-O", "i386-pc-eltorito",
+            "-d", str(i386_dir),
+            "-o", str(eltorito_bin),
+            "-p", "/boot/grub",
+            "biosdisk", "iso9660", "normal", "multiboot", "search", "part_msdos", "part_gpt"
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True)
+        if res.returncode == 0 and eltorito_bin.exists():
+            try:
+                iso = pycdlib.PyCdlib()
+                iso.new(interchange_level=3, joliet=3, rock_ridge='1.12')
+                iso.add_directory('/BOOT', rr_name='boot', joliet_path='/boot')
+                iso.add_directory('/BOOT/GRUB', rr_name='grub', joliet_path='/boot/grub')
+                iso.add_file(str(kernel_bin), '/BOOT/FALKONOS.BIN;1', rr_name='FalkonOS.bin', joliet_path='/boot/FalkonOS.bin')
+                if grub_cfg.exists():
+                    iso.add_file(str(grub_cfg), '/BOOT/GRUB/GRUB.CFG;1', rr_name='grub.cfg', joliet_path='/boot/grub/grub.cfg')
+                iso.add_file(str(eltorito_bin), '/BOOT/ELTORITO.IMG;1', rr_name='eltorito.img', joliet_path='/boot/eltorito.img')
+                iso.add_eltorito('/BOOT/ELTORITO.IMG;1', bootcatfile='/BOOT/BOOT.CAT;1', rr_bootcatname='boot.cat', joliet_bootcatfile='/boot/boot.cat', boot_load_size=4, boot_info_table=True)
+                iso.write(str(target_iso))
+                iso.close()
+                if target_iso.exists() and target_iso.stat().st_size > 32768:
+                    print(f"  [OK] Bootable El-Torito ISO created: {target_iso}")
+                    return True
+            except Exception as e:
+                print(f"  [!] pycdlib ISO generation failed: {e}")
+
     # --- Try 3: MSYS2 xorriso with El Torito + embedded grub modules ---
     msys_bash = find_msys2_bash()
     if msys_bash:
@@ -539,13 +580,8 @@ def build_bootable_iso(kernel_bin: Path, grub_cfg: Path, target_iso: Path) -> bo
         msys_iso = to_msys_path(target_iso)
         msys_dir = to_msys_path(isodir)
 
-        # xorriso -as mkisofs approach with El Torito flags
-        # We embed grub2's cdboot.img if we have it bundled, otherwise basic data ISO
         cdboot = GRUB_TOOLS_DIR / "i386-pc" / "cdboot.img"
-        core_img = GRUB_TOOLS_DIR / "i386-pc" / "eltorito.img"
-
         if cdboot.exists():
-            msys_cdboot = to_msys_path(cdboot)
             xorriso_cmd = (
                 f"xorriso -as mkisofs "
                 f"-R -J "
@@ -554,7 +590,6 @@ def build_bootable_iso(kernel_bin: Path, grub_cfg: Path, target_iso: Path) -> bo
                 f"-o '{msys_iso}' '{msys_dir}'"
             )
         else:
-            # Pure data ISO — not bootable by BIOS, but QEMU -kernel still works
             xorriso_cmd = f"xorriso -as mkisofs -R -J -o '{msys_iso}' '{msys_dir}'"
 
         res = subprocess.run([msys_bash, "-l", "-c", xorriso_cmd], capture_output=True, text=True)
@@ -634,6 +669,11 @@ def rotate_builds(os_tag, mode, iso_src, do_save):
 
 def run_build(os_tag, mode, do_save=False):
     print(f"\n[BUILD] Compiling Falkon-OS in '{mode.upper()}' mode for {os_tag}...")
+
+    if not find_cross_gcc():
+        print("  -> x86_64-elf cross-compiler not found. Auto-downloading toolchain...")
+        ensure_cross_compiler()
+    fix_windows_path()
 
     build_type = "Debug" if mode == "dev" else "Release"
     build_dir  = ROOT_DIR / ("build" if mode == "dev" else "build_release")
@@ -799,6 +839,13 @@ def run_setup():
             print(f"  [OK] grub-mkrescue ready: {gmr}")
         else:
             print("  [!] GRUB bootstrap failed. ISO creation will fall back to xorriso.")
+
+        print("  -> Bootstrapping x86_64-elf cross-compiler...")
+        gcc = ensure_cross_compiler()
+        if gcc:
+            print(f"  [OK] x86_64-elf-gcc ready: {gcc}")
+        else:
+            print("  [!] Cross-compiler bootstrap failed.")
 
         fix_windows_path()
         print("\n[SUCCESS] Setup complete! Run 'python build.py -check' to verify.")

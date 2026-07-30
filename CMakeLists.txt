@@ -59,10 +59,10 @@ endif()
 # Project
 # ─────────────────────────────────────────────────────────────────────────────
 
-project(FalkonOS LANGUAGES C ASM_NASM)
-
 # Disable CMake's ABI detection (we're bare-metal freestanding)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+project(FalkonOS LANGUAGES C ASM_NASM)
 
 # Output binary directory
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
