@@ -1,0 +1,5 @@
+default 0
+timeout 0
+title Falkon-OS 64-bit
+kernel /boot/FalkonOS.bin
+boot

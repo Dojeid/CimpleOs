@@ -1,10 +1,9 @@
 ; Falkon-OS 64-bit Bootloader
-; Long mode entry with 4-level page tables
+; Multiboot 1 compliant header — long mode entry with 4-level page tables
 
-MBALIGN  equ  1 << 0
-MEMINFO  equ  1 << 1
-MBVIDEO  equ  1 << 2
-FLAGS    equ  MBALIGN | MEMINFO | MBVIDEO
+MBALIGN  equ  1 << 0    ; align loaded modules on page boundaries
+MEMINFO  equ  1 << 1    ; provide memory map
+FLAGS    equ  MBALIGN | MEMINFO
 MAGIC    equ  0x1BADB002
 CHECKSUM equ -(MAGIC + FLAGS)
 
@@ -13,11 +12,6 @@ align 4
     dd MAGIC
     dd FLAGS
     dd CHECKSUM
-    dd 0, 0, 0, 0, 0
-    dd 0        ; Linear graphics
-    dd 1024     ; Width
-    dd 768      ; Height
-    dd 32       ; Depth
 
 section .bss
 align 16

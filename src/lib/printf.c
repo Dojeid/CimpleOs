@@ -1,5 +1,5 @@
 #include "printf.h"
-#include "vga.h"
+#include "drivers/video/vga.h"
 #include "string.h"
 #include <stdarg.h>
 #include <stdint.h>

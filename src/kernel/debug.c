@@ -64,13 +64,13 @@ void debug_dump_log() {
 }
 
 int debug_validate_pointer(void* ptr) {
-    uint32_t addr = (uint32_t)ptr;
+    uintptr_t addr = (uintptr_t)ptr;
     
     // NULL check
     if (addr == 0) return 0;
     
-    // Check if in valid kernel range (1MB - 256MB for now)
-    if (addr < 0x100000 || addr > 0x10000000) return 0;
+    // Check if in valid memory range (1MB - 4GB for 64-bit kernel)
+    if (addr < 0x100000 || addr > 0x100000000ULL) return 0;
     
     return 1;
 }

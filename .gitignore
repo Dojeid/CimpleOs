@@ -1,20 +1,30 @@
-# Falkon-OS Build Artifacts
+# Falkon-OS Staging & Build Artifacts
 build/
 build_dev/
 build_release/
+falkon_*
 isodir/
 *.iso
 *.bin
+*.exe
 *.o
+*.obj
+*.dll.a
 
 # Compiler & Linker temporary files
 *.d
 *.elf
+*.map
+compile_commands.json
+.ninja_*
+.ninja_log
+.cmake/
 
-# Python Cache
+# Python Cache & Logs
 __pycache__/
 *.pyc
 *.pyo
+*.log
 
 # IDE & Editor files
 .vscode/
@@ -22,9 +32,17 @@ __pycache__/
 *.swp
 *~
 
-# VirtualBox Machine Artifacts
+# VirtualBox & Emulator Machine Artifacts
 *.vbox
 *.vbox-prev
 *.vmdk
 *.vdi
-*.log
+Logs/
+VBox.log
+
+# Downloaded tools cache (grub-win.zip, extracted grub/)
+tools/
+
+# Scratch / temp files
+*.json
+limine_release.json

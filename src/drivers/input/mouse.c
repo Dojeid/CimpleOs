@@ -109,15 +109,15 @@ int mouse_button_left() {
 
 // SECURITY FIX + BUG FIX #7: Critical section with debounce
 int mouse_button_pressed() {
-    uint32_t flags;
+    uint64_t flags;
     int pressed;
     
     // BUG FIX #7: Debounce protection (prevent double-clicks)
     static uint32_t last_press_time = 0;
     extern volatile uint32_t timer_ticks;
     
-    // Save interrupt flag and disable interrupts
-    asm volatile("pushf; cli; pop %0" : "=r"(flags));
+    // Save interrupt flag and disable interrupts (64-bit pushfq/popfq)
+    asm volatile("pushfq; cli; pop %0" : "=r"(flags));
     
     // Read button state atomically
     pressed = (mouse_left_btn && !prev_mouse_left_btn);
@@ -141,10 +141,10 @@ int mouse_button_pressed() {
 }
 
 int mouse_button_released() {
-    uint32_t flags;
+    uint64_t flags;
     int released;
     
-    asm volatile("pushf; cli; pop %0" : "=r"(flags));
+    asm volatile("pushfq; cli; pop %0" : "=r"(flags));
     
     released = (!mouse_left_btn && prev_mouse_left_btn);
     prev_mouse_left_btn = mouse_left_btn;
