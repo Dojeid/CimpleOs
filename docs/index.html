@@ -195,30 +195,31 @@ python3 build.py --vbox</code></pre>
                 </ol>
             </section>
 
-            <!-- UNIFIED BUILD.PY SECTION -->
+            <!-- UNIFIED BUILD.PY & CMAKE SECTION -->
             <section id="build-py" class="doc-section">
                 <div class="section-header">
-                    <h2>🐍 Singular Unified Python Script (`build.py`) Explained</h2>
-                    <p>Understanding how <code>build.py</code> automates toolchain verification, kernel compilation, ISO generation, and VirtualBox VM creation.</p>
+                    <h2>🐍 Cross-Platform Build Driver (`build.py`) Explained</h2>
+                    <p>Falkon-OS features an intuitive, case-insensitive build driver script (<code>build.py</code>) inspired by the Falkon Compiler toolchain architecture.</p>
                 </div>
 
                 <div class="card">
-                    <h3>Step-by-Step Function Breakdown:</h3>
+                    <h3>Driver CLI Architecture & Rules:</h3>
                     <ul>
-                        <li><code>check_dependencies()</code>: Inspects your environment `PATH` for `gcc`, `nasm`, `ld`, and `grub-mkrescue`.</li>
-                        <li><code>clean()</code>: Safely removes `build/`, `isodir/`, and `FalkonOS.iso`.</li>
-                        <li><code>build_iso()</code>: Invokes the compilation pipeline (assembles assembly, compiles C files, links kernel, and runs `grub-mkrescue` to create `FalkonOS.iso`).</li>
-                        <li><code>run_vbox()</code>: Uses `VBoxManage` to automatically create a Linux 64-bit VM, assign 512MB RAM + VMSVGA graphics, mount `FalkonOS.iso` to an optical drive, and start the VM.</li>
-                        <li><code>run_qemu()</code>: Launches QEMU with `-cdrom FalkonOS.iso -m 512M -vga std`.</li>
+                        <li><strong>Rule 1 (Cleaning):</strong> <code>-clean</code> ALWAYS executes BEFORE building.</li>
+                        <li><strong>Rule 2 (Building):</strong> Configures CMake (preferring Ninja) or Makefile, compiles kernel C & ASM, creates <code>FalkonOS.iso</code>, and stages output in <code>falkon_[os]_[dev|release]</code>.</li>
+                        <li><strong>Rule 3 (VM Launching):</strong> <code>-run</code> executes after build, creating a 64-bit VirtualBox VM (<code>-run vbox</code>) or running QEMU (<code>-run qemu</code>).</li>
                     </ul>
                 </div>
 
-                <pre><code># Command Usage Options:
-python build.py          # Compile ISO image
-python build.py --vbox   # Build ISO & launch in VirtualBox (Recommended)
-python build.py --qemu   # Build ISO & launch in QEMU
-python build.py --check  # Check installed tool dependencies
-python build.py --clean  # Clean build artifacts</code></pre>
+                <pre><code># Command Options:
+python build.py -build                  # Compile kernel in dev mode
+python build.py -build release          # Compile kernel in release mode
+python build.py -run vbox               # Build & launch in VirtualBox (Recommended)
+python build.py -run qemu               # Build & launch in QEMU emulator
+python build.py -check                  # Verify toolchain dependencies
+python build.py -clean dev              # Clean dev build staging
+python build.py -clean all              # Clean all build & staging trees
+python build.py -clean dev -build dev -run vbox # Full clean, rebuild & launch workflow</code></pre>
             </section>
 
             <!-- VIRTUALBOX GUIDE SECTION -->

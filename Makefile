@@ -12,15 +12,23 @@ CC := gcc
 LD := ld
 GRUB := grub-mkrescue
 
+# --- Mode Settings (dev vs release) ---
+MODE ?= dev
+ifeq ($(MODE),release)
+    OPT_FLAGS := -O2 -DNDEBUG -DRELEASE_MODE
+else
+    OPT_FLAGS := -O0 -g -DDEBUG -DDEV_MODE
+endif
+
 # --- Architecture Specific Flags ---
 ifeq ($(ARCH),x86_64)
     # 64-bit settings
-    CFLAGS := -ffreestanding -m64 -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -c
+    CFLAGS := -ffreestanding -m64 -mcmodel=large -mno-red-zone -mno-mmx -mno-sse -mno-sse2 $(OPT_FLAGS) -c
     ASMFLAGS := -felf64
     LDFLAGS := -n -nostdlib -z max-page-size=0x1000
 else
     # 32-bit settings (fallback)
-    CFLAGS := -ffreestanding -m32 -g -c -mno-sse -mno-sse2 -mno-mmx
+    CFLAGS := -ffreestanding -m32 $(OPT_FLAGS) -c -mno-sse -mno-sse2 -mno-mmx
     ASMFLAGS := -felf32
     LDFLAGS := -m elf_i386
 endif

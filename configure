@@ -1,48 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# =========================================================
+# Falkon-OS Environment Configurator Wrapper (./configure)
+# Delegates dependency verification to build.py
+# =========================================================
 
-# ==========================================
-# Falkon-OS Build Environment Configurator
-# ==========================================
-
-echo "=========================================="
-echo "        Falkon-OS Environment Check       "
-echo "=========================================="
-
-required_tools=(gcc nasm ld grub-mkrescue)
-missing_tools=()
-
-# Check for each required tool
-for tool in "${required_tools[@]}"; do
-    if ! command -v $tool &> /dev/null; then
-        missing_tools+=("$tool")
-    fi
-done
-
-if [ ${#missing_tools[@]} -ne 0 ]; then
-    echo "ERROR: The following required tools are missing:"
-    for tool in "${missing_tools[@]}"; do
-        echo "  - $tool"
-    done
-    echo ""
-    echo "Please install missing packages:"
-    echo "  Ubuntu/Debian: sudo apt update && sudo apt install -y build-essential nasm grub-pc-bin grub-common xorriso mtools"
-    echo "  Fedora:        sudo dnf install gcc nasm grub2-tools-extra xorriso mtools"
-    echo "  Arch Linux:    sudo pacman -S base-devel nasm grub xorriso mtools"
-    echo "  macOS:         brew install x86_64-elf-gcc nasm i386-elf-grub xorriso"
+if command -v python3 &> /dev/null; then
+    python3 build.py -check
+elif command -v python &> /dev/null; then
+    python build.py -check
+else
+    echo "[!] ERROR: Python 3 is required to run Falkon-OS build system."
     exit 1
 fi
-
-echo "[✓] All core build tools are installed (gcc, nasm, ld, grub-mkrescue)."
-
-# Optional VM checks
-if command -v VBoxManage &> /dev/null || command -v virtualbox &> /dev/null; then
-    echo "[✓] VirtualBox detected (Recommended emulator)."
-elif command -v qemu-system-x86_64 &> /dev/null; then
-    echo "[✓] QEMU detected (Alternative emulator)."
-else
-    echo "[!] Note: Neither VirtualBox nor QEMU were found in PATH."
-    echo "    To test the ISO, install VirtualBox (Recommended) or QEMU."
-fi
-
-echo "Environment check complete! You are ready to build Falkon-OS."
-echo "Run 'make' to build FalkonOS.iso."

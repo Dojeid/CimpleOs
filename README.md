@@ -7,11 +7,11 @@
 ![Architecture](https://img.shields.io/badge/Architecture-x86__64-orange.svg)
 ![Mode](https://img.shields.io/badge/Mode-64--bit_Long_Mode-purple.svg)
 ![VirtualBox Ready](https://img.shields.io/badge/VirtualBox-Recommended-brightgreen.svg)
-![Build](https://img.shields.io/badge/Build-Python_%7C_GCC_%7C_NASM_%7C_GRUB-blue.svg)
+![Build Driver](https://img.shields.io/badge/Build_Driver-build.py-blue.svg)
 
 ---
 
-[📖 Explore Interactive HTML Docs](docs/index.html) • [🪟 Windows Setup](#1-🪟-windows-setup-guide-windows-first) • [🐧 Linux Setup](#2-🐧-linux-setup-guide-linux-second) • [⚙️ WSL Setup](#3-⚙️-wsl2-setup-guide-wsl-third) • [🐍 Singular Build Script Explained](#-singular-unified-python-script-buildpy-explained)
+[📖 Explore Interactive HTML Docs](docs/index.html) • [🪟 Windows Setup](#1-🪟-windows-setup-guide-windows-first) • [🐧 Linux Setup](#2-🐧-linux-setup-guide-linux-second) • [⚙️ WSL Setup](#3-⚙️-wsl2-setup-guide-wsl-third) • [🐍 Cross-Platform Build Driver](#-cross-platform-build-driver-buildpy-explained)
 
 </div>
 
@@ -39,7 +39,7 @@ Windows is the primary supported environment for building and running Falkon-OS 
 3. **Git for Windows**: Download from [git-scm.com](https://git-scm.com/).
 4. **Compiler Toolchain (Choice of WSL2 or MSYS2)**:
    - **Option A (WSL2 - Recommended)**: Allows native Linux compilation with VirtualBox launch on Windows.
-   - **Option B (MSYS2)**: Installs `nasm`, `gcc`, and `make` natively on Windows.
+   - **Option B (MSYS2)**: Installs `nasm`, `gcc`, `cmake`, and `make` natively on Windows.
 
 #### Step-by-Step Compilation & VM Creation on Windows:
 
@@ -51,11 +51,11 @@ Windows is the primary supported environment for building and running Falkon-OS 
    ```
 
 2. **One-Click Build & VirtualBox Launch**:
-   Run the singular unified Python script:
+   Run the cross-platform driver script:
    ```cmd
-   python build.py --vbox
+   python build.py -run vbox
    ```
-   *This script automatically verifies dependencies, compiles the kernel, generates `FalkonOS.iso`, creates a VirtualBox VM named "FalkonOS", configures 512MB RAM + VMSVGA graphics, attaches the ISO, and boots the OS!*
+   *This script automatically verifies dependencies, compiles the kernel in dev mode, stages output in `falkon_win_dev`, creates a VirtualBox VM named "FalkonOS", configures 512MB RAM + VMSVGA graphics, attaches the ISO, and boots the OS!*
 
 3. **Manual VirtualBox Setup (Alternative)**:
    - Open VirtualBox ➔ Click **New**.
@@ -73,6 +73,7 @@ Linux provides native compilation tools out of the box.
 
 #### Tools Needed on Linux:
 - `gcc` (Host C compiler)
+- `cmake` & `ninja` (Optional CMake build system)
 - `nasm` (x86_64 Assembly assembler)
 - `ld` (GNU Linker)
 - `grub-mkrescue`, `xorriso`, `mtools` (ISO image creation utilities)
@@ -84,23 +85,23 @@ Linux provides native compilation tools out of the box.
 - **Ubuntu / Debian / Mint**:
   ```bash
   sudo apt update
-  sudo apt install -y python3 build-essential nasm grub-pc-bin grub-common xorriso mtools virtualbox qemu-system-x86
+  sudo apt install -y python3 build-essential cmake ninja-build nasm grub-pc-bin grub-common xorriso mtools virtualbox qemu-system-x86
   ```
 
 - **Fedora / RHEL**:
   ```bash
   sudo dnf groupinstall -y "Development Tools"
-  sudo dnf install -y python3 gcc nasm grub2-tools-extra xorriso mtools virtualbox qemu-system-x86
+  sudo dnf install -y python3 gcc cmake ninja-build nasm grub2-tools-extra xorriso mtools virtualbox qemu-system-x86
   ```
 
 - **Arch Linux / Manjaro**:
   ```bash
-  sudo pacman -S --needed python base-devel nasm grub xorriso mtools virtualbox qemu-desktop
+  sudo pacman -S --needed python base-devel cmake ninja nasm grub xorriso mtools virtualbox qemu-desktop
   ```
 
 - **Alpine Linux**:
   ```bash
-  sudo apk add python3 build-base nasm grub grub-efi xorriso mtools qemu-system-x86_64
+  sudo apk add python3 build-base cmake samu nasm grub grub-efi xorriso mtools qemu-system-x86_64
   ```
 
 #### Step-by-Step Compilation & VM Launch on Linux:
@@ -113,12 +114,12 @@ Linux provides native compilation tools out of the box.
 
 2. **Build ISO & Launch in VirtualBox**:
    ```bash
-   python3 build.py --vbox
+   python3 build.py -run vbox
    ```
 
 3. **Or Launch in QEMU**:
    ```bash
-   python3 build.py --qemu
+   python3 build.py -run qemu
    ```
 
 ---
@@ -139,7 +140,7 @@ WSL2 (Windows Subsystem for Linux) allows you to compile Falkon-OS using Ubuntu 
 2. **Install Build Dependencies in WSL**:
    Launch **Ubuntu** from your Start menu and run:
    ```bash
-   sudo apt update && sudo apt install -y python3 build-essential nasm grub-pc-bin grub-common xorriso mtools
+   sudo apt update && sudo apt install -y python3 build-essential cmake ninja-build nasm grub-pc-bin grub-common xorriso mtools
    ```
 
 3. **Navigate to your Project Directory**:
@@ -150,100 +151,41 @@ WSL2 (Windows Subsystem for Linux) allows you to compile Falkon-OS using Ubuntu 
 
 4. **Compile the ISO in WSL**:
    ```bash
-   python3 build.py
+   python3 build.py -build
    ```
 
 5. **Launch in VirtualBox on Windows**:
    Open PowerShell in Windows and run:
    ```cmd
-   python build.py --vbox
+   python build.py -run vbox
    ```
 
 ---
 
-## 🐍 Singular Unified Python Script (`build.py`) Explained
+## 🐍 Cross-Platform Build Driver (`build.py`) Explained
 
-Rather than relying on fragmented shell scripts or complex command combinations, Falkon-OS includes a single, cross-platform Python script in the repository root: **`build.py`**.
+Falkon-OS includes a single, case-insensitive, cross-platform driver script in the root directory: **`build.py`** (inspired by the Falkon Compiler toolchain architecture).
 
-### What `build.py` Does (Step-by-Step Explanation):
+### Key Features & Workflow Rules:
+- **Rule 1 (`-clean`)**: Cleaning targets ALWAYS execute BEFORE building.
+- **Rule 2 (`-build`)**: Configures CMake (preferring Ninja) or Makefile, compiles the 64-bit kernel, generates `FalkonOS.iso`, and stages the output in `falkon_[os]_[dev|release]`.
+- **Rule 3 (`-run`)**: Auto-detects VirtualBox (`-run vbox`) or QEMU (`-run qemu`), creates the VM, mounts the ISO, and boots.
 
 ```
-                       ┌──────────────────────────────┐
-                       │       python build.py        │
-                       └──────────────┬───────────────┘
-                                      │
-           ┌──────────────────────────┴──────────────────────────┐
-           ▼                                                     ▼
-┌──────────────────────┐                             ┌──────────────────────┐
-│  check_dependencies  │                             │      clean()         │
-│ Checks gcc, nasm, ld │                             │ Removes build/,      │
-│ & grub-mkrescue path │                             │ isodir/, FalkonOS.iso│
-└──────────┬───────────┘                             └──────────────────────┘
-           │
-           ▼
-┌──────────────────────┐
-│     build_iso()      │
-│ 1. Assembles boot.asm│
-│ 2. Compiles C files  │
-│ 3. Links FalkonOS.bin│
-│ 4. Calls grub-rescue │
-└──────────┬───────────┘
-           │
-           ├──────────────────────────┐
-           ▼                          ▼
-┌──────────────────────┐    ┌──────────────────────┐
-│     run_vbox()       │    │      run_qemu()      │
-│ 1. Locates VBoxManage│    │ Launches QEMU with   │
-│ 2. Creates Linux VM  │    │ -cdrom FalkonOS.iso  │
-│ 3. Configures 512MB  │    │ -m 512M -vga std     │
-│ 4. Mounts ISO & runs │    └──────────────────────┘
-└──────────────────────┘
-```
+Usage: python build.py [-build [dev|release]] [-clean [dev|release|all]] [-run [vbox|qemu]] [-check]
 
-1. **`check_dependencies()`**:
-   Inspects your operating system's `PATH` to ensure `gcc`, `nasm`, `ld`, and `grub-mkrescue` are present before attempting compilation.
-2. **`clean()`**:
-   Safely removes temporary object files, compiled binaries (`build/`), GRUB ISO staging folders (`isodir/`), and `FalkonOS.iso`.
-3. **`build_iso()`**:
-   Executes the build system pipeline:
-   - Assembles 64-bit bootloader assembly (`src/arch/x86_64/boot/boot.asm`).
-   - Compiles kernel C sources (`src/kernel/`, `src/mm/`, `src/drivers/`, `src/gui/`, `src/lib/`).
-   - Links the kernel binary into `build/FalkonOS.bin`.
-   - Invokes `grub-mkrescue` to package `FalkonOS.bin` and `grub.cfg` into bootable `FalkonOS.iso`.
-4. **`run_vbox()`**:
-   Automates VirtualBox VM setup via `VBoxManage`:
-   - Checks if a VM named `"FalkonOS"` already exists and safely turns it off.
-   - Registers a new VM configured for 64-bit Linux (`Linux26_64`).
-   - Sets 512MB RAM, 16MB Video RAM, VMSVGA graphics controller, and PS/2 mouse/keyboard.
-   - Creates a virtual IDE optical drive and mounts `FalkonOS.iso`.
-   - Powers on the VM instantly (`startvm`).
-5. **`run_qemu()`**:
-   Alternative emulator launcher for developers testing via command line.
-
-### CLI Usage Commands for `build.py`:
-
-```bash
-# Build the ISO image
-python build.py
-
-# Build ISO and launch in VirtualBox (Recommended)
-python build.py --vbox
-
-# Build ISO and launch in QEMU
-python build.py --qemu
-
-# Verify system dependencies
-python build.py --check
-
-# Clean all build artifacts
-python build.py --clean
+Examples:
+  python build.py -build                     # Compiles kernel in dev mode
+  python build.py -build release             # Compiles kernel in release mode
+  python build.py -run vbox                  # Builds ISO & launches VirtualBox (Recommended)
+  python build.py -run qemu                  # Builds ISO & launches QEMU
+  python build.py -clean all                 # Removes all build & staging trees
+  python build.py -clean dev -build dev -run vbox # Full clean, rebuild & launch workflow
 ```
 
 ---
 
-## ✨ Features & Upgraded Shell Commands
-
-Falkon-OS comes equipped with an upgraded interactive terminal shell supporting new system commands:
+## ✨ Upgraded Shell Commands
 
 | Command | Description | Example Output |
 | :--- | :--- | :--- |
@@ -265,7 +207,9 @@ Falkon-OS comes equipped with an upgraded interactive terminal shell supporting 
 ```
 Falkon-Os/
 ├── .gitignore              # Build & VM artifact ignore rules
-├── build.py                # Singular Unified Build & VM Python script
+├── build.py                # Cross-Platform Driver Script
+├── CMakeLists.txt          # Modern CMake Build Definition
+├── Makefile                # Traditional GNU Makefile Definition
 ├── docs/                   # Interactive HTML Documentation Portal
 │   ├── index.html          # Documentation homepage
 │   ├── styles.css          # Theme styling
@@ -283,21 +227,9 @@ Falkon-Os/
 │   ├── lib/                # C standard library primitives (printf, string, io)
 │   └── mm/                 # Physical (PMM), Virtual (VMM), and Heap allocators
 ├── configure               # Dependency validator script
-├── Makefile                # Low-level Makefile
 ├── LICENSE                 # MIT License
 └── README.md               # Main Documentation
 ```
-
----
-
-## 🔧 Troubleshooting Matrix
-
-| Issue | Root Cause | Solution |
-| :--- | :--- | :--- |
-| `grub-mkrescue: command not found` | Missing GRUB ISO tools. | Install `grub-pc-bin`, `xorriso`, and `mtools` via your package manager. |
-| VirtualBox shows black screen | Low VRAM or wrong graphics driver. | Set VM Display Graphics Controller to `VMSVGA` or `VBoxVGA` and increase VRAM to 16MB. |
-| `nasm: command not found` | NASM assembler is not installed. | Run `sudo apt install nasm` or `sudo dnf install nasm`. |
-| Mouse cursor frozen in VM | Pointing device set to tablet/USB. | Change VirtualBox Settings ➔ System ➔ Motherboard Pointing Device to `PS/2 Mouse`. |
 
 ---
 
