@@ -57,3 +57,8 @@ set_target_properties(FalkonOS.bin PROPERTIES
     OUTPUT_NAME  "FalkonOS.bin"
     ENABLE_EXPORTS FALSE
 )
+
+add_custom_command(TARGET FalkonOS.bin POST_BUILD
+    COMMAND objcopy -O binary --only-section=.boot --only-section=.text --only-section=.rodata --only-section=.data $<TARGET_FILE:FalkonOS.bin> ${CMAKE_BINARY_DIR}/FalkonOS_flat.bin
+    COMMENT "[FalkonOS] Stripped PE headers to generate flat raw kernel binary (FalkonOS_flat.bin)"
+)

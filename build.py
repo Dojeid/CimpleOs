@@ -318,7 +318,8 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
         sys.exit(1)
     t_cmp = time.time() - t0
 
-    kern_bin = BUILD_DIR / "FalkonOS.bin"
+    kern_raw = BUILD_DIR / "FalkonOS_flat.bin"
+    kern_bin = kern_raw if kern_raw.exists() else (BUILD_DIR / "FalkonOS.bin")
     boot_bin = BUILD_DIR / "bootsector.bin"
 
     if not boot_bin.exists():
@@ -332,7 +333,7 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
     builder_exe = ensure_iso_builder()
     target_iso = BUILD_DIR / "FalkonOS.iso"
     target_img = OUT_DIR / "FalkonOS.img"
-    res = subprocess.run([builder_exe, str(target_iso), str(boot_bin if boot_bin.exists() else kern_bin), str(kern_bin), str(target_img)], capture_output=True, text=True)
+    res = subprocess.run([builder_exe, str(target_iso), str(boot_bin), str(kern_bin), str(target_img)], capture_output=True, text=True)
     t_iso = time.time() - t0
 
     shutil.copy2(target_iso, PRIMARY_ISO)

@@ -13,23 +13,7 @@ align 4
     dd FLAGS
     dd CHECKSUM
 
-section .bss
 align 16
-stack_bottom:
-resb 32768
-stack_top:
-
-align 4096
-pml4_table:
-    resb 4096
-pdpt_table:
-    resb 4096
-pd_table:
-    resb 4096
-pt_table:
-    resb 4096
-
-section .text
 bits 32
 global start
 extern kmain
@@ -143,6 +127,22 @@ gdt64:
 .pointer:
     dw $ - gdt64 - 1
     dq gdt64
+
+section .bss
+align 16
+stack_bottom:
+resb 32768
+stack_top:
+
+align 4096
+pml4_table:
+    resb 4096
+pdpt_table:
+    resb 4096
+pd_table:
+    resb 4096
+pt_table:
+    resb 4096
 
 section .text
 bits 64

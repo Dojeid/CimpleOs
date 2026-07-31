@@ -1,13 +1,7 @@
 /*
  * Falkon-OS Linker Script
  * Produces a Multiboot 1-compliant ELF kernel loaded at 1 MB physical address.
- *
- * Memory layout:
- *   0x100000  - .boot    : Multiboot header (must be in first 8 KB)
- *   0x100000+ - .text    : Kernel code (32-bit boot stub + 64-bit long mode code)
- *   ...       - .rodata  : Read-only data (GDT, strings, etc.)
- *   ...       - .data    : Initialised data
- *   ...       - .bss     : Zero-initialised data (stack, page tables)
+ * Ensures .multiboot header and entry symbol 'start' are at 0x00100000 / 0x00100010.
  */
 
 ENTRY(start)
@@ -17,14 +11,15 @@ SECTIONS
     /* Load at 1 MB — conventional Multiboot 1 load address */
     . = 1M;
 
-    /* Multiboot header must appear in the first 8 KB of the image */
+    /* Multiboot header & 32-bit entry stub at top of image (0x100000) */
     .boot :
     {
         KEEP(*(.multiboot))
+        *(.boot.text)
     }
 
     /* Mixed 32-bit boot stub + 64-bit long mode kernel code */
-    .text ALIGN(4K) :
+    .text :
     {
         *(.text .text.*)
     }

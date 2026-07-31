@@ -91,8 +91,8 @@ init_32:
     mov eax, 0x2BADB002
     mov ebx, 0              ; Multiboot info pointer (NULL)
 
-    ; Jump to Kernel Entry Point (Multiboot entry at 0x00100030)
-    jmp dword 0x00100030
+    ; Jump directly to Kernel Entry Point (start at 0x00100010)
+    jmp dword 0x00100010
 
 [BITS 16]
 ; --- Helper: Print String in Real Mode via BIOS INT 10h ---
