@@ -221,7 +221,7 @@ int main(int argc, char* argv[]) {
     entry->boot_indicator  = 0x88; // Bootable
     entry->boot_media_type = 0x00; // No emulation
     entry->load_segment    = 0x0000; // Load to default 0x7C00
-    entry->sector_count    = (uint16_t)((boot_size + 511) / 512); // Number of 512-byte virtual sectors
+    entry->sector_count    = 4;      // 4 virtual 512-byte sectors (1 full 2KB ISO sector)
     entry->load_rba        = boot_lba;
     fwrite(sector, 1, SECTOR_SIZE, f_iso);
 

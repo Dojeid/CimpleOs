@@ -419,12 +419,18 @@ def run_qemu(mode="normal"):
         log_error("QEMU not found. Run 'python build.py doctor' for instructions.")
         sys.exit(1)
 
+    mem = cfg.get("qemu", "memory", fallback="512").strip('"\'')
+    cpu = cfg.get("qemu", "cpu", fallback="qemu64").strip('"\'')
+    mach = cfg.get("qemu", "machine", fallback="q35").strip('"\'')
+    vga = cfg.get("qemu", "graphics", fallback="std").strip('"\'')
+
     cmd = [
         qemu_bin,
-        "-m", cfg.get("qemu", "memory", fallback="512") + "M",
-        "-cpu", cfg.get("qemu", "cpu", fallback="qemu64"),
-        "-machine", cfg.get("qemu", "machine", fallback="q35"),
-        "-vga", cfg.get("qemu", "graphics", fallback="std")
+        "-m", mem + "M",
+        "-cpu", cpu,
+        "-machine", mach,
+        "-vga", vga,
+        "-boot", "order=d"
     ]
 
     if mode == "debug" or mode == "gdb":
@@ -440,11 +446,11 @@ def run_qemu(mode="normal"):
         cmd.extend(["-monitor", "stdio"])
 
     cmd.extend(["-cdrom", str(PRIMARY_ISO)])
-    log_info(f"Launching QEMU ({mode}) -> {PRIMARY_ISO}")
+    log_info(f"Launching QEMU window ({mode}) -> {PRIMARY_ISO}")
 
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    with open(LOGS_DIR / "qemu.log", "w") as f:
-        subprocess.run(cmd, stdout=f, stderr=f)
+    res = subprocess.run(cmd)
+    if res.returncode != 0:
+        log_error(f"QEMU exited with code {res.returncode}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Feature 12: Automated Build & Verification Test Suite
