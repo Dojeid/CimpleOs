@@ -30,20 +30,35 @@ start:
     mov si, msg_welcome
     call print_string
 
-    ; Try Stage 1: INT 13h AH=42h LBA 22 (ISO CD-ROM layout)
-    mov si, dap_iso
-    mov ah, 0x42
+    ; Select the disk read path from the BIOS boot drive (DL):
+    ;   0x9F  -> SeaBIOS El-Torito no-emulation emulated CD
+    ;            (kernel mapped at virtual LBA 4, 512-byte sectors)
+    ;   0xE0+ -> BIOS CD-ROM (ISO 9660, kernel at LBA 22)
+    ;   0x80  -> hard disk raw image (kernel at LBA 1)
+    ;   other -> floppy / CHS fallback
     mov dl, [boot_drive]
-    int 0x13
-    jnc .load_ok
-
-    ; Try Stage 2: INT 13h AH=42h LBA 1 (Raw Disk .img layout)
+    cmp dl, 0x9F
+    je .cdemu_dap
+    cmp dl, 0xE0
+    jae .iso_dap
     mov si, dap_img
+    cmp dl, 0x80
+    je .try_dap
+    jmp .chs_read
+
+.cdemu_dap:
+    mov si, dap_cd_emu
+    jmp .try_dap
+
+.iso_dap:
+    mov si, dap_iso
+
+.try_dap:
     mov ah, 0x42
-    mov dl, [boot_drive]
     int 0x13
     jnc .load_ok
 
+.chs_read:
     ; Try Stage 3: INT 13h AH=02h CHS loop (loads full kernel payload)
     mov ax, 0x1000          ; ES:BX = 0x1000:0x0000 = 0x10000
     mov es, ax
@@ -102,9 +117,22 @@ start:
     xor ax, ax
     mov es, ax
 
+    ; Verify the Multiboot 1 magic in the loaded kernel header
+    cmp dword [0x10000], 0x1BADB002
+    jne .load_fail
+
     mov si, msg_loaded
     call print_string
 
+    jmp .boot_continue
+
+.load_fail:
+    mov si, msg_bad_kernel
+    call print_string
+    cli
+    hlt
+
+.boot_continue:
     ; Enable A20 Line
     call enable_a20
 
@@ -183,6 +211,16 @@ dap_img:
     dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
     dq 1                    ; Starting LBA sector (Sector 1 = FalkonOS.bin on raw disk)
 
+; --- Disk Address Packet for SeaBIOS El-Torito CD Emulation (virtual LBA 4) ---
+align 4
+dap_cd_emu:
+    db 0x10                 ; Packet size (16 bytes)
+    db 0x00                 ; Reserved (0)
+    dw KERNEL_SECTORS       ; Number of 512B sectors (640)
+    dw 0x0000               ; Buffer Offset
+    dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
+    dq 4                    ; Virtual LBA 4 = first 512B block of kernel (CD LBA 22)
+
 ; --- 32-bit Global Descriptor Table (GDT) ---
 align 8
 gdt32_start:
@@ -210,8 +248,9 @@ chs_cyl         db 0
 chs_head        db 0
 chs_sector      db 0
 msg_welcome     db "Booting Falkon-OS Stage 1...", 0x0D, 0x0A, 0
-msg_loaded      db "Kernel payload loaded.", 0x0D, 0x0A, 0
+msg_loaded      db "Kernel loaded.", 0x0D, 0x0A, 0
 msg_chs_fail    db "CHS read failed.", 0x0D, 0x0A, 0
+msg_bad_kernel  db "Kernel magic mismatch.", 0x0D, 0x0A, 0
 
 ; --- Pad to 510 bytes and append Boot Signature 0xAA55 ---
 times 510-($-$$) db 0

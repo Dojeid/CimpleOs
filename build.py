@@ -206,6 +206,7 @@ def compute_workspace_hash():
         file_list.extend(glob.glob(str(SRC_DIR / "**" / ext), recursive=True))
 
     file_list.append(str(ROOT_DIR / "CMakeLists.txt"))
+    file_list.append(str(ROOT_DIR / "build.py"))
     file_list.append(str(TOOLS_DIR / "iso_builder.c"))
 
     file_hashes = {}
@@ -322,11 +323,16 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
     kern_bin = kern_raw if kern_raw.exists() else (BUILD_DIR / "FalkonOS.bin")
     boot_bin = BUILD_DIR / "bootsector.bin"
 
-    if not boot_bin.exists():
-        nasm_bin = shutil.which("nasm") or r"C:\Program Files\NASM\nasm.exe"
-        boot_asm = SRC_DIR / "arch" / "x86_64" / "boot" / "bootsector.asm"
-        if os.path.exists(nasm_bin) and boot_asm.exists():
-            subprocess.run([nasm_bin, "-f", "bin", str(boot_asm), "-o", str(boot_bin)])
+    nasm_bin = shutil.which("nasm") or r"C:\Program Files\NASM\nasm.exe"
+    boot_asm = SRC_DIR / "arch" / "x86_64" / "boot" / "bootsector.asm"
+    if os.path.exists(nasm_bin) and boot_asm.exists():
+        res = subprocess.run([nasm_bin, "-f", "bin", str(boot_asm), "-o", str(boot_bin)], capture_output=True, text=True)
+        if res.returncode != 0:
+            log_error(f"NASM failed for {boot_asm}:\n{res.stderr}")
+            sys.exit(1)
+    elif not boot_bin.exists():
+        log_error("NASM not found and no existing bootsector.bin to use")
+        sys.exit(1)
 
     draw_progress_bar(80, "Generating ISO    ")
     t0 = time.time()

@@ -246,6 +246,9 @@ int main(int argc, char* argv[]) {
     memcpy(et_vd.id, "CD001", 5);
     et_vd.version = 0x01;
     write_padded_string(et_vd.system_id, "EL TORITO SPECIFICATION", 32);
+    // SeaBIOS's cdrom_boot() strcmp's "CD001\001EL TORITO SPECIFICATION"
+    // against &buffer[1] and needs a NUL at byte 30 (system_id[23]).
+    et_vd.system_id[23] = 0;
     et_vd.boot_catalog_lba = boot_cat_lba;
     fwrite(&et_vd, 1, sizeof(et_vd), f_iso);
 
