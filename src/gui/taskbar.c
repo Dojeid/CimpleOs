@@ -105,7 +105,6 @@ void taskbar_render() {
     }
     
     // Render window buttons
-    window_manager_t* wm = wm_get_state();
     
     for (int i = 0; i < taskbar.button_count; i++) {
         taskbar_button_t* btn = &taskbar.buttons[i];

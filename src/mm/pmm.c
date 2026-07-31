@@ -16,6 +16,7 @@ static void mmap_unset(uint64_t bit) {
     bitmap[bit / 32] &= ~(1U << (bit % 32));
 }
 
+static int mmap_test(uint64_t bit) __attribute__((unused));
 static int mmap_test(uint64_t bit) {
     return (bitmap[bit / 32] & (1U << (bit % 32))) != 0;
 }

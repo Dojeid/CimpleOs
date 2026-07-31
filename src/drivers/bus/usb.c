@@ -13,7 +13,7 @@ static uint16_t uhci_base = 0;
 static int usb_initialized = 0;
 
 // USB keyboard scancodes to ASCII (simplified)
-static char usb_to_ascii[256] = {
+static char usb_to_ascii[256] __attribute__((unused)) = {
     0, 0, 0, 0, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
     'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
     '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',

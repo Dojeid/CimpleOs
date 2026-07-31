@@ -34,7 +34,8 @@ void draw_rect(int x, int y, int w, int h, uint32_t color) {
 }
 
 void draw_char(int x, int y, char c, uint32_t color) {
-    if (c < 0 || c > 127) return;
+    uint8_t uc = (uint8_t)c;
+    if (uc > 127) return;
     
     const uint8_t *glyph = font8x8_basic[(int)c];
     

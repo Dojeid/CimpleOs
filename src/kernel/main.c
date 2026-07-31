@@ -47,10 +47,10 @@ void kmain(void* multiboot_info_addr) {
     
     // Capture Multiboot Info BEFORE enabling paging!
     // (mb pointer might become invalid if it's outside identity mapped region)
-    uint32_t mb_flags = mbi->flags;
-    uint64_t mb_fb_addr = mbi->framebuffer_addr;
-    uint32_t mb_fb_width = mbi->framebuffer_width;
-    uint32_t mb_fb_height = mbi->framebuffer_height;
+    uint32_t mb_flags __attribute__((unused)) = mbi->flags;
+    uint64_t mb_fb_addr __attribute__((unused)) = mbi->framebuffer_addr;
+    uint32_t mb_fb_width __attribute__((unused)) = mbi->framebuffer_width;
+    uint32_t mb_fb_height __attribute__((unused)) = mbi->framebuffer_height;
 
     // 1. Setup GDT
     gdt_install();

@@ -1,14 +1,14 @@
-# Falkon-OS Staging & Build Artifacts
+# Falkon-OS Staging & Build Output Directories
 build/
-build_dev/
-build_release/
-falkon_*
+out/
 isodir/
-*.iso
-*.bin
-*.exe
+
+# Binaries, Objects, Libraries
 *.o
 *.obj
+*.exe
+*.bin
+*.iso
 *.dll.a
 
 # Compiler & Linker temporary files
@@ -39,10 +39,3 @@ __pycache__/
 *.vdi
 Logs/
 VBox.log
-
-# Downloaded tools cache (grub-win.zip, extracted grub/)
-tools/
-
-# Scratch / temp files
-*.json
-limine_release.json
