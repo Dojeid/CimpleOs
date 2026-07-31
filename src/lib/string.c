@@ -77,15 +77,44 @@ void itoa(int value, char* str, int base) {
 }
 
 void* memset(void* dest, int val, size_t count) {
-    unsigned char* d = (unsigned char*)dest;
-    while (count--) *d++ = (unsigned char)val;
+    uint8_t v8 = (uint8_t)val;
+    uint64_t v64 = ((uint64_t)v8 << 56) | ((uint64_t)v8 << 48) |
+                   ((uint64_t)v8 << 40) | ((uint64_t)v8 << 32) |
+                   ((uint64_t)v8 << 24) | ((uint64_t)v8 << 16) |
+                   ((uint64_t)v8 << 8)  | (uint64_t)v8;
+
+    uint64_t* d64 = (uint64_t*)dest;
+    size_t qwords = count / 8;
+    size_t remainder = count % 8;
+
+    while (qwords--) {
+        *d64++ = v64;
+    }
+
+    unsigned char* d8 = (unsigned char*)d64;
+    while (remainder--) {
+        *d8++ = v8;
+    }
+
     return dest;
 }
 
 void* memcpy(void* dest, const void* src, size_t n) {
-    unsigned char* d = (unsigned char*)dest;
-    const unsigned char* s = (const unsigned char*)src;
-    while (n--) *d++ = *s++;
+    uint64_t* d64 = (uint64_t*)dest;
+    const uint64_t* s64 = (const uint64_t*)src;
+    size_t qwords = n / 8;
+    size_t remainder = n % 8;
+
+    while (qwords--) {
+        *d64++ = *s64++;
+    }
+
+    unsigned char* d8 = (unsigned char*)d64;
+    const unsigned char* s8 = (const unsigned char*)s64;
+    while (remainder--) {
+        *d8++ = *s8++;
+    }
+
     return dest;
 }
 

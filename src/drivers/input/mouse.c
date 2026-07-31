@@ -39,21 +39,21 @@ void init_mouse() {
     uint8_t status;
     
     mouse_wait(1);
-    outb(0x64, 0xA8);
+    outb(0x64, 0xA8); // Enable auxiliary mouse port
     
     mouse_wait(1);
-    outb(0x64, 0x20);
+    outb(0x64, 0x20); // Read Command Byte
     mouse_wait(0);
-    status = (inb(0x60) | 2);
+    status = (inb(0x60) | 0x02) & ~0x20; // Enable IRQ 12 (bit 1) and CLEAR Disable Mouse (bit 5)
     mouse_wait(1);
-    outb(0x64, 0x60);
+    outb(0x64, 0x60); // Write Command Byte
     mouse_wait(1);
     outb(0x60, status);
     
-    mouse_write(0xF6);
+    mouse_write(0xF6); // Set Defaults
     mouse_read();
     
-    mouse_write(0xF4);
+    mouse_write(0xF4); // Enable Packet Streaming
     mouse_read();
 }
 
