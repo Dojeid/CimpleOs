@@ -1,13 +1,16 @@
 cmake_minimum_required(VERSION 3.16)
+
+# MinGW's PE/COFF linker cannot honour the ELF linker script (section layout is
+# sparse and the flat image lacks the Multiboot header offset, .rdata and .bss).
+# On Windows we therefore cross-compile to ELF using clang + lld. On Linux the
+# native gcc toolchain already produces proper ELF objects, so it is left alone.
+# NOTE: must be set before project() so it takes effect on a fresh configure.
+if(WIN32)
+    set(CMAKE_C_COMPILER "clang")
+    set(CMAKE_C_COMPILER_TARGET "x86_64-elf")
+endif()
+
 project(FalkonOS LANGUAGES C ASM_NASM)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Falkon-OS Kernel CMake Build Configuration
-# Target: 64-bit Freestanding Kernel (x86_64)
-# ─────────────────────────────────────────────────────────────────────────────
-
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # Compiler Flags: Freestanding 64-bit Kernel (-mcmodel=small for host GCC compatibility)
 set(CMAKE_C_FLAGS
@@ -33,13 +36,17 @@ endif()
 
 # Linker script & bare-metal flags
 set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/src/arch/x86_64/linker.ld")
-set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -nostartfiles -static -Wl,--image-base=0x100000 -Wl,--disable-auto-image-base -Wl,-T,${LINKER_SCRIPT}")
 set(CMAKE_C_STANDARD_LIBRARIES "")
 
-# Explicit link executable command
-set(CMAKE_C_LINK_EXECUTABLE
-    "<CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET>"
-)
+if(WIN32)
+    # Direct lld invocation: produces a proper ELF kernel from the linker script
+    # (avoids clang's Windows collect2 driver mangling -Wl,-T,... arguments).
+    set(CMAKE_C_LINK_EXECUTABLE
+        "ld.lld -m elf_x86_64 -nostdlib -static -T ${LINKER_SCRIPT} <OBJECTS> -o <TARGET>"
+    )
+else()
+    set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -nostartfiles -static -Wl,-T,${LINKER_SCRIPT}")
+endif()
 
 # Source Discovery
 include_directories(src)
@@ -59,6 +66,6 @@ set_target_properties(FalkonOS.bin PROPERTIES
 )
 
 add_custom_command(TARGET FalkonOS.bin POST_BUILD
-    COMMAND objcopy -O binary --only-section=.boot --only-section=.text --only-section=.rodata --only-section=.data $<TARGET_FILE:FalkonOS.bin> ${CMAKE_BINARY_DIR}/FalkonOS_flat.bin
-    COMMENT "[FalkonOS] Stripped PE headers to generate flat raw kernel binary (FalkonOS_flat.bin)"
+    COMMAND objcopy -O binary --set-section-flags .bss=alloc,load,contents $<TARGET_FILE:FalkonOS.bin> ${CMAKE_BINARY_DIR}/FalkonOS_flat.bin
+    COMMENT "[FalkonOS] Generated flat raw kernel binary (FalkonOS_flat.bin) including zero-filled .bss"
 )

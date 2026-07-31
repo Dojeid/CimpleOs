@@ -11,6 +11,13 @@
 
 #define SECTOR_SIZE 2048
 
+// Kernel payload capacity (must match KERNEL_BYTES in bootsector.asm).
+// The bootloader reads a FIXED number of sectors, so the kernel extent is
+// always padded to this size in both the ISO and the raw disk image.
+#define KERNEL_BYTES       (320 * 1024)
+#define KERNEL_ISO_SECTORS (KERNEL_BYTES / SECTOR_SIZE)   // 160
+#define KERNEL_IMG_SECTORS (KERNEL_BYTES / 512)           // 640
+
 #pragma pack(push, 1)
 
 // ISO 9660 Directory Record (34 bytes)
@@ -151,7 +158,20 @@ int main(int argc, char* argv[]) {
 
     uint32_t boot_sectors = (boot_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
     if (boot_sectors == 0) boot_sectors = 1;
-    uint32_t kern_sectors = (kern_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+
+    if (kern_size > KERNEL_BYTES) {
+        fprintf(stderr,
+                "[!] Error: kernel is %u bytes but bootloader capacity is %u bytes.\n"
+                "    Increase KERNEL_BYTES in src/arch/x86_64/boot/bootsector.asm and\n"
+                "    KERNEL_BYTES in tools/iso_builder.c, then rebuild.\n",
+                kern_size, KERNEL_BYTES);
+        fclose(f_boot);
+        fclose(f_kern);
+        return 1;
+    }
+
+    // Kernel extent is padded to the full bootloader capacity (see KERNEL_BYTES).
+    uint32_t kern_sectors = KERNEL_ISO_SECTORS;
 
     // Sector Layout:
     // Sectors 0-15  : System Area (0x00)
@@ -294,7 +314,7 @@ int main(int argc, char* argv[]) {
     fwrite(boot_buf, 1, boot_sectors * SECTOR_SIZE, f_iso);
     free(boot_buf);
 
-    // 8. Sector 22+: Kernel Payload
+    // 8. Sector 22+: Kernel Payload (padded to KERNEL_ISO_SECTORS)
     uint8_t* kern_buf = (uint8_t*)calloc(kern_sectors, SECTOR_SIZE);
     fread(kern_buf, 1, kern_size, f_kern);
     fwrite(kern_buf, 1, kern_sectors * SECTOR_SIZE, f_iso);
@@ -317,16 +337,16 @@ int main(int argc, char* argv[]) {
             fread(sector512, 1, boot_size, f_boot);
             fwrite(sector512, 1, 512, f_img);
 
-            // Write Kernel Payload (Sectors 1+)
+            // Write Kernel Payload (Sectors 1+, padded to KERNEL_IMG_SECTORS)
             fseek(f_kern, 0, SEEK_SET);
-            uint8_t* kbuf = (uint8_t*)malloc(kern_size);
+            uint8_t* kbuf = (uint8_t*)calloc(1, KERNEL_BYTES);
             if (kbuf) {
                 fread(kbuf, 1, kern_size, f_kern);
-                fwrite(kbuf, 1, kern_size, f_img);
+                fwrite(kbuf, 1, KERNEL_BYTES, f_img);
                 free(kbuf);
             }
             fclose(f_img);
-            printf("[✓] Raw Boot Disk Image Generated -> %s (%u bytes)\n", out_img_path, 512 + kern_size);
+            printf("[✓] Raw Boot Disk Image Generated -> %s (%u bytes)\n", out_img_path, 512 + KERNEL_BYTES);
         }
     }
 

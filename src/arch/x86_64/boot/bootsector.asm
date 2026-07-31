@@ -8,6 +8,12 @@
 [BITS 16]
 [ORG 0x7C00]
 
+; --- Kernel payload size limits (must match iso_builder.c) ---
+KERNEL_BYTES        equ 320 * 1024      ; Max kernel payload size (320KB)
+KERNEL_SECTORS      equ KERNEL_BYTES / 512      ; 640 (raw disk / CHS)
+ISO_KERNEL_SECTORS  equ KERNEL_BYTES / 2048     ; 160 (ISO 9660 2048B sectors)
+IMG_KERNEL_SECTORS  equ KERNEL_SECTORS          ; 640
+
 start:
     cli
     cld
@@ -38,15 +44,58 @@ start:
     int 0x13
     jnc .load_ok
 
-    ; Try Stage 3: Standard INT 13h AH=02h CHS Sector 2 Read
-    mov ax, 0x0270         ; AH=02 (Read), AL=112 sectors (~56KB)
-    mov cx, 0x0002         ; Cylinder 0, Sector 2
-    mov dh, 0              ; Head 0
+    ; Try Stage 3: INT 13h AH=02h CHS loop (loads full kernel payload)
+    mov ax, 0x1000          ; ES:BX = 0x1000:0x0000 = 0x10000
+    mov es, ax
+    xor bx, bx
+    mov word [chs_remaining], KERNEL_SECTORS
+    mov byte [chs_cyl], 0
+    mov byte [chs_head], 0
+    mov byte [chs_sector], 2    ; Kernel starts at CHS C0/H0/S2 (LBA 1)
+
+.chs_loop:
+    cmp word [chs_remaining], 0
+    je .load_ok
+    mov ax, [chs_remaining]     ; Read at most 63 sectors (one track)
+    cmp ax, 63
+    jbe .chs_chunk
+    mov ax, 63
+.chs_chunk:
+    push ax                     ; Save chunk sector count
+    mov ah, 0x02                ; AH=02 (Read), AL = sector count
+    mov ch, [chs_cyl]
+    mov cl, [chs_sector]
+    mov dh, [chs_head]
     mov dl, [boot_drive]
-    mov bx, 0x1000
-    mov es, bx
-    xor bx, bx             ; ES:BX = 0x1000:0x0000 = 0x10000
+    xor bx, bx                  ; ES:BX = ES:0 (BX stays 0, ES advances)
     int 0x13
+    pop ax                      ; AX = sectors actually read
+    jc .chs_fail
+
+    ; Advance ES by (sectors * 512) / 16 paragraphs
+    mov word [chs_count], ax
+    sub word [chs_remaining], ax
+    shl ax, 5                   ; sectors * 32 paragraphs
+    mov bx, es
+    add bx, ax
+    mov es, bx
+
+    ; Advance CHS: sector += count (wraps at 63 per track, 16 heads)
+    mov al, byte [chs_count]
+    add byte [chs_sector], al
+    cmp byte [chs_sector], 63
+    jbe .chs_loop
+    sub byte [chs_sector], 63
+    inc byte [chs_head]
+    cmp byte [chs_head], 16
+    jb .chs_loop
+    mov byte [chs_head], 0
+    inc byte [chs_cyl]
+    jmp .chs_loop
+
+.chs_fail:
+    mov si, msg_chs_fail
+    call print_string
 
 .load_ok:
     ; Reset ES back to 0
@@ -83,7 +132,7 @@ init_32:
     ; Relocate Kernel payload from 0x10000 (loaded address) to 0x100000 (1MB target base)
     mov esi, 0x10000        ; Source address
     mov edi, 0x100000       ; Destination address (1MB)
-    mov ecx, 51200          ; Copy 200KB (51200 dwords = 204,800 bytes)
+    mov ecx, (KERNEL_BYTES / 4)   ; Copy full kernel payload (dwords)
     cld
     rep movsd
 
@@ -119,7 +168,7 @@ align 4
 dap_iso:
     db 0x10                 ; Packet size (16 bytes)
     db 0x00                 ; Reserved (0)
-    dw 100                  ; Number of CD-ROM sectors (100 * 2048 = 200KB payload)
+    dw ISO_KERNEL_SECTORS   ; Number of CD-ROM sectors (each 2048 bytes)
     dw 0x0000               ; Buffer Offset
     dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
     dq 22                   ; Starting LBA sector (Sector 22 = FalkonOS.bin on ISO)
@@ -129,7 +178,7 @@ align 4
 dap_img:
     db 0x10                 ; Packet size (16 bytes)
     db 0x00                 ; Reserved (0)
-    dw 400                  ; Number of 512B sectors (400 * 512 = 200KB payload)
+    dw IMG_KERNEL_SECTORS   ; Number of 512B sectors
     dw 0x0000               ; Buffer Offset
     dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
     dq 1                    ; Starting LBA sector (Sector 1 = FalkonOS.bin on raw disk)
@@ -154,9 +203,15 @@ gdt32_desc:
     dd gdt32_start
 
 ; --- Global Variables & Messages ---
-boot_drive  db 0
-msg_welcome db "Booting Falkon-OS Stage 1...", 0x0D, 0x0A, 0
-msg_loaded  db "Kernel payload loaded.", 0x0D, 0x0A, 0
+boot_drive      db 0
+chs_remaining   dw 0
+chs_count       dw 0
+chs_cyl         db 0
+chs_head        db 0
+chs_sector      db 0
+msg_welcome     db "Booting Falkon-OS Stage 1...", 0x0D, 0x0A, 0
+msg_loaded      db "Kernel payload loaded.", 0x0D, 0x0A, 0
+msg_chs_fail    db "CHS read failed.", 0x0D, 0x0A, 0
 
 ; --- Pad to 510 bytes and append Boot Signature 0xAA55 ---
 times 510-($-$$) db 0
