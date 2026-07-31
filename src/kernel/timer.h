@@ -9,6 +9,9 @@ extern volatile uint32_t timer_ticks;
 // Initialize PIT timer
 void timer_init(uint32_t frequency);
 
+// Timer IRQ handler (called from IRQ0)
+void timer_handler(void);
+
 // Get current tick count
 uint32_t timer_get_ticks();
 

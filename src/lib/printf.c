@@ -1,5 +1,6 @@
 #include "printf.h"
 #include "drivers/video/vga.h"
+#include "gui/terminal.h"
 #include "string.h"
 #include <stdarg.h>
 #include <stdint.h>
@@ -36,13 +37,27 @@ static void do_printf(char* output, const char* fmt, va_list args) {
         if (*fmt == '%') {
             fmt++;
             
-            // Check for 'l' modifier (e.g. %lx, %lX, %ld)
+            // Parse flags/width: '-' (left-align), '0' (zero-pad), digits (width)
             int is_long = 0;
+            int left = 0, zero = 0, width = 0;
+            for (;;) {
+                if (*fmt == '-') { left = 1; fmt++; }
+                else if (*fmt == '0') { zero = 1; fmt++; }
+                else if (*fmt >= '1' && *fmt <= '9') {
+                    width = width * 10 + (*fmt - '0');
+                    fmt++;
+                } else {
+                    break;
+                }
+            }
+            
+            // Check for 'l' modifier (e.g. %lx, %lX, %ld)
             if (*fmt == 'l') {
                 is_long = 1;
                 fmt++;
             }
 
+            int field_start = pos;
             switch (*fmt) {
                 case 'd':
                 case 'i': {
@@ -107,6 +122,26 @@ static void do_printf(char* output, const char* fmt, va_list args) {
                     output[pos++] = *fmt;
                     break;
             }
+            
+            // Apply width padding (left-align appends spaces, else pad at the front)
+            int field_len = pos - field_start;
+            if (width > field_len) {
+                int pad_count = width - field_len;
+                if (left) {
+                    for (int i = 0; i < pad_count; i++) {
+                        output[pos++] = ' ';
+                    }
+                } else {
+                    char padc = zero ? '0' : ' ';
+                    for (int i = pos - 1; i >= field_start; i--) {
+                        output[i + pad_count] = output[i];
+                    }
+                    for (int i = 0; i < pad_count; i++) {
+                        output[field_start + i] = padc;
+                    }
+                    pos += pad_count;
+                }
+            }
         } else {
             output[pos++] = *fmt;
         }
@@ -116,6 +151,18 @@ static void do_printf(char* output, const char* fmt, va_list args) {
     output[pos] = '\0';
 }
 
+// Route formatted output to the active (or default) GUI terminal when
+// available, falling back to VGA text mode during early boot.
+static void print_output(const char* buffer) {
+    extern terminal_instance_t* active_terminal;
+    terminal_instance_t* dest = active_terminal ? active_terminal : terminal_get_state();
+    if (dest) {
+        terminal_instance_print(dest, buffer);
+    } else {
+        vga_print(buffer);
+    }
+}
+
 void printf(const char* fmt, ...) {
     char buffer[512];  // Reduced from 1024 - saves stack space
     va_list args;
@@ -123,7 +170,7 @@ void printf(const char* fmt, ...) {
     do_printf(buffer, fmt, args);
     va_end(args);
     
-    vga_print(buffer);
+    print_output(buffer);
 }
 
 void sprintf(char* buf, const char* fmt, ...) {
@@ -160,5 +207,5 @@ void log_printf(enum log_level level, const char* fmt, ...) {
     int len = strlen(final);
     strcpy(final + len, buffer);
     
-    vga_print(final);
+    print_output(final);
 }

@@ -48,6 +48,7 @@ static void sysmon_redraw(window_t* win) {
 void sysmon_open(void) {
     window_t* win = wm_create_window(150, 90, 420, 260, "System Monitor");
     if (win) {
+        win->render_content = sysmon_redraw;
         sysmon_redraw(win);
     }
 }

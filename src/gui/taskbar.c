@@ -4,6 +4,10 @@
 #include "gui/window_manager.h"
 #include "gui/terminal.h"
 #include "mm/pmm.h"
+#include "gui/apps/file_explorer.h"
+#include "gui/apps/notepad.h"
+#include "gui/apps/sysmon.h"
+#include "gui/apps/calc.h"
 
 #define COLOR_TASKBAR_BG 0x34495E
 #define COLOR_BUTTON_BG 0x2C3E50
@@ -56,6 +60,7 @@ void taskbar_add_button(int window_id, const char* label) {
     if (button_width < 80) button_width = 80;
     if (button_width > 120) button_width = 120;
     
+    // Window buttons start after the launcher button
     int start_x = launcher_btn.x + launcher_btn.width + 10;
     for (int i = 0; i < taskbar.button_count; i++) {
         taskbar.buttons[i].x = start_x + (i * (button_width + 5));
@@ -80,8 +85,9 @@ void taskbar_remove_button(int window_id) {
             if (button_width < 80) button_width = 80;
             if (button_width > 120) button_width = 120;
             
+            int start_x = launcher_btn.x + launcher_btn.width + 10;
             for (int j = 0; j < taskbar.button_count; j++) {
-                taskbar.buttons[j].x = 10 + (j * (button_width + 5));
+                taskbar.buttons[j].x = start_x + (j * (button_width + 5));
                 taskbar.buttons[j].width = button_width;
             }
             
@@ -182,13 +188,11 @@ void taskbar_handle_click(int x, int y) {
         
         // Item 1: Terminal
         if (y >= menu_y + 30 && y < menu_y + 54) {
-            extern window_t* wm_create_window(int, int, int, int, const char*);
-            extern terminal_instance_t* terminal_create_instance();
-            extern void terminal_instance_print(terminal_instance_t*, const char*);
-            
             window_t* new_term = wm_create_window(50, 80, 700, 480, "Terminal");
             if (new_term) {
-                new_term->user_data = terminal_create_instance();
+                // All terminals share the global instance so terminal_print()
+                // output (cmd, wm errors) always shows up in a visible window.
+                new_term->user_data = terminal_get_state();
                 new_term->render_content = NULL;
                 taskbar_add_button(new_term->id, "Terminal");
                 terminal_instance_t* term = (terminal_instance_t*)new_term->user_data;
@@ -199,22 +203,18 @@ void taskbar_handle_click(int x, int y) {
         }
         // Item 2: File Explorer
         else if (y >= menu_y + 58 && y < menu_y + 82) {
-            #include "gui/apps/file_explorer.h"
             file_explorer_open();
         }
         // Item 3: Notepad
         else if (y >= menu_y + 86 && y < menu_y + 110) {
-            #include "gui/apps/notepad.h"
             notepad_open("/docs/welcome.txt");
         }
         // Item 4: System Monitor
         else if (y >= menu_y + 114 && y < menu_y + 138) {
-            #include "gui/apps/sysmon.h"
             sysmon_open();
         }
         // Item 5: Calculator
         else if (y >= menu_y + 142 && y < menu_y + 166) {
-            #include "gui/apps/calc.h"
             calc_open();
         }
 

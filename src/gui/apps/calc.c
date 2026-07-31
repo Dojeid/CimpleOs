@@ -33,6 +33,7 @@ static void calc_redraw(window_t* win) {
 void calc_open(void) {
     window_t* win = wm_create_window(250, 140, 235, 235, "Calculator");
     if (win) {
+        win->render_content = calc_redraw;
         calc_redraw(win);
     }
 }

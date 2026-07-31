@@ -34,6 +34,7 @@ static void file_explorer_redraw(window_t* win) {
 void file_explorer_open(void) {
     window_t* win = wm_create_window(100, 80, 420, 300, "File Explorer");
     if (win) {
+        win->render_content = file_explorer_redraw;
         file_explorer_redraw(win);
     }
 }

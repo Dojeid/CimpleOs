@@ -1,4 +1,5 @@
 ; 64-bit interrupt handlers
+bits 64
 
 section .text
 

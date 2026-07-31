@@ -2,6 +2,7 @@
 #include "drivers/video/graphics.h"
 #include "lib/string.h"
 #include "kernel/timer.h"
+#include "mm/pmm.h"
 
 static desktop_t desktop;
 
@@ -70,11 +71,8 @@ void desktop_render_topbar() {
     timestr[8] = '\0';
     
     // UX FIX: Show RAM next to uptime for better layout
-    extern uint32_t pmm_get_free_memory();
-    extern uint32_t pmm_get_total_memory();
-    
-    uint32_t free_mb = pmm_get_free_memory() / 1024 / 1024;
-    uint32_t total_mb = pmm_get_total_memory() / 1024 / 1024;
+    uint64_t free_mb = pmm_get_free_memory() / (1024 * 1024);
+    uint64_t total_mb = pmm_get_total_memory() / (1024 * 1024);
     
     char ramstr[32];
     int idx = 0;

@@ -23,12 +23,20 @@
 #include "kernel/timer.h"
 #include "kernel/sysinfo.h"
 #include "kernel/cmd.h"
+// FS / Process / Syscall
+#include "fs/vfs.h"
+#include "fs/ramdisk.h"
+#include "kernel/process.h"
+#include "kernel/syscall.h"
 // GUI
 #include "gui/terminal.h"
 #include "gui/window_manager.h"
 #include "gui/desktop.h"
 #include "gui/taskbar.h"
 #include "gui/cursor.h"
+#include "gui/apps/file_explorer.h"
+#include "gui/apps/notepad.h"
+#include "gui/apps/sysmon.h"
 
 extern char terminal_buffer[];
 extern int term_idx;
@@ -38,38 +46,38 @@ extern void init_mouse();
 // --- MAIN KERNEL ---
 void kmain(void* multiboot_info_addr) {
     multiboot_info_t* mbi = (multiboot_info_t*)multiboot_info_addr;
-    
+
     // EMERGENCY FALLBACK: Use VGA text mode to show we're alive
     // This always works, even if graphics fail
     vga_clear();
     vga_print("Falkon-OS Booting...\n");
     vga_print("Initializing GDT...\n");
-    
-    // Capture Multiboot Info BEFORE enabling paging!
-    // (mb pointer might become invalid if it's outside identity mapped region)
-    uint32_t mb_flags __attribute__((unused)) = mbi->flags;
-    uint64_t mb_fb_addr __attribute__((unused)) = mbi->framebuffer_addr;
-    uint32_t mb_fb_width __attribute__((unused)) = mbi->framebuffer_width;
-    uint32_t mb_fb_height __attribute__((unused)) = mbi->framebuffer_height;
 
     // 1. Setup GDT
     gdt_install();
 
     // 2. Setup Memory Management
-    // Calculate total RAM size from Multiboot (in bytes)
-    uint64_t total_mem_bytes = (uint64_t)(mbi->mem_upper + mbi->mem_lower) * 1024;
+    // The custom bootloader does not provide a Multiboot info structure (EBX=0),
+    // so fall back to a sane default when it is missing or lacks the memory flag.
+    uint64_t total_mem_bytes = 0;
+    if (mbi && (mbi->flags & 0x1)) {
+        total_mem_bytes = (uint64_t)(mbi->mem_upper + mbi->mem_lower) * 1024;
+    }
     pmm_init(total_mem_bytes > 0 ? total_mem_bytes : 128 * 1024 * 1024);
-    
+
     vga_print("Enabling paging...\n");
     vmm_init();
     vga_print("Paging enabled!\n");
 
+    // Heap must be available before graphics_init allocates the back buffer.
+    heap_init();
+
     // 3. Setup Graphics
     vga_print("Initializing Graphics...\n");
-    graphics_init(mbi);  // Fixed: pass mbi pointer
-    
+    graphics_init(mbi);
+
     clear_screen(0x000000); // Black background
-    
+
     // Welcome Message
     draw_string(10, 10, 0x00FF00, "Falkon-OS v0.4 - Protected Mode + Paging Enabled!");
     draw_string(10, 30, 0xFFFFFF, "Memory Management: PMM + VMM Active");
@@ -80,7 +88,6 @@ void kmain(void* multiboot_info_addr) {
     init_idt();
     init_mouse();
     timer_init(100);
-    heap_init();
     sysinfo_init();
     
     // 5. Initialize USB (if available)
@@ -98,14 +105,6 @@ void kmain(void* multiboot_info_addr) {
     vga_print("Interrupts Enabled!\n");
 
     // Initialize VFS, Ramdisk, Process Scheduler, and Syscalls
-    #include "fs/vfs.h"
-    #include "fs/ramdisk.h"
-    #include "kernel/process.h"
-    #include "kernel/syscall.h"
-    #include "gui/apps/file_explorer.h"
-    #include "gui/apps/notepad.h"
-    #include "gui/apps/sysmon.h"
-
     vfs_init();
     ramdisk_init();
     process_init();
@@ -122,7 +121,9 @@ void kmain(void* multiboot_info_addr) {
     // Create default Terminal window
     window_t* term_win = wm_create_window(50, 80, 680, 440, "Terminal");
     if (term_win) {
-        term_win->user_data = terminal_create_instance();
+        // Reuse the global default instance so terminal_print() (used by
+        // cmd.c and window_manager errors) renders inside this window.
+        term_win->user_data = terminal_get_state();
         taskbar_add_button(term_win->id, "Terminal");
         term_win->render_content = NULL;
         
@@ -190,8 +191,12 @@ void kmain(void* multiboot_info_addr) {
             if (!(win->flags & WIN_FLAG_VISIBLE)) continue;
             if (win->flags & WIN_FLAG_MINIMIZED) continue;
             
-            // Check if this window has a terminal instance
-            terminal_instance_t* term = (terminal_instance_t*)win->user_data;
+            // Terminal windows are the ones WITHOUT a render callback
+            // (app windows use render_content and store their own user_data).
+            terminal_instance_t* term = NULL;
+            if (win->render_content == NULL) {
+                term = (terminal_instance_t*)win->user_data;
+            }
             if (!term) continue;  // Not a terminal window
             
             // Render this terminal's content
@@ -208,9 +213,9 @@ void kmain(void* multiboot_info_addr) {
                 draw_string(win_content_x + 10, input_y, 0x00FF00, "$ ");
                 draw_string(win_content_x + 30, input_y, 0xFFFFFF, terminal_buffer);
                 
-                // Cursor blink
-                extern volatile int irq_count;
-                if ((irq_count / 25) % 2 == 0) {
+                // Cursor blink (driven by PIT timer ticks, 100 Hz)
+                extern volatile uint32_t timer_ticks;
+                if ((timer_ticks / 25) % 2 == 0) {
                     draw_rect(win_content_x + 30 + (term_idx * 8), input_y, 8, 12, 0xFFFFFF);
                 }
             }

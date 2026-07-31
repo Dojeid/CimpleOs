@@ -3,21 +3,26 @@
 
 #define PAGE_SIZE 4096
 #define BITMAP_SIZE 32768
+// The static bitmap tracks BITMAP_SIZE * 32 frames (4GB max).
+#define MAX_MANAGEABLE ((uint64_t)BITMAP_SIZE * 32 * PAGE_SIZE)
 
 static uint32_t bitmap[BITMAP_SIZE];
 static uint64_t total_memory;  // 64-bit
 static uint64_t used_frames;   // 64-bit
 
 static void mmap_set(uint64_t bit) {
+    if (bit >= (uint64_t)BITMAP_SIZE * 32) return;
     bitmap[bit / 32] |= (1U << (bit % 32));
 }
 
 static void mmap_unset(uint64_t bit) {
+    if (bit >= (uint64_t)BITMAP_SIZE * 32) return;
     bitmap[bit / 32] &= ~(1U << (bit % 32));
 }
 
 static int mmap_test(uint64_t bit) __attribute__((unused));
 static int mmap_test(uint64_t bit) {
+    if (bit >= (uint64_t)BITMAP_SIZE * 32) return 1;  // Out of range = used
     return (bitmap[bit / 32] & (1U << (bit % 32))) != 0;
 }
 
@@ -34,6 +39,8 @@ static int64_t mmap_first_free() {
 }
 
 void pmm_init(uint64_t mem_size) {
+    // Clamp to the range the bitmap can represent (4GB).
+    if (mem_size > MAX_MANAGEABLE) mem_size = MAX_MANAGEABLE;
     total_memory = mem_size;
     used_frames = 0;
     

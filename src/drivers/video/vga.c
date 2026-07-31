@@ -35,7 +35,17 @@ void vga_putchar(char c) {
         }
     }
     if (vga_row >= VGA_HEIGHT) {
-        vga_row = 0;
+        // Scroll the screen up by one row
+        for (int y = 1; y < VGA_HEIGHT; y++) {
+            for (int x = 0; x < VGA_WIDTH; x++) {
+                vga_buffer[(y - 1) * VGA_WIDTH + x] = vga_buffer[y * VGA_WIDTH + x];
+            }
+        }
+        // Clear the last row
+        for (int x = 0; x < VGA_WIDTH; x++) {
+            vga_buffer[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = vga_entry(' ', 0x0F);
+        }
+        vga_row = VGA_HEIGHT - 1;
     }
 }
 

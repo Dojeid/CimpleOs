@@ -1,5 +1,9 @@
 #include "idt.h"
 #include "lib/io.h"
+#include "drivers/input/keyboard.h"
+#include "drivers/input/mouse.h"
+#include "kernel/timer.h"
+#include "drivers/video/vga.h"
 
 // 64-bit IDT entries (16 bytes each)
 struct idt_entry_64 {
@@ -94,13 +98,45 @@ void init_idt(void) {
 
 // ISR handler - called from assembly
 void isr_handler(void* stack_ptr) {
-    // For now, just acknowledge
-    (void)stack_ptr;
+    // Stack layout (from isr_common_stub):
+    // gs, fs, es, ds, r15..rax, error code, vector number
+    uint64_t* stack = (uint64_t*)stack_ptr;
+    uint8_t vector = (uint8_t)(stack[20] & 0xFF);
+
+    // Unhandled CPU exception: halt with a visible message instead of
+    // re-entering the faulting instruction in an endless loop.
+    const char* names[] = {
+        "Division by Zero", "Debug", "NMI", "Breakpoint", "Overflow",
+        "Bound Range", "Invalid Opcode", "Device Not Available", "Double Fault",
+        "Coprocessor", "Invalid TSS", "Segment Not Present", "Stack-Segment Fault",
+        "General Protection Fault", "Page Fault", "Reserved", "x87 FP Exception",
+        "Alignment Check", "Machine Check"
+    };
+    const char* name = (vector < 19) ? names[vector] : "Unknown";
+    vga_print("EXCEPTION: ");
+    vga_print(name);
+    vga_print("\n");
+    // Halt permanently so execution never returns to the faulting instruction.
+    for (;;) {
+        asm volatile("cli; hlt");
+    }
 }
 
 // IRQ handler - called from assembly
 void irq_handler(void* stack_ptr) {
-    // For now, just send EOI
-    (void)stack_ptr;
-    outb(0x20, 0x20);  // Send EOI to master PIC
+    // Stack layout (from irq_common_stub):
+    // gs, fs, es, ds, r15..rax, error code, vector number
+    uint64_t* stack = (uint64_t*)stack_ptr;
+    uint8_t vector = (uint8_t)(stack[20] & 0xFF);
+
+    switch (vector) {
+        case 32: timer_handler(); break;      // PIT timer (IRQ0)
+        case 33: keyboard_handler(); break;   // PS/2 keyboard (IRQ1)
+        case 44: mouse_handler(); break;      // PS/2 mouse (IRQ12)
+        default:
+            // Acknowledge unhandled IRQs so the system does not hang.
+            if (vector >= 40) outb(0xA0, 0x20);  // EOI to slave PIC
+            outb(0x20, 0x20);                    // EOI to master PIC
+            break;
+    }
 }

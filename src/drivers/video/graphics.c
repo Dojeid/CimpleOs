@@ -9,15 +9,26 @@ int screen_w, screen_h;
 uint32_t* back_buffer = NULL;
 
 void graphics_init(struct multiboot_info* mb) {
-    video_memory = (uint32_t*)(uintptr_t)mb->framebuffer_addr;  // 64-bit safe cast
-    screen_w = (int)mb->framebuffer_width;
-    screen_h = (int)mb->framebuffer_height;
+    if (mb && (mb->flags & 0x10000000) && mb->framebuffer_addr != 0) {
+        video_memory = (uint32_t*)(uintptr_t)mb->framebuffer_addr;  // 64-bit safe cast
+        screen_w = (int)mb->framebuffer_width;
+        screen_h = (int)mb->framebuffer_height;
+    } else {
+        // No bootloader-provided framebuffer: render into a software buffer.
+        // video_memory is set to the buffer below so swap_buffers() is safe.
+        video_memory = NULL;
+        screen_w = 1024;
+        screen_h = 768;
+    }
     
     uint32_t buffer_size = screen_w * screen_h * sizeof(uint32_t);
     back_buffer = (uint32_t*)malloc(buffer_size);
     
     if (!back_buffer) {
         back_buffer = video_memory;
+    }
+    if (!video_memory) {
+        video_memory = back_buffer;
     }
 }
 

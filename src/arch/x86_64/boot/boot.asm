@@ -87,26 +87,26 @@ setup_page_tables:
     xor eax, eax
     rep stosd
     
+    ; PML4[0] -> PDPT
     mov eax, pdpt_table
     or eax, 0b11
     mov [pml4_table], eax
     
+    ; PDPT[0] -> PD
     mov eax, pd_table
     or eax, 0b11
     mov [pdpt_table], eax
     
-    mov eax, pt_table
-    or eax, 0b11
-    mov [pd_table], eax
-    
-    mov edi, pt_table
-    mov ebx, 0x00000003
-    mov ecx, 512
-.map_page:
-    mov [edi], ebx
-    add ebx, 0x1000
+    ; Identity-map 64MB using 2MB huge pages (32 PD entries).
+    ; Required for the kernel heap at 0x1000000 (16MB-32MB) and future drivers.
+    mov edi, pd_table
+    mov eax, 0x00000083     ; Present | R/W | PS (2MB page)
+    mov ecx, 32             ; 32 * 2MB = 64MB
+.map_pd:
+    mov [edi], eax
+    add eax, 0x200000
     add edi, 8
-    loop .map_page
+    loop .map_pd
     
     ret
 
@@ -140,8 +140,6 @@ pml4_table:
 pdpt_table:
     resb 4096
 pd_table:
-    resb 4096
-pt_table:
     resb 4096
 
 section .text

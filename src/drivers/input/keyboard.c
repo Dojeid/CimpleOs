@@ -26,15 +26,15 @@ extern void cmd_process(const char* cmd);
 
 void keyboard_handler() {
     irq_count++;
+    static int extended = 0;
     uint8_t scancode = inb(0x60);
 
     if (scancode >= 128) {
+        extended = 0;  // Break codes (incl. E0-prefixed) end any extended sequence
         outb(0x20, 0x20);
         return;
     }
 
-    static int extended = 0;
-    
     if (scancode == 0xE0) {
         extended = 1;
         outb(0x20, 0x20);
@@ -87,12 +87,13 @@ void keyboard_handler() {
         else if (c == '\n') {
             terminal_buffer[term_idx] = '\0';
             
-            // Route to focused terminal
+            // Route to focused terminal (only windows without a render callback
+            // are terminals; app windows store their own user_data).
             extern terminal_instance_t* active_terminal;
             window_manager_t* wm = wm_get_state();
             window_t* focused_win = wm_get_window(wm->focused_window_id);
             
-            if (focused_win && focused_win->user_data) {
+            if (focused_win && focused_win->render_content == NULL && focused_win->user_data) {
                 active_terminal = (terminal_instance_t*)focused_win->user_data;
                 
                 // Echo command
