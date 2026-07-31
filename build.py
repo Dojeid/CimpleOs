@@ -331,7 +331,8 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
     t0 = time.time()
     builder_exe = ensure_iso_builder()
     target_iso = BUILD_DIR / "FalkonOS.iso"
-    res = subprocess.run([builder_exe, str(target_iso), str(boot_bin if boot_bin.exists() else kern_bin), str(kern_bin)], capture_output=True, text=True)
+    target_img = OUT_DIR / "FalkonOS.img"
+    res = subprocess.run([builder_exe, str(target_iso), str(boot_bin if boot_bin.exists() else kern_bin), str(kern_bin), str(target_img)], capture_output=True, text=True)
     t_iso = time.time() - t0
 
     shutil.copy2(target_iso, PRIMARY_ISO)
@@ -440,13 +441,13 @@ def run_qemu(mode="normal"):
         cmd.extend(["-serial", "stdio"])
     elif mode == "kvm" or mode == "accel":
         cmd.extend(["-accel", "kvm" if platform.system().lower() != "windows" else "whpx"])
-    elif mode == "snapshot":
-        cmd.append("-snapshot")
-    elif mode == "monitor":
-        cmd.extend(["-monitor", "stdio"])
-
-    cmd.extend(["-cdrom", str(PRIMARY_ISO)])
-    log_info(f"Launching QEMU window ({mode}) -> {PRIMARY_ISO}")
+    raw_img = OUT_DIR / "FalkonOS.img"
+    if mode == "img" and raw_img.exists():
+        cmd.extend(["-drive", f"format=raw,file={raw_img}", "-boot", "order=c"])
+        log_info(f"Launching QEMU (Raw Disk Image) -> {raw_img}")
+    else:
+        cmd.extend(["-drive", f"file={PRIMARY_ISO},media=cdrom,readonly=on", "-boot", "order=d"])
+        log_info(f"Launching QEMU (ISO 9660 + El-Torito CD-ROM) -> {PRIMARY_ISO}")
 
     res = subprocess.run(cmd)
     if res.returncode != 0:

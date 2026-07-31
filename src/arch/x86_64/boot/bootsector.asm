@@ -1,8 +1,8 @@
 ; =============================================================================
 ; Falkon-OS Custom Stage 1 Boot Sector (16-bit BIOS Real Mode -> Protected Mode)
 ; Address: 0x7C00 | Size: 512 bytes | Boot Signature: 0xAA55
-; Performs INT 13h LBA disk read to load kernel payload from Sector 21 to 0x10000,
-; switches to 32-bit Protected Mode, relocates kernel to 0x100000, and jumps to entry.
+; Reads kernel payload from Sector 21 to 0x10000 without stack overflow,
+; switches to 32-bit Protected Mode, relocates kernel to 0x100000, and enters kernel.
 ; =============================================================================
 
 [BITS 16]
@@ -24,14 +24,14 @@ start:
     mov si, msg_welcome
     call print_string
 
-    ; 1. Read Kernel Payload from CD-ROM LBA Sector 21 into RAM 0x10000 via INT 13h AH=42h
+    ; 1. Read Kernel Payload (100 CD sectors = 200KB) from Sector 21 into RAM 0x10000 via INT 13h AH=42h
     mov si, dap
     mov ah, 0x42
     mov dl, [boot_drive]
     int 0x13
     jnc .load_ok
 
-    ; Fallback: Retry INT 13h if first attempt failed
+    ; Retry INT 13h once if first attempt returned carry flag
     mov si, dap
     mov ah, 0x42
     mov dl, [boot_drive]
@@ -63,12 +63,12 @@ init_32:
     mov fs, ax
     mov gs, ax
     mov ss, ax
-    mov esp, 0x90000        ; Set up safe 32-bit stack
+    mov esp, 0x90000        ; Set up safe 32-bit stack (0x90000 is safely above 0x40000 loaded buffer)
 
     ; Relocate Kernel payload from 0x10000 (loaded address) to 0x100000 (1MB target base)
     mov esi, 0x10000        ; Source address
     mov edi, 0x100000       ; Destination address (1MB)
-    mov ecx, 65536          ; Copy 256KB (65536 dwords)
+    mov ecx, 51200          ; Copy 200KB (51200 dwords = 204,800 bytes)
     cld
     rep movsd
 
@@ -104,7 +104,7 @@ align 4
 dap:
     db 0x10                 ; Packet size (16 bytes)
     db 0x00                 ; Reserved (0)
-    dw 256                  ; Number of sectors to read (256 * 2048 = 512KB payload)
+    dw 100                  ; Number of CD-ROM sectors (100 * 2048 = 200KB payload)
     dw 0x0000               ; Buffer Offset
     dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
     dq 21                   ; Starting LBA sector (Sector 21 = FalkonOS.bin start)

@@ -133,12 +133,13 @@ error:
     hlt
 
 section .rodata
+align 8
 gdt64:
-    dq 0
+    dq 0                        ; Null Descriptor
 .code: equ $ - gdt64
-    dq (1<<43) | (1<<44) | (1<<47) | (1<<53)
+    dq 0x00209A0000000000       ; 64-bit Code Segment (L=1, D=0, P=1, S=1, C/R=1)
 .data: equ $ - gdt64
-    dq (1<<44) | (1<<47)
+    dq 0x0000920000000000       ; 64-bit Data Segment (P=1, S=1, W=1)
 .pointer:
     dw $ - gdt64 - 1
     dq gdt64
