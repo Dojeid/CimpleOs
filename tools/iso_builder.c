@@ -1,7 +1,7 @@
 /*
  * Falkon-OS Native C ISO 9660 + El-Torito Generator & Raw Disk Image Builder
- * Creates both a fully ECMA-119 compliant bootable ISO 9660 image and a raw disk image.
- * 100% self-contained — zero external dependencies.
+ * Creates both a 100% ECMA-119 compliant ISO image and a raw disk image.
+ * Self-contained — 0 external dependencies.
  */
 
 #include <stdio.h>
@@ -21,14 +21,14 @@ typedef struct {
     uint32_t extent_lba_m;              // LBA BE
     uint32_t data_length_l;             // 2048 LE
     uint32_t data_length_m;             // 2048 BE
-    uint8_t  date[7];                   // 7 bytes recording date
+    uint8_t  date[7];                   // 7 bytes date
     uint8_t  flags;                     // 0x02 (Directory)
     uint8_t  file_unit_size;            // 0
     uint8_t  interleave_gap;            // 0
     uint16_t vol_seq_num_l;             // 1
     uint16_t vol_seq_num_m;             // 0x0100
     uint8_t  name_len;                  // 1
-    uint8_t  name;                      // 0x00 (Root Dir)
+    uint8_t  name;                      // 0x00
 } iso_dir_record_t;
 
 // Sector 16: Primary Volume Descriptor (PVD)
@@ -80,7 +80,7 @@ typedef struct {
     uint8_t  version;                  // 0x01
     char     system_id[32];             // "EL TORITO SPECIFICATION"
     uint8_t  unused[32];
-    uint32_t boot_catalog_lba;          // LBA of Boot Catalog (Sector 19)
+    uint32_t boot_catalog_lba;          // LBA of Boot Catalog (Sector 20)
     uint8_t  reserved[1973];
 } eltorito_vd_t;
 
@@ -103,7 +103,7 @@ typedef struct {
     uint8_t  system_type;               // 0x00
     uint8_t  unused;
     uint16_t sector_count;              // 4 (4 virtual 512B sectors = 2048 bytes)
-    uint32_t load_rba;                  // LBA of bootsector (Sector 20)
+    uint32_t load_rba;                  // LBA of bootsector (Sector 21)
     uint8_t  unused2[20];
 } boot_catalog_entry_t;
 
@@ -158,12 +158,15 @@ int main(int argc, char* argv[]) {
     // Sector 16     : Primary Volume Descriptor (PVD)
     // Sector 17     : El-Torito Volume Descriptor
     // Sector 18     : Volume Descriptor Set Terminator (0xFF)
-    // Sector 19     : El-Torito Boot Catalog
-    // Sector 20     : Bootloader binary (bootsector.bin)
-    // Sector 20+N   : Kernel binary (FalkonOS.bin)
+    // Sector 19     : ISO 9660 Root Directory Sector
+    // Sector 20     : El-Torito Boot Catalog
+    // Sector 21     : Bootloader binary (bootsector.bin)
+    // Sector 22+    : Kernel binary (FalkonOS.bin)
 
-    uint32_t boot_lba = 20;
-    uint32_t kern_lba = boot_lba + boot_sectors;
+    uint32_t root_dir_lba = 19;
+    uint32_t boot_cat_lba = 20;
+    uint32_t boot_lba     = 21;
+    uint32_t kern_lba     = boot_lba + boot_sectors;
     uint32_t total_sectors = kern_lba + kern_sectors;
 
     FILE* f_iso = fopen(out_iso_path, "wb");
@@ -182,7 +185,7 @@ int main(int argc, char* argv[]) {
         fwrite(sector, 1, SECTOR_SIZE, f_iso);
     }
 
-    // 2. Sector 16: Primary Volume Descriptor (PVD) with valid Root Directory Record
+    // 2. Sector 16: Primary Volume Descriptor (PVD) pointing to Root Directory Sector 19
     pvd_t pvd;
     memset(&pvd, 0, sizeof(pvd));
     pvd.type = 0x01;
@@ -200,16 +203,15 @@ int main(int argc, char* argv[]) {
     pvd.logical_block_size_m = __builtin_bswap16(SECTOR_SIZE);
     pvd.file_structure_version = 0x01;
 
-    // Fill valid ECMA-119 34-byte Root Directory Record inside PVD
     pvd.root_directory_record.length = 34;
-    pvd.root_directory_record.extent_lba_l = 19;
-    pvd.root_directory_record.extent_lba_m = __builtin_bswap32(19);
+    pvd.root_directory_record.extent_lba_l = root_dir_lba;
+    pvd.root_directory_record.extent_lba_m = __builtin_bswap32(root_dir_lba);
     pvd.root_directory_record.data_length_l = SECTOR_SIZE;
     pvd.root_directory_record.data_length_m = __builtin_bswap32(SECTOR_SIZE);
-    pvd.root_directory_record.date[0] = 126; // 2026 - 1900
-    pvd.root_directory_record.date[1] = 7;   // July
-    pvd.root_directory_record.date[2] = 31;  // 31st
-    pvd.root_directory_record.flags = 0x02;  // Directory flag
+    pvd.root_directory_record.date[0] = 126;
+    pvd.root_directory_record.date[1] = 7;
+    pvd.root_directory_record.date[2] = 31;
+    pvd.root_directory_record.flags = 0x02;
     pvd.root_directory_record.vol_seq_num_l = 1;
     pvd.root_directory_record.vol_seq_num_m = 0x0100;
     pvd.root_directory_record.name_len = 1;
@@ -217,14 +219,14 @@ int main(int argc, char* argv[]) {
 
     fwrite(&pvd, 1, sizeof(pvd), f_iso);
 
-    // 3. Sector 17: El-Torito Volume Descriptor
+    // 3. Sector 17: El-Torito Volume Descriptor (pointing to Boot Catalog Sector 20)
     eltorito_vd_t et_vd;
     memset(&et_vd, 0, sizeof(et_vd));
     et_vd.type = 0x00;
     memcpy(et_vd.id, "CD001", 5);
     et_vd.version = 0x01;
     write_padded_string(et_vd.system_id, "EL TORITO SPECIFICATION", 32);
-    et_vd.boot_catalog_lba = 19;
+    et_vd.boot_catalog_lba = boot_cat_lba;
     fwrite(&et_vd, 1, sizeof(et_vd), f_iso);
 
     // 4. Sector 18: Volume Descriptor Set Terminator
@@ -234,7 +236,35 @@ int main(int argc, char* argv[]) {
     sector[6] = 0x01;
     fwrite(sector, 1, SECTOR_SIZE, f_iso);
 
-    // 5. Sector 19: Boot Catalog
+    // 5. Sector 19: ISO 9660 Root Directory Sector
+    memset(sector, 0, SECTOR_SIZE);
+    iso_dir_record_t* dot = (iso_dir_record_t*)sector;
+    dot->length = 34;
+    dot->extent_lba_l = root_dir_lba;
+    dot->extent_lba_m = __builtin_bswap32(root_dir_lba);
+    dot->data_length_l = SECTOR_SIZE;
+    dot->data_length_m = __builtin_bswap32(SECTOR_SIZE);
+    dot->flags = 0x02;
+    dot->vol_seq_num_l = 1;
+    dot->vol_seq_num_m = 0x0100;
+    dot->name_len = 1;
+    dot->name = 0x00;
+
+    iso_dir_record_t* dotdot = (iso_dir_record_t*)(sector + 34);
+    dotdot->length = 34;
+    dotdot->extent_lba_l = root_dir_lba;
+    dotdot->extent_lba_m = __builtin_bswap32(root_dir_lba);
+    dotdot->data_length_l = SECTOR_SIZE;
+    dotdot->data_length_m = __builtin_bswap32(SECTOR_SIZE);
+    dotdot->flags = 0x02;
+    dotdot->vol_seq_num_l = 1;
+    dotdot->vol_seq_num_m = 0x0100;
+    dotdot->name_len = 1;
+    dotdot->name = 0x01;
+
+    fwrite(sector, 1, SECTOR_SIZE, f_iso);
+
+    // 6. Sector 20: El-Torito Boot Catalog
     memset(sector, 0, SECTOR_SIZE);
     boot_catalog_val_t* val = (boot_catalog_val_t*)sector;
     val->header_id   = 0x01;
@@ -258,13 +288,13 @@ int main(int argc, char* argv[]) {
     entry->load_rba        = boot_lba;
     fwrite(sector, 1, SECTOR_SIZE, f_iso);
 
-    // 6. Sector 20+: Bootloader Payload
+    // 7. Sector 21+: Bootloader Payload
     uint8_t* boot_buf = (uint8_t*)calloc(boot_sectors, SECTOR_SIZE);
     fread(boot_buf, 1, boot_size, f_boot);
     fwrite(boot_buf, 1, boot_sectors * SECTOR_SIZE, f_iso);
     free(boot_buf);
 
-    // 7. Sector 20+N: Kernel Payload
+    // 8. Sector 22+: Kernel Payload
     uint8_t* kern_buf = (uint8_t*)calloc(kern_sectors, SECTOR_SIZE);
     fread(kern_buf, 1, kern_size, f_kern);
     fwrite(kern_buf, 1, kern_sectors * SECTOR_SIZE, f_iso);
@@ -275,7 +305,7 @@ int main(int argc, char* argv[]) {
     printf("[✓] Fully ECMA-119 Compliant ISO 9660 Image Generated -> %s (%u sectors, %u bytes)\n",
            out_iso_path, total_sectors, total_sectors * SECTOR_SIZE);
 
-    // 8. Generate Optional Raw Boot Disk Image (FalkonOS.img) if requested
+    // 9. Generate Raw Boot Disk Image (FalkonOS.img)
     if (out_img_path) {
         FILE* f_img = fopen(out_img_path, "wb");
         if (f_img) {

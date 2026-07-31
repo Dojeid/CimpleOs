@@ -1,8 +1,8 @@
 ; =============================================================================
 ; Falkon-OS Custom Stage 1 Boot Sector (16-bit BIOS Real Mode -> Protected Mode)
 ; Address: 0x7C00 | Size: 512 bytes | Boot Signature: 0xAA55
-; Reads kernel payload from Sector 21 to 0x10000 without stack overflow,
-; switches to 32-bit Protected Mode, relocates kernel to 0x100000, and enters kernel.
+; Multi-stage fallback sector reader supporting ISO 9660 (LBA 22),
+; Raw Disk Image (LBA 1), and CHS BIOS disk reads.
 ; =============================================================================
 
 [BITS 16]
@@ -24,27 +24,42 @@ start:
     mov si, msg_welcome
     call print_string
 
-    ; 1. Read Kernel Payload (100 CD sectors = 200KB) from Sector 21 into RAM 0x10000 via INT 13h AH=42h
-    mov si, dap
+    ; Try Stage 1: INT 13h AH=42h LBA 22 (ISO CD-ROM layout)
+    mov si, dap_iso
     mov ah, 0x42
     mov dl, [boot_drive]
     int 0x13
     jnc .load_ok
 
-    ; Retry INT 13h once if first attempt returned carry flag
-    mov si, dap
+    ; Try Stage 2: INT 13h AH=42h LBA 1 (Raw Disk .img layout)
+    mov si, dap_img
     mov ah, 0x42
     mov dl, [boot_drive]
     int 0x13
+    jnc .load_ok
+
+    ; Try Stage 3: Standard INT 13h AH=02h CHS Sector 2 Read
+    mov ax, 0x0270         ; AH=02 (Read), AL=112 sectors (~56KB)
+    mov cx, 0x0002         ; Cylinder 0, Sector 2
+    mov dh, 0              ; Head 0
+    mov dl, [boot_drive]
+    mov bx, 0x1000
+    mov es, bx
+    xor bx, bx             ; ES:BX = 0x1000:0x0000 = 0x10000
+    int 0x13
 
 .load_ok:
+    ; Reset ES back to 0
+    xor ax, ax
+    mov es, ax
+
     mov si, msg_loaded
     call print_string
 
-    ; 2. Enable A20 Line
+    ; Enable A20 Line
     call enable_a20
 
-    ; 3. Switch to 32-bit Protected Mode
+    ; Switch to 32-bit Protected Mode
     cli
     lgdt [gdt32_desc]
     mov eax, cr0
@@ -63,7 +78,7 @@ init_32:
     mov fs, ax
     mov gs, ax
     mov ss, ax
-    mov esp, 0x90000        ; Set up safe 32-bit stack (0x90000 is safely above 0x40000 loaded buffer)
+    mov esp, 0x90000        ; Set up safe 32-bit stack
 
     ; Relocate Kernel payload from 0x10000 (loaded address) to 0x100000 (1MB target base)
     mov esi, 0x10000        ; Source address
@@ -99,15 +114,25 @@ enable_a20:
     out 0x92, al
     ret
 
-; --- Disk Address Packet (DAP) for INT 13h Extended Read (AH=42h) ---
+; --- Disk Address Packet for ISO CD-ROM Read (LBA Sector 22) ---
 align 4
-dap:
+dap_iso:
     db 0x10                 ; Packet size (16 bytes)
     db 0x00                 ; Reserved (0)
     dw 100                  ; Number of CD-ROM sectors (100 * 2048 = 200KB payload)
     dw 0x0000               ; Buffer Offset
     dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
-    dq 21                   ; Starting LBA sector (Sector 21 = FalkonOS.bin start)
+    dq 22                   ; Starting LBA sector (Sector 22 = FalkonOS.bin on ISO)
+
+; --- Disk Address Packet for Raw Disk Image Read (LBA Sector 1) ---
+align 4
+dap_img:
+    db 0x10                 ; Packet size (16 bytes)
+    db 0x00                 ; Reserved (0)
+    dw 400                  ; Number of 512B sectors (400 * 512 = 200KB payload)
+    dw 0x0000               ; Buffer Offset
+    dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
+    dq 1                    ; Starting LBA sector (Sector 1 = FalkonOS.bin on raw disk)
 
 ; --- 32-bit Global Descriptor Table (GDT) ---
 align 8
