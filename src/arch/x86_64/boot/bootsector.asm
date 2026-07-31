@@ -1,18 +1,25 @@
 ; =============================================================================
 ; Falkon-OS Custom Stage 1 Boot Sector (16-bit BIOS Real Mode -> Protected Mode)
 ; Address: 0x7C00 | Size: 512 bytes | Boot Signature: 0xAA55
-; Multi-stage fallback sector reader supporting ISO 9660 (LBA 22),
-; Raw Disk Image (LBA 1), and CHS BIOS disk reads.
+; Chunked INT 13h AH=42h payload reader supporting:
+;   - ISO 9660 CD (LBA 22, 2048B sectors)            DL >= 0xE0
+;   - SeaBIOS El-Torito emulated CD (virtual LBA 4)   DL == 0x9F
+;   - Raw Disk Image (LBA 1)                          DL == 0x80
+; Chunks are capped at 32 sectors (CD) / 127 sectors (512B drives) due to the
+; 64KB per-INT13h-transfer limit and the BIOS DAP count cap.
 ; =============================================================================
 
-[BITS 16]
 [ORG 0x7C00]
+[BITS 16]
 
 ; --- Kernel payload size limits (must match iso_builder.c) ---
 KERNEL_BYTES        equ 320 * 1024      ; Max kernel payload size (320KB)
-KERNEL_SECTORS      equ KERNEL_BYTES / 512      ; 640 (raw disk / CHS)
+KERNEL_SECTORS      equ KERNEL_BYTES / 512      ; 640 (raw disk / cdemu 512B units)
 ISO_KERNEL_SECTORS  equ KERNEL_BYTES / 2048     ; 160 (ISO 9660 2048B sectors)
-IMG_KERNEL_SECTORS  equ KERNEL_SECTORS          ; 640
+PARA_PER_SECTOR_512 equ 32              ; paragraphs per 512-byte sector
+PARA_PER_SECTOR_2K  equ 128             ; paragraphs per 2048-byte sector
+MAX_CHUNK_512       equ 127             ; INT13 DAP count cap (512B drives)
+MAX_CHUNK_2K        equ 32              ; 64KB transfer limit (2048B CD sectors)
 
 start:
     cli
@@ -31,100 +38,58 @@ start:
     call print_string
 
     ; Select the disk read path from the BIOS boot drive (DL):
-    ;   0x9F  -> SeaBIOS El-Torito no-emulation emulated CD
-    ;            (kernel mapped at virtual LBA 4, 512-byte sectors)
+    ;   0x9F  -> SeaBIOS El-Torito emulated CD (virtual LBA 4, 512B sectors)
     ;   0xE0+ -> BIOS CD-ROM (ISO 9660, kernel at LBA 22)
     ;   0x80  -> hard disk raw image (kernel at LBA 1)
-    ;   other -> floppy / CHS fallback
     mov dl, [boot_drive]
     cmp dl, 0x9F
-    je .cdemu_dap
+    je .cdemu
     cmp dl, 0xE0
-    jae .iso_dap
+    jae .iso
     mov si, dap_img
+    mov bx, PARA_PER_SECTOR_512
+    mov cx, MAX_CHUNK_512
     cmp dl, 0x80
-    je .try_dap
-    jmp .chs_read
+    je .load
+    jmp .dap_fail
 
-.cdemu_dap:
+.cdemu:
     mov si, dap_cd_emu
-    jmp .try_dap
+    mov bx, PARA_PER_SECTOR_512
+    mov cx, MAX_CHUNK_512
+    jmp .load
 
-.iso_dap:
+.iso:
     mov si, dap_iso
+    mov bx, PARA_PER_SECTOR_2K
+    mov cx, MAX_CHUNK_2K
 
-.try_dap:
-    mov ah, 0x42
-    int 0x13
-    jnc .load_ok
+.load:
+    call dap_read_loop
+    jc .dap_fail
 
-.chs_read:
-    ; Try Stage 3: INT 13h AH=02h CHS loop (loads full kernel payload)
-    mov ax, 0x1000          ; ES:BX = 0x1000:0x0000 = 0x10000
+    ; Verify the Multiboot 1 magic in the loaded kernel header at 0x10000
+    mov ax, 0x1000
     mov es, ax
-    xor bx, bx
-    mov word [chs_remaining], KERNEL_SECTORS
-    mov byte [chs_cyl], 0
-    mov byte [chs_head], 0
-    mov byte [chs_sector], 2    ; Kernel starts at CHS C0/H0/S2 (LBA 1)
-
-.chs_loop:
-    cmp word [chs_remaining], 0
-    je .load_ok
-    mov ax, [chs_remaining]     ; Read at most 63 sectors (one track)
-    cmp ax, 63
-    jbe .chs_chunk
-    mov ax, 63
-.chs_chunk:
-    push ax                     ; Save chunk sector count
-    mov ah, 0x02                ; AH=02 (Read), AL = sector count
-    mov ch, [chs_cyl]
-    mov cl, [chs_sector]
-    mov dh, [chs_head]
-    mov dl, [boot_drive]
-    xor bx, bx                  ; ES:BX = ES:0 (BX stays 0, ES advances)
-    int 0x13
-    pop ax                      ; AX = sectors actually read
-    jc .chs_fail
-
-    ; Advance ES by (sectors * 512) / 16 paragraphs
-    mov word [chs_count], ax
-    sub word [chs_remaining], ax
-    shl ax, 5                   ; sectors * 32 paragraphs
-    mov bx, es
-    add bx, ax
-    mov es, bx
-
-    ; Advance CHS: sector += count (wraps at 63 per track, 16 heads)
-    mov al, byte [chs_count]
-    add byte [chs_sector], al
-    cmp byte [chs_sector], 63
-    jbe .chs_loop
-    sub byte [chs_sector], 63
-    inc byte [chs_head]
-    cmp byte [chs_head], 16
-    jb .chs_loop
-    mov byte [chs_head], 0
-    inc byte [chs_cyl]
-    jmp .chs_loop
-
-.chs_fail:
-    mov si, msg_chs_fail
-    call print_string
-
-.load_ok:
-    ; Reset ES back to 0
-    xor ax, ax
-    mov es, ax
-
-    ; Verify the Multiboot 1 magic in the loaded kernel header
-    cmp dword [0x10000], 0x1BADB002
+    cmp dword [es:0x0000], 0x1BADB002
     jne .load_fail
 
     mov si, msg_loaded
     call print_string
 
     jmp .boot_continue
+
+.dap_fail:
+    mov si, msg_dap_fail
+    call print_string
+    mov al, ah              ; INT 13h status
+    call print_hex8
+    mov al, ':'
+    call print_char
+    mov al, dl              ; drive number
+    call print_hex8
+    cli
+    hlt
 
 .load_fail:
     mov si, msg_bad_kernel
@@ -191,32 +156,106 @@ enable_a20:
     out 0x92, al
     ret
 
-; --- Disk Address Packet for ISO CD-ROM Read (LBA Sector 22) ---
+; --- Helper: Print single character ---
+print_char:
+    push ax
+    mov ah, 0x0E
+    int 0x10
+    pop ax
+    ret
+
+; --- Helper: Print 8-bit value in AL as two hex digits ---
+print_hex8:
+    push ax
+    push cx
+    mov cl, al
+    shr al, 4
+    call .nibble
+    mov al, cl
+    and al, 0x0F
+    call .nibble
+    pop cx
+    pop ax
+    ret
+.nibble:
+    add al, '0'
+    cmp al, '9'
+    jbe .out
+    add al, 7
+.out:
+    mov ah, 0x0E
+    int 0x10
+    ret
+
+; --- Chunked DAP read: INT 13h AH=42h in chunks to honor the 64KB/127-sector
+;     BIOS limits. Updates the DAP count/LBA/segment fields in place.
+;     si = DAP pointer   dl = drive number
+;     bx = paragraphs per sector (32 = 512B, 128 = 2048B)
+;     cx = max sectors per chunk (127 = 512B, 32 = 2048B)
+;     Returns: CF clear on full success, CF set on failure. ---
+dap_read_loop:
+    mov ax, [si+2]
+    mov word [load_remaining], ax
+.chunk:
+    mov ax, [load_remaining]
+    test ax, ax
+    jz .done
+    mov di, cx
+    cmp ax, cx
+    jae .chunk_size
+    mov di, ax
+.chunk_size:
+    push di
+    mov word [si+2], di
+    mov dl, [boot_drive]    ; loop clobbers DL - restore drive number
+    mov ah, 0x42
+    int 0x13
+    pop di
+    jc .fail
+    sub word [load_remaining], di
+    ; Advance DAP LBA (qword at si+8) by the chunk count
+    mov ax, di
+    xor dx, dx
+    add word [si+8], ax
+    adc word [si+10], dx
+    ; Advance DAP buffer segment by (chunk * paragraphs-per-sector)
+    mov ax, di
+    mul bx
+    add word [si+6], ax
+    jmp .chunk
+.done:
+    clc
+    ret
+.fail:
+    stc
+    ret
+
+; --- Disk Address Packet for ISO CD-ROM Read (2048B sectors, LBA 22) ---
 align 4
 dap_iso:
     db 0x10                 ; Packet size (16 bytes)
     db 0x00                 ; Reserved (0)
-    dw ISO_KERNEL_SECTORS   ; Number of CD-ROM sectors (each 2048 bytes)
+    dw ISO_KERNEL_SECTORS   ; Total 2048B sectors (160); chunked by the loop
     dw 0x0000               ; Buffer Offset
     dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
-    dq 22                   ; Starting LBA sector (Sector 22 = FalkonOS.bin on ISO)
+    dq 22                   ; Starting LBA (Sector 22 = kernel on ISO)
 
-; --- Disk Address Packet for Raw Disk Image Read (LBA Sector 1) ---
+; --- Disk Address Packet for Raw Disk Image Read (512B sectors, LBA 1) ---
 align 4
 dap_img:
     db 0x10                 ; Packet size (16 bytes)
     db 0x00                 ; Reserved (0)
-    dw IMG_KERNEL_SECTORS   ; Number of 512B sectors
+    dw KERNEL_SECTORS       ; Total 512B sectors (640); chunked by the loop
     dw 0x0000               ; Buffer Offset
     dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
-    dq 1                    ; Starting LBA sector (Sector 1 = FalkonOS.bin on raw disk)
+    dq 1                    ; Starting LBA (Sector 1 = kernel on raw disk)
 
-; --- Disk Address Packet for SeaBIOS El-Torito CD Emulation (virtual LBA 4) ---
+; --- Disk Address Packet for SeaBIOS El-Torito CD Emulation (512B units) ---
 align 4
 dap_cd_emu:
     db 0x10                 ; Packet size (16 bytes)
     db 0x00                 ; Reserved (0)
-    dw KERNEL_SECTORS       ; Number of 512B sectors (640)
+    dw KERNEL_SECTORS       ; Total 512B units (640); chunked by the loop
     dw 0x0000               ; Buffer Offset
     dw 0x1000               ; Buffer Segment (0x1000:0x0000 = 0x10000 physical)
     dq 4                    ; Virtual LBA 4 = first 512B block of kernel (CD LBA 22)
@@ -242,15 +281,11 @@ gdt32_desc:
 
 ; --- Global Variables & Messages ---
 boot_drive      db 0
-chs_remaining   dw 0
-chs_count       dw 0
-chs_cyl         db 0
-chs_head        db 0
-chs_sector      db 0
+load_remaining  dw 0
 msg_welcome     db "Booting Falkon-OS Stage 1...", 0x0D, 0x0A, 0
 msg_loaded      db "Kernel loaded.", 0x0D, 0x0A, 0
-msg_chs_fail    db "CHS read failed.", 0x0D, 0x0A, 0
-msg_bad_kernel  db "Kernel magic mismatch.", 0x0D, 0x0A, 0
+msg_dap_fail    db "Read fail: ", 0
+msg_bad_kernel  db "Bad kernel.", 0x0D, 0x0A, 0
 
 ; --- Pad to 510 bytes and append Boot Signature 0xAA55 ---
 times 510-($-$$) db 0
