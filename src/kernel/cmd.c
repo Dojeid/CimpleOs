@@ -1,7 +1,10 @@
 #include "cmd.h"
 #include "lib/string.h"
+#include "lib/printf.h"
 #include "gui/terminal.h"
 #include "kernel/timer.h"
+#include "kernel/process.h"
+#include "fs/vfs.h"
 #include "mm/pmm.h"
 
 extern char terminal_buffer[];
@@ -55,17 +58,80 @@ void cmd_process(const char* cmd) {
     terminal_add_to_history(cmd);
     
     if (strcmp(cmd, "help") == 0) {
-        cmd_print("Falkon-OS v0.4 Commands:");
-        cmd_print("  help      - Show this help menu");
-        cmd_print("  fetch     - Display Falkon-OS system fetch & logo");
-        cmd_print("  sysinfo   - Detailed kernel memory & CPU status");
-        cmd_print("  time      - Show system uptime clock");
-        cmd_print("  uname     - Show operating system details");
-        cmd_print("  whoami    - Print active user session");
-        cmd_print("  clear     - Clear terminal screen");
-        cmd_print("  calc      - Basic math calculator (e.g., calc 25 + 15)");
-        cmd_print("  echo      - Print text back to terminal");
-        cmd_print("  theme     - Switch desktop theme (1: Dark, 2: Cyber, 3: Forest)");
+        cmd_print("Falkon-OS Shell Commands:");
+        cmd_print("  ls [path]   - List VFS files/directories");
+        cmd_print("  cat [file]  - Display file contents");
+        cmd_print("  touch [file]- Create new empty file");
+        cmd_print("  mkdir [dir] - Create new directory");
+        cmd_print("  ps          - List active processes");
+        cmd_print("  meminfo     - Display physical memory usage");
+        cmd_print("  fetch       - Display system banner & specs");
+        cmd_print("  sysinfo     - Detailed kernel status");
+        cmd_print("  uname       - Show OS release details");
+        cmd_print("  whoami      - Print active user session");
+        cmd_print("  clear       - Clear terminal screen");
+        cmd_print("  calc        - Basic math calculator");
+        cmd_print("  echo [text] - Print text back to terminal");
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "ps") == 0) {
+        char ps_buf[512];
+        process_list(ps_buf, sizeof(ps_buf));
+        cmd_print(ps_buf);
+    }
+    else if (strncmp(cmd, "ls", 2) == 0) {
+        const char* path = (strlen(cmd) > 3) ? (cmd + 3) : "/";
+        vfs_node_t* target = vfs_lookup(0, path);
+        if (!target) {
+            cmd_print("ls: Directory not found.");
+        } else if (target->type != VFS_DIRECTORY) {
+            cmd_print(target->name);
+        } else {
+            char line[128];
+            for (uint32_t i = 0; i < target->child_count; i++) {
+                vfs_node_t* child = target->children[i];
+                if (child->type == VFS_DIRECTORY) {
+                    sprintf(line, "[DIR]  %s/", child->name);
+                } else {
+                    sprintf(line, "[FILE] %-16s (%u B)", child->name, child->size);
+                }
+                cmd_print(line);
+            }
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "cat ", 4) == 0) {
+        const char* path = cmd + 4;
+        vfs_node_t* file = vfs_lookup(0, path);
+        if (!file) {
+            cmd_print("cat: File not found.");
+        } else if (file->type != VFS_FILE) {
+            cmd_print("cat: Target is a directory.");
+        } else if (file->data && file->size > 0) {
+            cmd_print((const char*)file->data);
+        } else {
+            cmd_print("[File is empty]");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "touch ", 6) == 0) {
+        const char* name = cmd + 6;
+        vfs_node_t* root = vfs_get_root();
+        if (vfs_create_file(root, name, 0, 0)) {
+            cmd_print("File created successfully.");
+        } else {
+            cmd_print("touch: Failed to create file.");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "mkdir ", 6) == 0) {
+        const char* name = cmd + 6;
+        vfs_node_t* root = vfs_get_root();
+        if (vfs_mkdir(root, name)) {
+            cmd_print("Directory created successfully.");
+        } else {
+            cmd_print("mkdir: Failed to create directory.");
+        }
         cmd_print("");
     }
     else if (strcmp(cmd, "fetch") == 0 || strcmp(cmd, "neofetch") == 0) {

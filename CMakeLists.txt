@@ -33,7 +33,7 @@ endif()
 
 # Linker script & bare-metal flags
 set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/src/arch/x86_64/linker.ld")
-set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -nostartfiles -static -Wl,-T,${LINKER_SCRIPT}")
+set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -nostartfiles -static -Wl,--image-base=0x100000 -Wl,--disable-auto-image-base -Wl,-T,${LINKER_SCRIPT}")
 set(CMAKE_C_STANDARD_LIBRARIES "")
 
 # Explicit link executable command

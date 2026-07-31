@@ -97,39 +97,50 @@ void kmain(void* multiboot_info_addr) {
     asm volatile("sti");
     vga_print("Interrupts Enabled!\n");
 
+    // Initialize VFS, Ramdisk, Process Scheduler, and Syscalls
+    #include "fs/vfs.h"
+    #include "fs/ramdisk.h"
+    #include "kernel/process.h"
+    #include "kernel/syscall.h"
+    #include "gui/apps/file_explorer.h"
+    #include "gui/apps/notepad.h"
+    #include "gui/apps/sysmon.h"
+
+    vfs_init();
+    ramdisk_init();
+    process_init();
+    syscall_init();
+
+    // Create system background processes
+    process_create("gui_compositor", 0);
+    process_create("input_poller", 0);
+
     // Initialize GUI subsystems
     terminal_init();
     wm_init();
     
-    // Create terminal window
-    window_t* term_win = wm_create_window(50, 80, 700, 480, "Terminal");
+    // Create default Terminal window
+    window_t* term_win = wm_create_window(50, 80, 680, 440, "Terminal");
     if (term_win) {
-        // FEATURE 1: Create independent terminal instance
         term_win->user_data = terminal_create_instance();
         taskbar_add_button(term_win->id, "Terminal");
         term_win->render_content = NULL;
         
-        // Print welcome to this instance (or global if malloc failed)
         terminal_instance_t* term = (terminal_instance_t*)term_win->user_data;
         if (term) {
-            terminal_instance_print(term, "Welcome to Falkon-OS v0.4 GUI!");
-            terminal_instance_print(term, "Windowing system active.");
+            terminal_instance_print(term, "Falkon-OS v1.0 Enterprise Shell");
+            terminal_instance_print(term, "=================================");
+            terminal_instance_print(term, "VFS, Ramdisk, Scheduler & Syscalls Active.");
+            terminal_instance_print(term, "Type 'help' for command list.");
+            terminal_instance_print(term, "Type 'ls', 'ps', 'cat /docs/welcome.txt' or 'fetch'.");
             terminal_instance_print(term, "");
-            terminal_instance_print(term, "Type 'help' for available commands.");
-            terminal_instance_print(term, "Use UP/DOWN arrows for history.");
-            terminal_instance_print(term, "Drag windows by title bar!");
-            terminal_instance_print(term, "Click green 'Terminal' button for more terminals.");
-            terminal_instance_print(term, "");
-        } else {
-            // Fallback to global terminal
-            terminal_print("Welcome to Falkon-OS v0.4 GUI!");
-            terminal_print("Windowing system active.");
-            terminal_print("");
-            terminal_print("Type 'help' for available commands.");
-            terminal_print("WARNING: Terminal instance creation failed - using shared global terminal");
-            terminal_print("");
         }
     }
+
+    // Launch default desktop applications
+    notepad_open("/docs/welcome.txt");
+    sysmon_open();
+    file_explorer_open();
     
     // Mouse state for click detection
     int last_mouse_btn = 0;  // Moved outside loop for clarity

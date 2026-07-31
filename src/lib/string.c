@@ -88,3 +88,35 @@ void* memcpy(void* dest, const void* src, size_t n) {
     while (n--) *d++ = *s++;
     return dest;
 }
+
+char* strchr(const char* s, int c) {
+    while (*s != (char)c) {
+        if (!*s++) return 0;
+    }
+    return (char*)s;
+}
+
+static char* strtok_saved = 0;
+
+char* strtok(char* str, const char* delim) {
+    char* s = str ? str : strtok_saved;
+    if (!s) return 0;
+
+    while (*s && strchr(delim, *s)) s++;
+    if (!*s) {
+        strtok_saved = 0;
+        return 0;
+    }
+
+    char* token_start = s;
+    while (*s && !strchr(delim, *s)) s++;
+
+    if (*s) {
+        *s = 0;
+        strtok_saved = s + 1;
+    } else {
+        strtok_saved = 0;
+    }
+
+    return token_start;
+}

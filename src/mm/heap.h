@@ -12,4 +12,7 @@ void* malloc(size_t size);
 // Free memory
 void free(void* ptr);
 
+#define kmalloc(sz) malloc(sz)
+#define kfree(ptr) free(ptr)
+
 #endif

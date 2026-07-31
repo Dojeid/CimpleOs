@@ -22,5 +22,7 @@ void itoa(int value, char* str, int base);
 // Memory operations
 void* memset(void* dest, int val, size_t count);
 void* memcpy(void* dest, const void* src, size_t n);
+char* strchr(const char* s, int c);
+char* strtok(char* str, const char* delim);
 
 #endif

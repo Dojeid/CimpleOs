@@ -141,36 +141,39 @@ void taskbar_render() {
     // Render Start Menu Popup Overlay if open
     if (taskbar.start_menu_open) {
         int menu_x = 10;
-        int menu_y = taskbar.y_position - 145;
+        int menu_y = taskbar.y_position - 180;
         int menu_w = 180;
-        int menu_h = 140;
+        int menu_h = 175;
 
         // Outer Shadow & Menu Background
         draw_rect(menu_x + 3, menu_y + 3, menu_w, menu_h, 0x111111);
         draw_rect(menu_x, menu_y, menu_w, menu_h, 0x1F2937);
         draw_rect(menu_x, menu_y, menu_w, 24, 0x374151);
-        draw_string(menu_x + 10, menu_y + 5, 0x38BDF8, "Falkon-OS Menu");
+        draw_string(menu_x + 10, menu_y + 5, 0x38BDF8, "Falkon Applications");
 
         // Menu Items
         draw_rect(menu_x + 5, menu_y + 30, menu_w - 10, 24, 0x374151);
         draw_string(menu_x + 12, menu_y + 35, 0xFFFFFF, "> Terminal");
 
         draw_rect(menu_x + 5, menu_y + 58, menu_w - 10, 24, 0x374151);
-        draw_string(menu_x + 12, menu_y + 63, 0xFFFFFF, "> System Info");
+        draw_string(menu_x + 12, menu_y + 63, 0xFFFFFF, "> File Explorer");
 
         draw_rect(menu_x + 5, menu_y + 86, menu_w - 10, 24, 0x374151);
-        draw_string(menu_x + 12, menu_y + 91, 0xFFFFFF, "> Toggle Theme");
+        draw_string(menu_x + 12, menu_y + 91, 0xFFFFFF, "> Notepad Text");
 
-        draw_rect(menu_x + 5, menu_y + 114, menu_w - 10, 22, 0x991B1B);
-        draw_string(menu_x + 12, menu_y + 117, 0xFCA5A5, "> Panic Test");
+        draw_rect(menu_x + 5, menu_y + 114, menu_w - 10, 24, 0x374151);
+        draw_string(menu_x + 12, menu_y + 119, 0xFFFFFF, "> System Monitor");
+
+        draw_rect(menu_x + 5, menu_y + 142, menu_w - 10, 24, 0x374151);
+        draw_string(menu_x + 12, menu_y + 147, 0xFFFFFF, "> Calculator");
     }
 }
 
 void taskbar_handle_click(int x, int y) {
     int menu_x = 10;
-    int menu_y = taskbar.y_position - 145;
+    int menu_y = taskbar.y_position - 180;
     int menu_w = 180;
-    int menu_h = 140;
+    int menu_h = 175;
 
     // Check if Start Menu is open and clicked inside Start Menu
     if (taskbar.start_menu_open && 
@@ -183,38 +186,36 @@ void taskbar_handle_click(int x, int y) {
             extern terminal_instance_t* terminal_create_instance();
             extern void terminal_instance_print(terminal_instance_t*, const char*);
             
-            static int term_counter = 0;
-            term_counter++;
-            int offset_x = 50 + ((term_counter * 30) % 200);
-            int offset_y = 80 + ((term_counter * 25) % 150);
-            
-            window_t* new_term = wm_create_window(offset_x, offset_y, 700, 480, "Terminal");
+            window_t* new_term = wm_create_window(50, 80, 700, 480, "Terminal");
             if (new_term) {
                 new_term->user_data = terminal_create_instance();
                 new_term->render_content = NULL;
                 taskbar_add_button(new_term->id, "Terminal");
                 terminal_instance_t* term = (terminal_instance_t*)new_term->user_data;
                 terminal_instance_print(term, "Falkon-OS Terminal Session");
-                terminal_instance_print(term, "Type 'help' or 'fetch' for commands.");
+                terminal_instance_print(term, "Type 'help' or 'ls' for commands.");
                 terminal_instance_print(term, "");
             }
         }
-        // Item 2: System Info
+        // Item 2: File Explorer
         else if (y >= menu_y + 58 && y < menu_y + 82) {
-            extern void sysinfo_print();
-            sysinfo_print();
+            #include "gui/apps/file_explorer.h"
+            file_explorer_open();
         }
-        // Item 3: Toggle Theme
+        // Item 3: Notepad
         else if (y >= menu_y + 86 && y < menu_y + 110) {
-            extern void desktop_set_theme(int);
-            static int curr_theme = 1;
-            curr_theme = (curr_theme % 4) + 1;
-            desktop_set_theme(curr_theme);
+            #include "gui/apps/notepad.h"
+            notepad_open("/docs/welcome.txt");
         }
-        // Item 4: Panic Test
-        else if (y >= menu_y + 114 && y < menu_y + 136) {
-            extern void kpanic(const char*);
-            kpanic("User triggered kernel panic test from Falkon Start Menu!");
+        // Item 4: System Monitor
+        else if (y >= menu_y + 114 && y < menu_y + 138) {
+            #include "gui/apps/sysmon.h"
+            sysmon_open();
+        }
+        // Item 5: Calculator
+        else if (y >= menu_y + 142 && y < menu_y + 166) {
+            #include "gui/apps/calc.h"
+            calc_open();
         }
 
         taskbar.start_menu_open = 0;
