@@ -284,25 +284,25 @@ int wm_is_point_in_titlebar(window_t* win, int x, int y) {
 int wm_is_point_in_close_button(window_t* win, int x, int y) {
     if (!win) return 0;
     int btn_x = win->x + win->width - 20;
-    int btn_y = win->y + 2;
-    return (x >= btn_x && x < btn_x + 18 &&
-            y >= btn_y && y < btn_y + 18);
+    int btn_y = win->y + 4;
+    return (x >= btn_x && x < win->x + win->width &&
+            y >= btn_y && y < btn_y + 16);
 }
 
 int wm_is_point_in_minimize_button(window_t* win, int x, int y) {
     if (!win) return 0;
-    int btn_x = win->x + win->width - 60;
-    int btn_y = win->y + 2;
-    return (x >= btn_x && x < btn_x + 18 &&
-            y >= btn_y && y < btn_y + 18);
+    int btn_x = win->x + win->width - 56;
+    int btn_y = win->y + 4;
+    return (x >= btn_x && x < win->x + win->width - 38 &&
+            y >= btn_y && y < btn_y + 16);
 }
 
 int wm_is_point_in_maximize_button(window_t* win, int x, int y) {
     if (!win) return 0;
-    int btn_x = win->x + win->width - 40;
-    int btn_y = win->y + 2;
-    return (x >= btn_x && x < btn_x + 18 &&
-            y >= btn_y && y < btn_y + 18);
+    int btn_x = win->x + win->width - 38;
+    int btn_y = win->y + 4;
+    return (x >= btn_x && x < win->x + win->width - 20 &&
+            y >= btn_y && y < btn_y + 16);
 }
 
 void wm_render_window(window_t* win) {
@@ -313,53 +313,46 @@ void wm_render_window(window_t* win) {
     
     int is_focused = (win->flags & WIN_FLAG_FOCUSED);
     
-    // Draw title bar
-    uint32_t titlebar_color = is_focused ? COLOR_TITLEBAR_ACTIVE : COLOR_TITLEBAR_INACTIVE;
+    // Draw modern title bar
+    uint32_t titlebar_color = is_focused ? 0x1E293B : 0x0F172A;
     draw_rect(win->x, win->y, win->width, TITLEBAR_HEIGHT, titlebar_color);
     
-    // Draw title text
-    draw_string(win->x + 6, win->y + 6, 0xFFFFFF, win->title);
+    // Title text
+    draw_string(win->x + 10, win->y + 7, is_focused ? 0xF1F5F9 : 0x94A3B8, win->title);
     
-    // Draw buttons
-    int btn_y = win->y + 2;
+    // Draw modern circular control dots (Close: Red, Max: Green, Min: Yellow)
+    int btn_y = win->y + 7;
     
-    // Minimize button (yellow)
-    int min_btn_x = win->x + win->width - 60;
-    draw_rect(min_btn_x, btn_y, 18, 18, COLOR_MIN_BTN);
-    draw_rect(min_btn_x + 3, btn_y + 14, 12, 2, 0x000000);
+    // Close dot (Red 0xEF4444)
+    int close_btn_x = win->x + win->width - 18;
+    draw_rect(close_btn_x, btn_y, 11, 11, 0xEF4444);
     
-    // Maximize button (green)
-    int max_btn_x = win->x + win->width - 40;
-    draw_rect(max_btn_x, btn_y, 18, 18, COLOR_MAX_BTN);
-    draw_rect(max_btn_x + 3, btn_y + 3, 12, 12, 0x000000);
-    draw_rect(max_btn_x + 4, btn_y + 4, 10, 10, COLOR_MAX_BTN);
+    // Maximize dot (Green 0x10B981)
+    int max_btn_x = win->x + win->width - 34;
+    draw_rect(max_btn_x, btn_y, 11, 11, 0x10B981);
+
+    // Minimize dot (Yellow 0xF59E0B)
+    int min_btn_x = win->x + win->width - 50;
+    draw_rect(min_btn_x, btn_y, 11, 11, 0xF59E0B);
     
-    // Close button (red)
-    int close_btn_x = win->x + win->width - 20;
-    draw_rect(close_btn_x, btn_y, 18, 18, COLOR_CLOSE_BTN);
-    // Draw X
-    for (int i = 0; i < 10; i++) {
-        put_pixel(close_btn_x + 4 + i, btn_y + 4 + i, 0xFFFFFF);
-        put_pixel(close_btn_x + 13 - i, btn_y + 4 + i, 0xFFFFFF);
-    }
-    
-    // Draw window content area
+    // Draw window content area background
     draw_rect(win->x, win->y + TITLEBAR_HEIGHT, win->width, win->height, COLOR_WINDOW_BG);
     
-    // Call render callback if set
+    // Call render content callback if set
     if (win->render_content) {
         win->render_content(win);
     }
     
-    // Draw border
+    // Draw active window glow border (Cyan 0x38BDF8 if focused, Slate 0x334155 if unfocused)
+    uint32_t border_color = is_focused ? 0x38BDF8 : 0x334155;
     // Top
-    draw_rect(win->x, win->y, win->width, 1, COLOR_BORDER);
+    draw_rect(win->x, win->y, win->width, 1, border_color);
     // Bottom
-    draw_rect(win->x, win->y + TITLEBAR_HEIGHT + win->height - 1, win->width, 1, COLOR_BORDER);
+    draw_rect(win->x, win->y + TITLEBAR_HEIGHT + win->height - 1, win->width, 1, border_color);
     // Left
-    draw_rect(win->x, win->y, 1, TITLEBAR_HEIGHT + win->height, COLOR_BORDER);
+    draw_rect(win->x, win->y, 1, TITLEBAR_HEIGHT + win->height, border_color);
     // Right
-    draw_rect(win->x + win->width - 1, win->y, 1, TITLEBAR_HEIGHT + win->height, COLOR_BORDER);
+    draw_rect(win->x + win->width - 1, win->y, 1, TITLEBAR_HEIGHT + win->height, border_color);
 }
 
 void wm_render_all() {

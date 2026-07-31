@@ -93,15 +93,14 @@ void init_idt(void) {
     idt_set_gate(46, (uint64_t)irq14, 0x08, 0x8E); idt_set_gate(47, (uint64_t)irq15, 0x08, 0x8E);
     
     asm volatile("lidt %0" : : "m"(idt_ptr));
-    asm volatile("sti");
 }
 
 // ISR handler - called from assembly
 void isr_handler(void* stack_ptr) {
     // Stack layout (from isr_common_stub):
-    // gs, fs, es, ds, r15..rax, error code, vector number
+    // gs, fs, es, ds, r15..rax, vector number (stack[19]), error code (stack[20])
     uint64_t* stack = (uint64_t*)stack_ptr;
-    uint8_t vector = (uint8_t)(stack[20] & 0xFF);
+    uint8_t vector = (uint8_t)(stack[19] & 0xFF);
 
     // Unhandled CPU exception: halt with a visible message instead of
     // re-entering the faulting instruction in an endless loop.
@@ -125,9 +124,9 @@ void isr_handler(void* stack_ptr) {
 // IRQ handler - called from assembly
 void irq_handler(void* stack_ptr) {
     // Stack layout (from irq_common_stub):
-    // gs, fs, es, ds, r15..rax, error code, vector number
+    // gs, fs, es, ds, r15..rax, vector number (stack[19]), error code (stack[20])
     uint64_t* stack = (uint64_t*)stack_ptr;
-    uint8_t vector = (uint8_t)(stack[20] & 0xFF);
+    uint8_t vector = (uint8_t)(stack[19] & 0xFF);
 
     switch (vector) {
         case 32: timer_handler(); break;      // PIT timer (IRQ0)

@@ -8,6 +8,8 @@
 #include "gui/apps/notepad.h"
 #include "gui/apps/sysmon.h"
 #include "gui/apps/calc.h"
+#include "gui/apps/settings.h"
+#include "gui/apps/installer.h"
 
 #define COLOR_TASKBAR_BG 0x34495E
 #define COLOR_BUTTON_BG 0x2C3E50
@@ -147,9 +149,9 @@ void taskbar_render() {
     // Render Start Menu Popup Overlay if open
     if (taskbar.start_menu_open) {
         int menu_x = 10;
-        int menu_y = taskbar.y_position - 180;
-        int menu_w = 180;
-        int menu_h = 175;
+        int menu_y = taskbar.y_position - 240;
+        int menu_w = 190;
+        int menu_h = 235;
 
         // Outer Shadow & Menu Background
         draw_rect(menu_x + 3, menu_y + 3, menu_w, menu_h, 0x111111);
@@ -172,14 +174,20 @@ void taskbar_render() {
 
         draw_rect(menu_x + 5, menu_y + 142, menu_w - 10, 24, 0x374151);
         draw_string(menu_x + 12, menu_y + 147, 0xFFFFFF, "> Calculator");
+
+        draw_rect(menu_x + 5, menu_y + 170, menu_w - 10, 24, 0x374151);
+        draw_string(menu_x + 12, menu_y + 175, 0x38BDF8, "> Settings & Themes");
+
+        draw_rect(menu_x + 5, menu_y + 198, menu_w - 10, 24, 0x374151);
+        draw_string(menu_x + 12, menu_y + 203, 0x4ADE80, "> OS Installer Wizard");
     }
 }
 
 void taskbar_handle_click(int x, int y) {
     int menu_x = 10;
-    int menu_y = taskbar.y_position - 180;
-    int menu_w = 180;
-    int menu_h = 175;
+    int menu_y = taskbar.y_position - 240;
+    int menu_w = 190;
+    int menu_h = 235;
 
     // Check if Start Menu is open and clicked inside Start Menu
     if (taskbar.start_menu_open && 
@@ -190,8 +198,6 @@ void taskbar_handle_click(int x, int y) {
         if (y >= menu_y + 30 && y < menu_y + 54) {
             window_t* new_term = wm_create_window(50, 80, 700, 480, "Terminal");
             if (new_term) {
-                // All terminals share the global instance so terminal_print()
-                // output (cmd, wm errors) always shows up in a visible window.
                 new_term->user_data = terminal_get_state();
                 new_term->render_content = NULL;
                 taskbar_add_button(new_term->id, "Terminal");
@@ -216,6 +222,14 @@ void taskbar_handle_click(int x, int y) {
         // Item 5: Calculator
         else if (y >= menu_y + 142 && y < menu_y + 166) {
             calc_open();
+        }
+        // Item 6: Settings
+        else if (y >= menu_y + 170 && y < menu_y + 194) {
+            settings_open();
+        }
+        // Item 7: OS Installer Wizard
+        else if (y >= menu_y + 198 && y < menu_y + 222) {
+            installer_open();
         }
 
         taskbar.start_menu_open = 0;

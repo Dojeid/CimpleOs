@@ -13,6 +13,7 @@ typedef struct {
     char lines[MAX_LINES][MAX_LINE_LENGTH];
     char history[HISTORY_SIZE][256];
     char input_buffer[256];
+    char cwd[128];
     int line_count;
     int scroll_offset;
     int history_count;

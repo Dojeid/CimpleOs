@@ -5,6 +5,7 @@
 #include "kernel/timer.h"
 #include "kernel/process.h"
 #include "fs/vfs.h"
+#include "fs/ext4.h"
 #include "mm/pmm.h"
 
 extern char terminal_buffer[];
@@ -13,16 +14,14 @@ extern int term_idx;
 // Active terminal instance (set by keyboard handler)
 terminal_instance_t* active_terminal = NULL;
 
-// Helper to print to active terminal or fallback to global
 static void cmd_print(const char* text) {
     if (active_terminal) {
         terminal_instance_print(active_terminal, text);
     } else {
-        terminal_print(text);  // Fallback to global
+        terminal_print(text);
     }
 }
 
-// Simple integer to ASCII string conversion helper
 static void int_to_str(int num, char* str) {
     if (num == 0) {
         str[0] = '0';
@@ -48,44 +47,83 @@ static void int_to_str(int num, char* str) {
     str[j] = '\0';
 }
 
+static vfs_node_t* get_target_dir(const char* path_arg, char* resolved_out) {
+    const char* cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
+    char resolved[256];
+    vfs_resolve_path(cwd, path_arg, resolved, sizeof(resolved));
+    if (resolved_out) strcpy(resolved_out, resolved);
+    return vfs_lookup(0, resolved);
+}
+
 void cmd_process(const char* cmd) {
     if (strlen(cmd) == 0) {
         cmd_print("");
         return;
     }
-    
-    // Add to history
+
     terminal_add_to_history(cmd);
-    
+
     if (strcmp(cmd, "help") == 0) {
         cmd_print("Falkon-OS Shell Commands:");
-        cmd_print("  ls [path]   - List VFS files/directories");
-        cmd_print("  cat [file]  - Display file contents");
-        cmd_print("  touch [file]- Create new empty file");
-        cmd_print("  mkdir [dir] - Create new directory");
-        cmd_print("  ps          - List active processes");
+        cmd_print("  cd <dir>    - Change current directory");
+        cmd_print("  pwd         - Print working directory");
+        cmd_print("  ls [path]   - List VFS files and directories");
+        cmd_print("  cat <file>  - Display file contents");
+        cmd_print("  touch <file>- Create new empty file");
+        cmd_print("  mkdir <dir> - Create new directory");
+        cmd_print("  rm <file>   - Remove file or directory");
+        cmd_print("  write <f> <t>- Write text to file");
+        cmd_print("  ps / top    - List active scheduler processes");
         cmd_print("  meminfo     - Display physical memory usage");
         cmd_print("  fetch       - Display system banner & specs");
         cmd_print("  sysinfo     - Detailed kernel status");
         cmd_print("  uname       - Show OS release details");
         cmd_print("  whoami      - Print active user session");
         cmd_print("  clear       - Clear terminal screen");
-        cmd_print("  calc        - Basic math calculator");
-        cmd_print("  echo [text] - Print text back to terminal");
+        cmd_print("  calc [expr] - Basic math calculator");
+        cmd_print("  echo [text] - Print text to terminal");
         cmd_print("");
     }
-    else if (strcmp(cmd, "ps") == 0) {
+    else if (strncmp(cmd, "cd", 2) == 0 && (cmd[2] == '\0' || cmd[2] == ' ')) {
+        const char* target_path = (strlen(cmd) > 3) ? (cmd + 3) : "/";
+        const char* current_cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
+        char resolved[256];
+        vfs_resolve_path(current_cwd, target_path, resolved, sizeof(resolved));
+
+        vfs_node_t* target = vfs_lookup(0, resolved);
+        if (!target) {
+            cmd_print("cd: Directory not found.");
+        } else if (target->type != VFS_DIRECTORY) {
+            cmd_print("cd: Target is not a directory.");
+        } else {
+            if (active_terminal) {
+                strncpy(active_terminal->cwd, resolved, sizeof(active_terminal->cwd) - 1);
+            }
+        }
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "pwd") == 0) {
+        const char* cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
+        cmd_print(cwd);
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "ps") == 0 || strcmp(cmd, "top") == 0) {
         char ps_buf[512];
         process_list(ps_buf, sizeof(ps_buf));
         cmd_print(ps_buf);
+        cmd_print("");
     }
-    else if (strncmp(cmd, "ls", 2) == 0) {
-        const char* path = (strlen(cmd) > 3) ? (cmd + 3) : "/";
-        vfs_node_t* target = vfs_lookup(0, path);
+    else if (strncmp(cmd, "ls", 2) == 0 && (cmd[2] == '\0' || cmd[2] == ' ')) {
+        const char* path_arg = (strlen(cmd) > 3) ? (cmd + 3) : ".";
+        char resolved[256];
+        vfs_node_t* target = get_target_dir(path_arg, resolved);
+
         if (!target) {
             cmd_print("ls: Directory not found.");
         } else if (target->type != VFS_DIRECTORY) {
-            cmd_print(target->name);
+            char line[128];
+            sprintf(line, "[FILE] %-16s (%u B)", target->name, target->size);
+            cmd_print(line);
         } else {
             char line[128];
             for (uint32_t i = 0; i < target->child_count; i++) {
@@ -101,8 +139,10 @@ void cmd_process(const char* cmd) {
         cmd_print("");
     }
     else if (strncmp(cmd, "cat ", 4) == 0) {
-        const char* path = cmd + 4;
-        vfs_node_t* file = vfs_lookup(0, path);
+        const char* path_arg = cmd + 4;
+        char resolved[256];
+        vfs_node_t* file = get_target_dir(path_arg, resolved);
+
         if (!file) {
             cmd_print("cat: File not found.");
         } else if (file->type != VFS_FILE) {
@@ -115,9 +155,32 @@ void cmd_process(const char* cmd) {
         cmd_print("");
     }
     else if (strncmp(cmd, "touch ", 6) == 0) {
-        const char* name = cmd + 6;
-        vfs_node_t* root = vfs_get_root();
-        if (vfs_create_file(root, name, 0, 0)) {
+        const char* path_arg = cmd + 6;
+        char resolved[256];
+        const char* cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
+        vfs_resolve_path(cwd, path_arg, resolved, sizeof(resolved));
+
+        char dir_path[256] = "/";
+        char filename[64] = "";
+        char* last_slash = strrchr(resolved, '/');
+        if (last_slash) {
+            if (last_slash == resolved) {
+                strcpy(dir_path, "/");
+                strcpy(filename, last_slash + 1);
+            } else {
+                size_t dir_len = last_slash - resolved;
+                strncpy(dir_path, resolved, dir_len);
+                dir_path[dir_len] = '\0';
+                strcpy(filename, last_slash + 1);
+            }
+        } else {
+            strcpy(filename, resolved);
+        }
+
+        vfs_node_t* parent = vfs_lookup(0, dir_path);
+        if (!parent || parent->type != VFS_DIRECTORY) {
+            cmd_print("touch: Target directory not found.");
+        } else if (vfs_create_file(parent, filename, 0, 0)) {
             cmd_print("File created successfully.");
         } else {
             cmd_print("touch: Failed to create file.");
@@ -125,27 +188,124 @@ void cmd_process(const char* cmd) {
         cmd_print("");
     }
     else if (strncmp(cmd, "mkdir ", 6) == 0) {
-        const char* name = cmd + 6;
-        vfs_node_t* root = vfs_get_root();
-        if (vfs_mkdir(root, name)) {
+        const char* path_arg = cmd + 6;
+        char resolved[256];
+        const char* cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
+        vfs_resolve_path(cwd, path_arg, resolved, sizeof(resolved));
+
+        char dir_path[256] = "/";
+        char dirname[64] = "";
+        char* last_slash = strrchr(resolved, '/');
+        if (last_slash) {
+            if (last_slash == resolved) {
+                strcpy(dir_path, "/");
+                strcpy(dirname, last_slash + 1);
+            } else {
+                size_t dir_len = last_slash - resolved;
+                strncpy(dir_path, resolved, dir_len);
+                dir_path[dir_len] = '\0';
+                strcpy(dirname, last_slash + 1);
+            }
+        } else {
+            strcpy(dirname, resolved);
+        }
+
+        vfs_node_t* parent = vfs_lookup(0, dir_path);
+        if (!parent || parent->type != VFS_DIRECTORY) {
+            cmd_print("mkdir: Target parent directory not found.");
+        } else if (vfs_mkdir(parent, dirname)) {
             cmd_print("Directory created successfully.");
         } else {
             cmd_print("mkdir: Failed to create directory.");
         }
         cmd_print("");
     }
+    else if (strncmp(cmd, "rm ", 3) == 0) {
+        const char* path_arg = cmd + 3;
+        char resolved[256];
+        const char* cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
+        vfs_resolve_path(cwd, path_arg, resolved, sizeof(resolved));
+
+        char dir_path[256] = "/";
+        char filename[64] = "";
+        char* last_slash = strrchr(resolved, '/');
+        if (last_slash) {
+            if (last_slash == resolved) {
+                strcpy(dir_path, "/");
+                strcpy(filename, last_slash + 1);
+            } else {
+                size_t dir_len = last_slash - resolved;
+                strncpy(dir_path, resolved, dir_len);
+                dir_path[dir_len] = '\0';
+                strcpy(filename, last_slash + 1);
+            }
+        } else {
+            strcpy(filename, resolved);
+        }
+
+        vfs_node_t* parent = vfs_lookup(0, dir_path);
+        if (vfs_remove(parent, filename) == 0) {
+            cmd_print("File/Directory removed.");
+        } else {
+            cmd_print("rm: File or directory not found.");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "write ", 6) == 0) {
+        const char* args = cmd + 6;
+        char filename[64] = "";
+        int i = 0;
+        while (args[i] && args[i] != ' ') {
+            if (i < 63) filename[i] = args[i];
+            i++;
+        }
+        filename[i] = '\0';
+
+        while (args[i] == ' ') i++;
+        const char* content = args + i;
+
+        char resolved[256];
+        const char* cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
+        vfs_resolve_path(cwd, filename, resolved, sizeof(resolved));
+
+        vfs_node_t* file = vfs_lookup(0, resolved);
+        if (!file) {
+            char dir_path[256] = "/";
+            char fname[64] = "";
+            char* last_slash = strrchr(resolved, '/');
+            if (last_slash) {
+                if (last_slash == resolved) {
+                    strcpy(dir_path, "/");
+                    strcpy(fname, last_slash + 1);
+                } else {
+                    size_t dlen = last_slash - resolved;
+                    strncpy(dir_path, resolved, dlen);
+                    dir_path[dlen] = '\0';
+                    strcpy(fname, last_slash + 1);
+                }
+            }
+            vfs_node_t* parent = vfs_lookup(0, dir_path);
+            file = vfs_create_file(parent, fname, (const uint8_t*)content, strlen(content));
+        } else {
+            vfs_write(file, 0, strlen(content), (const uint8_t*)content);
+        }
+
+        if (file) cmd_print("Wrote data to file successfully.");
+        else cmd_print("write: Failed to write to file.");
+        cmd_print("");
+    }
     else if (strcmp(cmd, "fetch") == 0 || strcmp(cmd, "neofetch") == 0) {
-        cmd_print("   🦅  Falkon-OS v0.4 (x86_64)");
-        cmd_print("   -----------------------------");
+        cmd_print("   🦅  Falkon-OS v0.4 (x86_64 Enterprise)");
+        cmd_print("   ----------------------------------------");
         cmd_print("   OS:       Falkon-OS 64-bit Long Mode");
-        cmd_print("   Kernel:   x86_64 C + NASM Assembly");
-        cmd_print("   Mode:     Protected Mode + Paging Active");
-        cmd_print("   Graphics: VBE Framebuffer 1024x768 32-bit");
-        cmd_print("   Shell:    Falkon Interactive Terminal");
+        cmd_print("   Kernel:   x86_64 Custom Microkernel Architecture");
+        cmd_print("   VFS:      In-Memory RAMDisk Virtual File System");
+        cmd_print("   Graphics: Bochs BGA / PCI Linear Framebuffer");
+        cmd_print("   Shell:    Falkon Multi-Instance POSIX Shell");
         cmd_print("");
     }
     else if (strcmp(cmd, "uname") == 0) {
-        cmd_print("Falkon-OS x86_64 0.4.0-generic Long_Mode GNU/Falkon");
+        cmd_print("Falkon-OS x86_64 0.4.0-generic #1 SMP PREEMPT Falkon-OS");
         cmd_print("");
     }
     else if (strcmp(cmd, "whoami") == 0) {
@@ -153,9 +313,9 @@ void cmd_process(const char* cmd) {
         cmd_print("");
     }
     else if (strcmp(cmd, "matrix") == 0) {
-        cmd_print("\033[32m01100110 01100001 01101100 01101011 01101111 01101110");
+        cmd_print("01100110 01100001 01101100 01101011 01101111 01101110");
         cmd_print("01000110 01000001 01001100 01001011 01001111 01001110");
-        cmd_print("Wake up, Neo... Falkon-OS has you.");
+        cmd_print("Wake up, Neo... Falkon-OS 64-bit Kernel Active.");
         cmd_print("System Security: Long Mode Paging Enforced.");
         cmd_print("");
     }
@@ -164,12 +324,9 @@ void cmd_process(const char* cmd) {
         cmd_print("");
     }
     else if (strncmp(cmd, "calc ", 5) == 0) {
-        // Simple calculator logic (e.g. calc 10 + 20)
         const char* expr = cmd + 5;
         int a = 0, b = 0;
         char op = 0;
-        
-        // Parse "a op b"
         int idx = 0;
         while (expr[idx] >= '0' && expr[idx] <= '9') {
             a = a * 10 + (expr[idx] - '0');
@@ -182,7 +339,6 @@ void cmd_process(const char* cmd) {
             b = b * 10 + (expr[idx] - '0');
             idx++;
         }
-        
         int res = 0;
         int valid = 1;
         if (op == '+') res = a + b;
@@ -190,7 +346,6 @@ void cmd_process(const char* cmd) {
         else if (op == '*') res = a * b;
         else if (op == '/' && b != 0) res = a / b;
         else valid = 0;
-        
         if (valid) {
             char res_str[32] = "Result: ";
             char num_str[16];
@@ -223,6 +378,15 @@ void cmd_process(const char* cmd) {
         extern void sysinfo_print();
         sysinfo_print();
     }
+    else if (strcmp(cmd, "meminfo") == 0) {
+        uint64_t total = pmm_get_total_memory() / (1024 * 1024);
+        uint64_t free_mem = pmm_get_free_memory() / (1024 * 1024);
+        uint64_t used = total - free_mem;
+        char buf[128];
+        sprintf(buf, "Memory: %u MB Total | %u MB Used | %u MB Free", (uint32_t)total, (uint32_t)used, (uint32_t)free_mem);
+        cmd_print(buf);
+        cmd_print("");
+    }
     else if (strcmp(cmd, "time") == 0) {
         extern volatile uint32_t timer_ticks;
         uint32_t seconds = timer_ticks / 100;
@@ -230,34 +394,31 @@ void cmd_process(const char* cmd) {
         uint32_t hours = minutes / 60;
         seconds = seconds % 60;
         minutes = minutes % 60;
-        
-        char buf[32];
-        buf[0] = 'U'; buf[1] = 'p'; buf[2] = 't'; buf[3] = 'i'; buf[4] = 'm'; buf[5] = 'e'; buf[6] = ':'; buf[7] = ' ';
-        int idx = 8;
-        if (hours > 0) {
-            if (hours >= 10) buf[idx++] = '0' + (hours / 10);
-            buf[idx++] = '0' + (hours % 10);
-            buf[idx++] = 'h'; buf[idx++] = ' ';
-        }
-        if (minutes >= 10) buf[idx++] = '0' + (minutes / 10);
-        buf[idx++] = '0' + (minutes % 10);
-        buf[idx++] = 'm'; buf[idx++] = ' ';
-        if (seconds >= 10) buf[idx++] = '0' + (seconds / 10);
-        buf[idx++] = '0' + (seconds % 10);
-        buf[idx++] = 's';
-        buf[idx] = '\0';
+        char buf[64];
+        sprintf(buf, "Uptime: %02u:%02u:%02u", hours, minutes, seconds);
         cmd_print(buf);
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "ext4info") == 0) {
+        ext4_superblock_t* sb = ext4_get_superblock();
+        if (sb && ext4_is_mounted()) {
+            char buf1[128], buf2[128];
+            sprintf(buf1, "EXT4 Superblock: Magic 0x%X | Volume: %s", sb->s_magic, sb->s_volume_name);
+            sprintf(buf2, "Inodes: %u total | Free Blocks: %u", sb->s_inodes_count, sb->s_free_blocks_count_lo);
+            cmd_print(buf1);
+            cmd_print(buf2);
+        } else {
+            cmd_print("EXT4 Driver Engine Status: Registered (Superblock Magic 0xEF53)");
+            cmd_print("Mount Target: /dev/sda | Run 'OS Installer Wizard' to deploy partition.");
+        }
         cmd_print("");
     }
     else {
         cmd_print("Unknown command. Type 'help' for available commands.");
         cmd_print("");
     }
-    
-    // Reset input
+
     terminal_buffer[0] = '\0';
     term_idx = 0;
-    
-    // Reset history position
     terminal_reset_history_pos();
 }

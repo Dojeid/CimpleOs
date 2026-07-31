@@ -41,6 +41,7 @@ void terminal_instance_init(terminal_instance_t* term) {
     term->history_pos = 0;
     term->cursor_pos = 0;
     term->input_buffer[0] = '\0';
+    strcpy(term->cwd, "/");
 }
 
 // FEATURE 1: Print to specific terminal instance

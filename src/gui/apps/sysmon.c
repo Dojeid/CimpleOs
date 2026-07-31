@@ -1,5 +1,6 @@
 #include "gui/apps/sysmon.h"
 #include "gui/window_manager.h"
+#include "gui/taskbar.h"
 #include "drivers/video/graphics.h"
 #include "mm/pmm.h"
 #include "mm/heap.h"
@@ -49,6 +50,7 @@ void sysmon_open(void) {
     window_t* win = wm_create_window(150, 90, 420, 260, "System Monitor");
     if (win) {
         win->render_content = sysmon_redraw;
+        taskbar_add_button(win->id, "SysMon");
         sysmon_redraw(win);
     }
 }

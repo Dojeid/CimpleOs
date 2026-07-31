@@ -125,6 +125,16 @@ char* strchr(const char* s, int c) {
     return (char*)s;
 }
 
+char* strrchr(const char* s, int c) {
+    const char* last = 0;
+    while (*s) {
+        if (*s == (char)c) last = s;
+        s++;
+    }
+    if ((char)c == '\0') return (char*)s;
+    return (char*)last;
+}
+
 static char* strtok_saved = 0;
 
 char* strtok(char* str, const char* delim) {

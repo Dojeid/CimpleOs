@@ -1,5 +1,6 @@
 #include "gui/apps/notepad.h"
 #include "gui/window_manager.h"
+#include "gui/taskbar.h"
 #include "drivers/video/graphics.h"
 #include "fs/vfs.h"
 #include "lib/string.h"
@@ -55,5 +56,6 @@ void notepad_open(const char* filepath) {
 
     win->user_data = state;
     win->render_content = notepad_render;
+    taskbar_add_button(win->id, "Notepad");
     notepad_render(win);
 }

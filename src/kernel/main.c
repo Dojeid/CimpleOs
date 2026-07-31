@@ -23,6 +23,7 @@
 #include "kernel/timer.h"
 #include "kernel/sysinfo.h"
 #include "kernel/cmd.h"
+#include "drivers/storage/ata.h"
 // FS / Process / Syscall
 #include "fs/vfs.h"
 #include "fs/ramdisk.h"
@@ -37,6 +38,7 @@
 #include "gui/apps/file_explorer.h"
 #include "gui/apps/notepad.h"
 #include "gui/apps/sysmon.h"
+#include "lib/printf.h"
 
 extern char terminal_buffer[];
 extern int term_idx;
@@ -90,9 +92,10 @@ void kmain(void* multiboot_info_addr) {
     timer_init(100);
     sysinfo_init();
     
-    // 5. Initialize USB (if available)
-    vga_print("Checking for USB...\n");
+    // 5. Initialize USB and ATA Storage
+    vga_print("Checking for USB & ATA Storage...\n");
     usb_init();
+    ata_init();
     
     vga_print("System ready! Starting GUI...\n");
     
@@ -138,11 +141,6 @@ void kmain(void* multiboot_info_addr) {
         }
     }
 
-    // Launch default desktop applications
-    notepad_open("/docs/welcome.txt");
-    sysmon_open();
-    file_explorer_open();
-    
     // Mouse state for click detection
     int last_mouse_btn = 0;  // Moved outside loop for clarity
 
@@ -152,8 +150,9 @@ void kmain(void* multiboot_info_addr) {
         
         // Mouse button pressed
         if (mouse_btn && !last_mouse_btn) {
-            // Check taskbar first
-            if (mouse_y >= screen_h - 30) {
+            taskbar_t* tb = taskbar_get_state();
+            int menu_y = screen_h - 30 - 240;
+            if (mouse_y >= screen_h - 30 || (tb->start_menu_open && mouse_y >= menu_y && mouse_x <= 200)) {
                 taskbar_handle_click(mouse_x, mouse_y);
             } else {
                 wm_handle_mouse_down(mouse_x, mouse_y);
@@ -210,13 +209,16 @@ void kmain(void* multiboot_info_addr) {
             // Input line at bottom of window (only for focused terminal)
             if (win->id == wm_state->focused_window_id) {
                 int input_y = win_content_y + win_content_h - 25;
-                draw_string(win_content_x + 10, input_y, 0x00FF00, "$ ");
-                draw_string(win_content_x + 30, input_y, 0xFFFFFF, terminal_buffer);
+                char prompt[128];
+                sprintf(prompt, "root@falkon:%s$ ", term->cwd[0] ? term->cwd : "/");
+                draw_string(win_content_x + 10, input_y, 0x00FF00, prompt);
+                int prompt_w = strlen(prompt) * 8;
+                draw_string(win_content_x + 10 + prompt_w, input_y, 0xFFFFFF, terminal_buffer);
                 
                 // Cursor blink (driven by PIT timer ticks, 100 Hz)
                 extern volatile uint32_t timer_ticks;
                 if ((timer_ticks / 25) % 2 == 0) {
-                    draw_rect(win_content_x + 30 + (term_idx * 8), input_y, 8, 12, 0xFFFFFF);
+                    draw_rect(win_content_x + 10 + prompt_w + (term_idx * 8), input_y, 8, 12, 0xFFFFFF);
                 }
             }
         }

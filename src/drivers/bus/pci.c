@@ -45,3 +45,32 @@ int pci_find_device(uint8_t class_code, uint8_t subclass, uint8_t prog_if, struc
     }
     return 0;
 }
+
+int pci_find_by_id(uint16_t vendor_id, uint16_t device_id, struct pci_device* out) {
+    for (uint16_t bus = 0; bus < 256; bus++) {
+        for (uint8_t slot = 0; slot < 32; slot++) {
+            uint32_t vendor = pci_read_config(bus, slot, 0, 0);
+            uint16_t v_id = vendor & 0xFFFF;
+            uint16_t d_id = (vendor >> 16) & 0xFFFF;
+            
+            if (v_id == vendor_id && d_id == device_id) {
+                out->bus = bus;
+                out->slot = slot;
+                out->func = 0;
+                out->vendor_id = v_id;
+                out->device_id = d_id;
+                
+                uint32_t class_info = pci_read_config(bus, slot, 0, 0x08);
+                out->class_code = (class_info >> 24) & 0xFF;
+                out->subclass = (class_info >> 16) & 0xFF;
+                out->prog_if = (class_info >> 8) & 0xFF;
+                out->bar0 = pci_read_config(bus, slot, 0, 0x10) & 0xFFFFFFF0;
+                out->bar1 = pci_read_config(bus, slot, 0, 0x14) & 0xFFFFFFF0;
+                uint32_t irq_info = pci_read_config(bus, slot, 0, 0x3C);
+                out->interrupt_line = irq_info & 0xFF;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}

@@ -2,6 +2,7 @@
 #define VFS_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define VFS_MAX_FILENAME 64
 #define VFS_MAX_CHILDREN 32
@@ -25,5 +26,8 @@ vfs_node_t* vfs_create_file(vfs_node_t* parent, const char* name, const uint8_t*
 vfs_node_t* vfs_mkdir(vfs_node_t* parent, const char* name);
 int vfs_read(vfs_node_t* node, uint32_t offset, uint32_t size, uint8_t* buffer);
 int vfs_write(vfs_node_t* node, uint32_t offset, uint32_t size, const uint8_t* buffer);
+int vfs_remove(vfs_node_t* parent, const char* name);
+int vfs_get_path(vfs_node_t* node, char* buffer, size_t max_len);
+void vfs_resolve_path(const char* cwd, const char* path, char* out_buf, size_t buf_size);
 
 #endif // VFS_H
