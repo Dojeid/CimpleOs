@@ -32,9 +32,24 @@ start:
     or eax, 1
     mov cr0, eax
 
-    ; Far jump into 32-bit Protected Mode (Jump to kernel entry point at 0x100030)
-    jmp dword 0x08:0x00100030
+    ; Far jump into 32-bit Protected Mode stub inside bootsector
+    jmp 0x08:init_32
 
+[BITS 32]
+init_32:
+    ; 1. Reload 32-bit Data Segment Selectors (0x10 = GDT Data Segment)
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov esp, 0x90000        ; Set up safe 32-bit stack
+
+    ; 2. Jump to Kernel Entry Point (Multiboot entry at 0x00100030)
+    jmp dword 0x00100030
+
+[BITS 16]
 ; --- Helper: Print String in Real Mode via BIOS INT 10h ---
 print_string:
     mov ah, 0x0E
