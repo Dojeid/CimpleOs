@@ -105,7 +105,27 @@ def load_config():
     }
     if CONFIG_FILE.exists():
         cfg.read(CONFIG_FILE)
+
+    if "paths" in cfg.sections():
+        for key, pval in cfg["paths"].items():
+            if pval:
+                p = Path(pval)
+                dir_to_add = str(p if p.is_dir() else p.parent)
+                current_path = os.environ.get("PATH", "")
+                if dir_to_add and dir_to_add not in current_path.split(os.pathsep):
+                    os.environ["PATH"] = dir_to_add + os.pathsep + current_path
+
     return cfg
+
+def save_custom_path_to_config(key_name, path_value):
+    cfg = configparser.ConfigParser()
+    if CONFIG_FILE.exists():
+        cfg.read(CONFIG_FILE)
+    if "paths" not in cfg.sections():
+        cfg.add_section("paths")
+    cfg.set("paths", key_name, str(path_value))
+    with open(CONFIG_FILE, "w") as f:
+        cfg.write(f)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Feature 2: Smart Compiler Auto-Discovery & Version Extraction
@@ -424,7 +444,7 @@ def run_qemu(mode="normal"):
 
     qemu_bin = shutil.which("qemu-system-x86_64") or r"C:\Program Files\qemu\qemu-system-x86_64.exe"
     if not os.path.exists(qemu_bin) and not shutil.which("qemu-system-x86_64"):
-        log_error("QEMU not found. Run 'python build.py doctor' for instructions.")
+        log_error("QEMU not found. Run 'python build.py -check' for instructions.")
         sys.exit(1)
 
     mem = cfg.get("qemu", "memory", fallback="512").strip('"\'')
@@ -545,10 +565,312 @@ def run_clean(target="all"):
         log_success("Cleaned build/")
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Feature 15: Smart Environment Diagnostic & Custom Location Discovery Engine
+# ─────────────────────────────────────────────────────────────────────────────
+
+def get_os_distro():
+    os_name = platform.system().lower()
+    distro_info = {"os": os_name, "distro_id": "", "distro_like": "", "distro_name": "", "arch": platform.machine()}
+    
+    if os_name == "linux":
+        os_release = Path("/etc/os-release")
+        if os_release.exists():
+            try:
+                data = {}
+                for line in os_release.read_text().splitlines():
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        data[k.strip()] = v.strip().strip('"')
+                distro_info["distro_id"] = data.get("ID", "").lower()
+                distro_info["distro_like"] = data.get("ID_LIKE", "").lower()
+                distro_info["distro_name"] = data.get("PRETTY_NAME", data.get("NAME", "Linux"))
+            except Exception:
+                distro_info["distro_name"] = "Linux"
+        else:
+            distro_info["distro_name"] = "Linux"
+    elif os_name == "windows":
+        distro_info["distro_name"] = f"Windows {platform.release()}"
+    elif os_name == "darwin":
+        distro_info["distro_name"] = f"macOS {platform.mac_ver()[0]}"
+    
+    return distro_info
+
+def get_tool_version(path):
+    if not path or not os.path.exists(path):
+        return "Unknown"
+    try:
+        res = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=2)
+        out = (res.stdout or res.stderr or "").splitlines()
+        if out:
+            first_line = out[0]
+            match = re.search(r"(\d+\.\d+(\.\d+)?)", first_line)
+            if match:
+                return match.group(1)
+            return first_line[:30]
+    except Exception:
+        pass
+    return "Detected"
+
+def run_check():
+    distro_info = get_os_distro()
+    os_name = distro_info["os"]
+    
+    print(f"\n{Color.CYAN}{Color.BOLD}================================================================={Color.RESET}")
+    print(f"{Color.BOLD}         🦅 Falkon-OS Smart Environment Diagnostic Engine        {Color.RESET}")
+    print(f"{Color.CYAN}{Color.BOLD}================================================================={Color.RESET}")
+    print(f"{Color.GRAY}Host Environment:{Color.RESET} {distro_info['distro_name']} ({distro_info['arch']})")
+    print(f"{Color.GRAY}Python Runtime:{Color.RESET}   {platform.python_version()} ({sys.executable})")
+    print(f"{Color.CYAN}{Color.BOLD}================================================================={Color.RESET}\n")
+
+    tools_spec = [
+        {
+            "id": "compiler",
+            "name": "C Compiler (GCC/Clang/Zig/MSVC)",
+            "required": True,
+            "binaries": ["clang", "gcc", "zig", "cl"],
+            "windows_fallbacks": [
+                r"C:\msys64\ucrt64\bin\gcc.exe",
+                r"C:\msys64\mingw64\bin\gcc.exe",
+                r"C:\msys64\ucrt64\bin\clang.exe",
+                r"C:\MinGW\bin\gcc.exe"
+            ],
+            "unix_fallbacks": ["/usr/bin/gcc", "/usr/bin/clang", "/usr/local/bin/gcc"]
+        },
+        {
+            "id": "nasm",
+            "name": "NASM Assembler",
+            "required": True,
+            "binaries": ["nasm", "nasm.exe"],
+            "windows_fallbacks": [
+                r"C:\Program Files\NASM\nasm.exe",
+                r"C:\Program Files (x86)\NASM\nasm.exe",
+                r"C:\msys64\ucrt64\bin\nasm.exe",
+                r"C:\msys64\mingw64\bin\nasm.exe",
+                r"C:\msys64\usr\bin\nasm.exe"
+            ],
+            "unix_fallbacks": [
+                str(Path.home() / ".local" / "bin" / "nasm"),
+                "/usr/bin/nasm",
+                "/usr/local/bin/nasm",
+                "/opt/homebrew/bin/nasm"
+            ]
+        },
+        {
+            "id": "cmake",
+            "name": "CMake Build Generator",
+            "required": True,
+            "binaries": ["cmake", "cmake.exe"],
+            "windows_fallbacks": [
+                r"C:\Program Files\CMake\bin\cmake.exe",
+                r"C:\msys64\ucrt64\bin\cmake.exe"
+            ],
+            "unix_fallbacks": ["/usr/bin/cmake", "/usr/local/bin/cmake", "/opt/homebrew/bin/cmake"]
+        },
+        {
+            "id": "ninja",
+            "name": "Ninja / Make Build Executor",
+            "required": False,
+            "binaries": ["ninja", "make", "mingw32-make", "nmake"],
+            "windows_fallbacks": [
+                r"C:\Program Files\Ninja\ninja.exe",
+                r"C:\msys64\ucrt64\bin\ninja.exe",
+                r"C:\msys64\ucrt64\bin\mingw32-make.exe"
+            ],
+            "unix_fallbacks": ["/usr/bin/ninja", "/usr/bin/make", "/opt/homebrew/bin/ninja"]
+        },
+        {
+            "id": "qemu",
+            "name": "QEMU / VirtualBox Emulator",
+            "required": False,
+            "binaries": ["qemu-system-x86_64", "qemu-system-x86", "qemu", "VBoxManage", "VirtualBox"],
+            "windows_fallbacks": [
+                r"C:\Program Files\qemu\qemu-system-x86_64.exe",
+                r"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe",
+                r"C:\Program Files\Oracle\VirtualBox\VirtualBox.exe"
+            ],
+            "unix_fallbacks": [
+                "/usr/bin/qemu-system-x86_64",
+                "/usr/bin/qemu-system-x86",
+                "/usr/bin/VBoxManage",
+                "/opt/homebrew/bin/qemu-system-x86_64"
+            ]
+        },
+        {
+            "id": "git",
+            "name": "Git Version Control",
+            "required": False,
+            "binaries": ["git"],
+            "windows_fallbacks": [r"C:\Program Files\Git\cmd\git.exe"],
+            "unix_fallbacks": ["/usr/bin/git", "/usr/local/bin/git"]
+        }
+    ]
+
+    cfg = load_config()
+    custom_paths = []
+    if "paths" in cfg.sections():
+        for k, v in cfg["paths"].items():
+            if v: custom_paths.append(v)
+
+    results = []
+    missing_tools = []
+
+    for tool in tools_spec:
+        fallbacks = tool["windows_fallbacks"] if os_name == "windows" else tool["unix_fallbacks"]
+        found_path = None
+        source_type = None
+
+        for b in tool["binaries"]:
+            p = shutil.which(b)
+            if p:
+                found_path = p
+                source_type = "PATH"
+                break
+        
+        if not found_path:
+            for cp in custom_paths:
+                p = Path(cp)
+                if p.is_file() and any(b in p.name.lower() for b in tool["binaries"]):
+                    found_path = str(p)
+                    source_type = "falkon.ini"
+                    break
+                elif p.is_dir():
+                    for b in tool["binaries"]:
+                        cand = p / b
+                        if cand.exists():
+                            found_path = str(cand)
+                            source_type = "falkon.ini"
+                            break
+                        cand_exe = p / f"{b}.exe"
+                        if cand_exe.exists():
+                            found_path = str(cand_exe)
+                            source_type = "falkon.ini"
+                            break
+
+        if not found_path:
+            for fb in fallbacks:
+                if Path(fb).exists():
+                    found_path = fb
+                    source_type = "Auto-Discovered"
+                    break
+
+        if found_path:
+            ver = get_tool_version(found_path)
+            results.append((tool["name"], True, tool["required"], found_path, ver, source_type))
+        else:
+            results.append((tool["name"], False, tool["required"], "Not Found", "N/A", "N/A"))
+            missing_tools.append(tool)
+
+    print(f"{Color.BOLD}{'Tool / Component':<34} {'Status':<12} {'Source / Path':<35}{Color.RESET}")
+    print("-" * 80)
+    for name, found, req, path, ver, src in results:
+        req_str = " (Required)" if req else " (Optional)"
+        if found:
+            status_str = f"{Color.GREEN}[PASSED]{Color.RESET}"
+            path_display = f"{path} ({ver})" if ver != "Unknown" else path
+            if src == "falkon.ini":
+                status_str = f"{Color.CYAN}[CONFIG]{Color.RESET}"
+            elif src == "Auto-Discovered":
+                status_str = f"{Color.YELLOW}[FOUND]{Color.RESET}"
+            print(f"{name:<34} {status_str:<21} {path_display:<35}")
+        else:
+            status_str = f"{Color.RED}[MISSING]{Color.RESET}"
+            print(f"{name:<34} {status_str:<21} {path}{req_str}")
+    print("-" * 80 + "\n")
+
+    # Interactive prompt for custom paths if any tools are missing
+    if missing_tools and sys.stdin.isatty():
+        print(f"{Color.YELLOW}[?] Some build tools were not automatically detected in system PATH.{Color.RESET}")
+        print(f"    (e.g., MSYS2, NASM, VirtualBox, or QEMU installed in custom directories)")
+        try:
+            ans = input(f"{Color.BOLD}--> Do you have any of these tools installed in a custom location? (y/N): {Color.RESET}").strip().lower()
+            if ans in ["y", "yes"]:
+                custom_input = input(f"{Color.BOLD}--> Enter custom folder or binary path (e.g., C:\\msys64\\ucrt64\\bin): {Color.RESET}").strip().strip('"')
+                if custom_input:
+                    p = Path(custom_input)
+                    if p.exists():
+                        dir_path = str(p if p.is_dir() else p.parent)
+                        save_custom_path_to_config("custom_dir", dir_path)
+                        os.environ["PATH"] = dir_path + os.pathsep + os.environ.get("PATH", "")
+                        print(f"{Color.GREEN}[SUCCESS] Registered '{dir_path}' in falkon.ini! Re-checking environment...{Color.RESET}\n")
+                        return run_check()
+                    else:
+                        print(f"{Color.RED}[ERROR] Specified path '{custom_input}' does not exist.{Color.RESET}\n")
+        except (KeyboardInterrupt, EOFError):
+            print()
+
+    # Display OS-tailored installation options
+    if missing_tools:
+        print(f"{Color.YELLOW}{Color.BOLD}================================================================={Color.RESET}")
+        print(f"{Color.BOLD}       Recommended Tool Installation Guide for {distro_info['distro_name']} {Color.RESET}")
+        print(f"{Color.YELLOW}{Color.BOLD}================================================================={Color.RESET}\n")
+        print_os_installation_options(distro_info)
+    else:
+        print(f"{Color.GREEN}{Color.BOLD}[SUCCESS] All required build tools are detected and ready for Falkon-OS compilation!{Color.RESET}\n")
+
+def print_os_installation_options(distro_info):
+    os_name = distro_info["os"]
+    distro_id = distro_info["distro_id"]
+    distro_like = distro_info["distro_like"]
+    
+    if os_name == "linux":
+        if "arch" in distro_id or "arch" in distro_like or "manjaro" in distro_id:
+            print(f"{Color.CYAN}Option 1: Official Arch Repositories (pacman) [RECOMMENDED]{Color.RESET}")
+            print(f"  {Color.BOLD}sudo pacman -S --needed python base-devel cmake ninja nasm grub xorriso mtools qemu-system-x86 virtualbox{Color.RESET}\n")
+            print(f"{Color.CYAN}Option 2: AUR Package Manager (yay / paru){Color.RESET}")
+            print(f"  {Color.BOLD}yay -S --needed nasm cmake ninja qemu-desktop virtualbox{Color.RESET}\n")
+            
+        elif any(d in distro_id or d in distro_like for d in ["ubuntu", "debian", "mint", "pop"]):
+            print(f"{Color.CYAN}Option 1: APT Package Manager (Debian/Ubuntu/Mint) [RECOMMENDED]{Color.RESET}")
+            print(f"  {Color.BOLD}sudo apt update && sudo apt install -y build-essential cmake ninja-build nasm grub-pc-bin grub-common xorriso mtools qemu-system-x86 virtualbox{Color.RESET}\n")
+            print(f"{Color.CYAN}Option 2: APT + Snap Classic{Color.RESET}")
+            print(f"  {Color.BOLD}sudo apt install -y build-essential nasm qemu-system-x86 && sudo snap install cmake --classic{Color.RESET}\n")
+            
+        elif any(d in distro_id or d in distro_like for d in ["fedora", "rhel", "centos", "rocky", "alma"]):
+            print(f"{Color.CYAN}Option 1: DNF Package Manager (Fedora/RHEL/CentOS) [RECOMMENDED]{Color.RESET}")
+            print(f"  {Color.BOLD}sudo dnf groupinstall -y \"Development Tools\" && sudo dnf install -y gcc cmake ninja-build nasm grub2-tools-extra xorriso mtools qemu-system-x86 virtualbox{Color.RESET}\n")
+            
+        elif "alpine" in distro_id:
+            print(f"{Color.CYAN}Option 1: APK Package Manager (Alpine Linux) [RECOMMENDED]{Color.RESET}")
+            print(f"  {Color.BOLD}sudo apk add python3 build-base cmake samu nasm grub xorriso mtools qemu-system-x86_64{Color.RESET}\n")
+            
+        else:
+            print(f"{Color.CYAN}Option 1: Debian/Ubuntu (APT){Color.RESET}")
+            print(f"  {Color.BOLD}sudo apt update && sudo apt install -y build-essential cmake ninja-build nasm qemu-system-x86{Color.RESET}\n")
+            print(f"{Color.CYAN}Option 2: Arch Linux (pacman){Color.RESET}")
+            print(f"  {Color.BOLD}sudo pacman -S --needed base-devel cmake ninja nasm qemu-system-x86{Color.RESET}\n")
+            print(f"{Color.CYAN}Option 3: Fedora (DNF){Color.RESET}")
+            print(f"  {Color.BOLD}sudo dnf install -y gcc cmake ninja-build nasm qemu-system-x86{Color.RESET}\n")
+
+    elif os_name == "windows":
+        print(f"{Color.CYAN}Option 1: winget (Windows Package Manager) [RECOMMENDED]{Color.RESET}")
+        print(f"  {Color.BOLD}winget install NASM.NASM{Color.RESET}")
+        print(f"  {Color.BOLD}winget install Kitware.CMake{Color.RESET}")
+        print(f"  {Color.BOLD}winget install Ninja-build.Ninja{Color.RESET}")
+        print(f"  {Color.BOLD}winget install Oracle.VirtualBox{Color.RESET}")
+        print(f"  {Color.BOLD}winget install SoftwareFreedomConservancy.QEMU{Color.RESET}\n")
+        
+        print(f"{Color.CYAN}Option 2: Chocolatey Package Manager{Color.RESET}")
+        print(f"  {Color.BOLD}choco install nasm cmake ninja virtualbox qemu -y{Color.RESET}\n")
+        
+        print(f"{Color.CYAN}Option 3: MSYS2 Native MinGW64/UCRT64 Toolchain{Color.RESET}")
+        print("  1. Download and install MSYS2 from https://www.msys2.org/")
+        print("  2. Open MSYS2 UCRT64 Terminal and run:")
+        print(f"     {Color.BOLD}pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-nasm{Color.RESET}")
+        print("  3. If installed in a custom location (e.g., C:\\msys64\\ucrt64\\bin), run 'python build.py -check' and specify the path when prompted.\n")
+
+    elif os_name == "darwin":
+        print(f"{Color.CYAN}Option 1: Homebrew Package Manager [RECOMMENDED]{Color.RESET}")
+        print(f"  {Color.BOLD}brew install cmake ninja nasm qemu xorriso mtools{Color.RESET}\n")
+        print(f"{Color.CYAN}Option 2: MacPorts Package Manager{Color.RESET}")
+        print(f"  {Color.BOLD}sudo port install cmake ninja nasm qemu xorriso mtools{Color.RESET}\n")
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Main Subcommand Entry Point
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
+    load_config()
+
     parser = argparse.ArgumentParser(description="Falkon-OS Enterprise Build Driver v1.0")
     subparsers = parser.add_subparsers(dest="subcommand")
 
@@ -564,9 +886,7 @@ def main():
     p_clean.add_argument("target", nargs="?", default="all", choices=["all", "cache", "out", "logs", "reports"])
 
     subparsers.add_parser("test")
-    subparsers.add_parser("doctor")
     subparsers.add_parser("check")
-    subparsers.add_parser("setup")
 
     args_raw = [a.lower() for a in sys.argv[1:]]
 
@@ -574,11 +894,8 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    if any(k in args_raw for k in ["doctor", "check", "setup"]):
-        # Import & run doctor check
-        from build import detect_compiler
-        c_name, c_ver, _ = detect_compiler()
-        print(f"[DOCTOR] Host Compiler Detected: {c_name} {c_ver}")
+    if "check" in args_raw or "-check" in args_raw or "--check" in args_raw:
+        run_check()
         sys.exit(0)
 
     if "clean" in args_raw or "-clean" in args_raw:
@@ -614,6 +931,8 @@ def main():
     elif parsed.subcommand == "run": run_qemu(parsed.mode)
     elif parsed.subcommand == "clean": run_clean(parsed.target)
     elif parsed.subcommand == "test": run_tests()
+    elif parsed.subcommand == "check": run_check()
 
 if __name__ == "__main__":
     main()
+

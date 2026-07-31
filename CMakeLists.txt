@@ -17,7 +17,7 @@ set(CMAKE_C_FLAGS
     "-ffreestanding -m64 -mcmodel=small"
     "-Wall -Wextra -Wno-unused-parameter"
     "-mno-red-zone -mno-mmx -mno-sse -mno-sse2"
-    "-fno-pic -fno-pie"
+    "-fno-pic -fno-pie -fno-stack-protector"
     "-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables"
     "-I${CMAKE_SOURCE_DIR}/src"
 )
