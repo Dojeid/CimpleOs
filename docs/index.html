@@ -206,17 +206,18 @@ python3 build.py --vbox</code></pre>
                     <h3>Driver CLI Architecture & Rules:</h3>
                     <ul>
                         <li><strong>Rule 1 (Cleaning):</strong> <code>-clean</code> ALWAYS executes BEFORE building.</li>
-                        <li><strong>Rule 2 (Building):</strong> Configures CMake (preferring Ninja) or Makefile, compiles kernel C & ASM, creates <code>FalkonOS.iso</code>, and stages output in <code>falkon_[os]_[dev|release]</code>.</li>
+                        <li><strong>Rule 2 (Building):</strong> Configures CMake (preferring Ninja) or Makefile, compiles kernel C & ASM, creates <code>FalkonOS.iso</code>, and stages output.</li>
                         <li><strong>Rule 3 (VM Launching):</strong> <code>-run</code> executes after build, creating a 64-bit VirtualBox VM (<code>-run vbox</code>) or running QEMU (<code>-run qemu</code>).</li>
+                        <li><strong>Rule 4 (Diagnostics & Custom Paths):</strong> <code>-check</code> runs the smart environment diagnostic engine, auto-discovers compilers & NASM, prompts for custom tool directories (e.g. custom MSYS2 / NASM paths), saves them in <code>falkon.ini</code>, and outputs OS-tailored package commands.</li>
                     </ul>
                 </div>
 
                 <pre><code># Command Options:
+python build.py -check                  # Smart environment diagnostic check & custom path setup
 python build.py -build                  # Compile kernel in dev mode
 python build.py -build release          # Compile kernel in release mode
 python build.py -run vbox               # Build & launch in VirtualBox (Recommended)
 python build.py -run qemu               # Build & launch in QEMU emulator
-python build.py -check                  # Verify toolchain dependencies
 python build.py -clean dev              # Clean dev build staging
 python build.py -clean all              # Clean all build & staging trees
 python build.py -clean dev -build dev -run vbox # Full clean, rebuild & launch workflow</code></pre>

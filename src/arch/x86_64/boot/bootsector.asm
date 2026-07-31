@@ -98,7 +98,9 @@ start:
     hlt
 
 .boot_continue:
-    ; Enable A20 Line
+    mov ax, 0x4F02
+    mov bx, 0x4118          ; Set VBE 1024x768 32bpp LFB mode
+    int 0x10
     call enable_a20
 
     ; Switch to 32-bit Protected Mode
@@ -282,10 +284,10 @@ gdt32_desc:
 ; --- Global Variables & Messages ---
 boot_drive      db 0
 load_remaining  dw 0
-msg_welcome     db "Booting Falkon-OS Stage 1...", 0x0D, 0x0A, 0
-msg_loaded      db "Kernel loaded.", 0x0D, 0x0A, 0
-msg_dap_fail    db "Read fail: ", 0
-msg_bad_kernel  db "Bad kernel.", 0x0D, 0x0A, 0
+msg_welcome     db "Booting...", 13, 10, 0
+msg_loaded      db "OK.", 13, 10, 0
+msg_dap_fail    db "Fail:", 0
+msg_bad_kernel  db "Bad kernel", 0
 
 ; --- Pad to 510 bytes and append Boot Signature 0xAA55 ---
 times 510-($-$$) db 0

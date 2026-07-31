@@ -166,13 +166,15 @@ Falkon-OS includes a single, case-insensitive, cross-platform driver script in t
 
 ### Key Features & Workflow Rules:
 - **Rule 1 (`-clean`)**: Cleaning targets ALWAYS execute BEFORE building.
-- **Rule 2 (`-build`)**: Configures CMake (preferring Ninja) or Makefile, compiles the 64-bit kernel, generates `FalkonOS.iso`, and stages the output in `falkon_[os]_[dev|release]`.
+- **Rule 2 (`-build`)**: Configures CMake (preferring Ninja) or Makefile, compiles the 64-bit kernel, generates `FalkonOS.iso`, and stages output.
 - **Rule 3 (`-run`)**: Auto-detects VirtualBox (`-run vbox`) or QEMU (`-run qemu`), creates the VM, mounts the ISO, and boots.
+- **Rule 4 (`-check`)**: Runs the smart environment diagnostic engine to detect compilers (GCC/Clang), NASM, CMake, Ninja, and VM emulators. Prompts for custom tool locations (e.g. custom MSYS2 / NASM paths), saves them persistently in `falkon.ini`, and outputs OS-tailored installation options.
 
 ```
 Usage: python build.py [-build [dev|release]] [-clean [dev|release|all]] [-run [vbox|qemu]] [-check]
 
 Examples:
+  python build.py -check                     # Smart diagnostic check & custom path setup
   python build.py -build                     # Compiles kernel in dev mode
   python build.py -build release             # Compiles kernel in release mode
   python build.py -run vbox                  # Builds ISO & launches VirtualBox (Recommended)
