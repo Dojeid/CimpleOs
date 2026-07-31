@@ -4,7 +4,7 @@
  Falkon-OS Build Driver (build.py)
  Orchestrates compilation, native C ISO creation, and QEMU execution.
  Keeps the repository root 100% pristine by placing all outputs in out/
- and build caches/toolchains in build/.
+ and build caches in build/. Zero automatic downloads.
 =============================================================================
 """
 
@@ -22,7 +22,6 @@ from pathlib import Path
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pristine Directory Hierarchy
-# Root directory stays clean (only src/, tools/, docs/, CMakeLists.txt, build.py)
 # ─────────────────────────────────────────────────────────────────────────────
 
 ROOT_DIR        = Path(__file__).parent.resolve()
@@ -30,7 +29,6 @@ SRC_DIR         = ROOT_DIR / "src"
 TOOLS_DIR       = ROOT_DIR / "tools"
 BUILD_DIR       = ROOT_DIR / "build"
 OUT_DIR         = ROOT_DIR / "out"
-TOOLCHAIN_DIR   = BUILD_DIR / "toolchain"
 
 # Host ISO Builder C Tool
 ISO_BUILDER_SRC = TOOLS_DIR / "iso_builder.c"
@@ -39,7 +37,6 @@ ISO_BUILDER_EXE = BUILD_DIR / ("iso_builder.exe" if platform.system().lower() ==
 # Output Artifacts (placed in out/ to keep root clean)
 PRIMARY_ISO     = OUT_DIR / "FalkonOS.iso"
 REPORT_FILE     = OUT_DIR / "build_report.json"
-RELEASE_DIR     = OUT_DIR / "release"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ANSI Structured Colored Logging
@@ -131,6 +128,7 @@ def build_kernel(profile="dev", do_save=False):
     log_stage(1, 5, "Configuring CMake Build Engine...")
     if not shutil.which("cmake"):
         log_error("CMake is required to build Falkon-OS.")
+        log_info("Run 'python build.py doctor' to view setup instructions.")
         sys.exit(1)
 
     cmake_cmd = ["cmake", "-B", str(BUILD_DIR)]
@@ -238,6 +236,7 @@ def run_qemu(mode="normal"):
     qemu_bin = shutil.which("qemu-system-x86_64") or r"C:\Program Files\qemu\qemu-system-x86_64.exe"
     if not os.path.exists(qemu_bin) and not shutil.which("qemu-system-x86_64"):
         log_error("QEMU emulator not found in PATH.")
+        log_info("Run 'python build.py doctor' to view setup instructions.")
         sys.exit(1)
 
     cmd = [qemu_bin, "-m", "512M", "-vga", "std"]
@@ -259,22 +258,72 @@ def run_qemu(mode="normal"):
     subprocess.run(cmd)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Doctor Diagnostics
+# Combined Verification & Installation Instructions (check / setup / doctor)
+# Zero automatic downloads — displays copy-paste commands for missing tools
 # ─────────────────────────────────────────────────────────────────────────────
 
-def run_doctor():
+def run_check_setup():
     print_banner()
-    log_info("Verifying Build Environment & Toolchain...")
-    tools = ["gcc", "nasm", "cmake", "ninja", "qemu-system-x86_64", "git"]
-    for t in tools:
-        p = shutil.which(t) or (r"C:\Program Files\qemu\qemu-system-x86_64.exe" if t.startswith("qemu") else None)
-        if p: log_success(f"Found {t:<20} -> {p}")
-        else: log_warning(f"Missing {t:<20}")
+    log_info("Verifying Build Environment & Dependencies...")
+
+    required_tools = [
+        ("C Compiler", "gcc"),
+        ("NASM Assembler", "nasm"),
+        ("CMake Engine", "cmake"),
+        ("Ninja Generator", "ninja"),
+        ("QEMU Emulator", "qemu-system-x86_64"),
+        ("Git VCS", "git")
+    ]
+
+    missing = []
+    for name, tool in required_tools:
+        p = shutil.which(tool) or (r"C:\Program Files\qemu\qemu-system-x86_64.exe" if tool.startswith("qemu") else None)
+        if p:
+            log_success(f"Found {name:<20} -> {p}")
+        else:
+            log_warning(f"Missing {name:<19} ({tool})")
+            missing.append(tool)
 
     if PRIMARY_ISO.exists():
         log_success(f"Primary Output ISO verified -> {PRIMARY_ISO} ({PRIMARY_ISO.stat().st_size} bytes)")
     else:
         log_info("No output ISO found in out/. Run 'python build.py build'")
+
+    print()
+    if missing:
+        log_error(f"Missing required tool(s): {', '.join(missing)}")
+        print(f"\n{Color.BOLD}{Color.YELLOW}=== Installation Instructions for Missing Tools ==={Color.RESET}\n")
+
+        os_sys = platform.system().lower()
+        if "windows" in os_sys:
+            print(f"{Color.CYAN}[Option 1: Windows Winget (Copy & Paste in PowerShell)]{Color.RESET}")
+            winget_pkgs = []
+            if "nasm" in missing: winget_pkgs.append("NASM.NASM")
+            if "cmake" in missing: winget_pkgs.append("Kitware.CMake")
+            if "ninja" in missing: winget_pkgs.append("Ninja-build.Ninja")
+            if "qemu-system-x86_64" in missing: winget_pkgs.append("SoftwareFreedomConservancy.QEMU")
+            if winget_pkgs:
+                print(f"  winget install {' '.join(winget_pkgs)}\n")
+
+            print(f"{Color.CYAN}[Option 2: MSYS2 UCRT64 (Copy & Paste in MSYS2 Terminal)]{Color.RESET}")
+            msys_pkgs = []
+            if "gcc" in missing: msys_pkgs.append("mingw-w64-ucrt-x86_64-gcc")
+            if "nasm" in missing: msys_pkgs.append("mingw-w64-ucrt-x86_64-nasm")
+            if "cmake" in missing: msys_pkgs.append("mingw-w64-ucrt-x86_64-cmake")
+            if "ninja" in missing: msys_pkgs.append("mingw-w64-ucrt-x86_64-ninja")
+            if msys_pkgs:
+                print(f"  pacman -S --needed {' '.join(msys_pkgs)}\n")
+        else:
+            print(f"{Color.CYAN}[Ubuntu / Debian]:{Color.RESET}  sudo apt update && sudo apt install -y build-essential nasm cmake ninja-build qemu-system-x86")
+            print(f"{Color.CYAN}[Arch Linux]:{Color.RESET}      sudo pacman -S --needed base-devel nasm cmake ninja qemu-system-x86")
+            print(f"{Color.CYAN}[Fedora]:{Color.RESET}          sudo dnf install -y gcc nasm cmake ninja-build qemu-system-x86")
+            print(f"{Color.CYAN}[macOS]:{Color.RESET}           brew install nasm cmake ninja qemu\n")
+
+        print(f"{Color.YELLOW}===================================================={Color.RESET}\n")
+        return False
+    else:
+        log_success("Environment check passed! All build dependencies are installed.")
+        return True
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Entry Point
@@ -293,6 +342,8 @@ def main():
 
     subparsers.add_parser("clean")
     subparsers.add_parser("doctor")
+    subparsers.add_parser("check")
+    subparsers.add_parser("setup")
 
     args_raw = [a.lower() for a in sys.argv[1:]]
 
@@ -301,8 +352,9 @@ def main():
         parser.print_help()
         sys.exit(0)
 
-    if "-setup" in args_raw or "-check" in args_raw or "doctor" in args_raw:
-        run_doctor()
+    # Combined -check / -setup / doctor entry point
+    if any(k in args_raw for k in ["-setup", "setup", "-check", "check", "doctor", "-doctor"]):
+        run_check_setup()
         sys.exit(0)
 
     if "-clean" in args_raw or "clean" in args_raw:
@@ -326,7 +378,6 @@ def main():
     parsed = parser.parse_args()
     if parsed.subcommand == "build": build_kernel(parsed.profile, parsed.save)
     elif parsed.subcommand == "run": run_qemu(parsed.mode)
-    elif parsed.subcommand == "doctor": run_doctor()
 
 if __name__ == "__main__":
     main()
