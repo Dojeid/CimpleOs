@@ -17,8 +17,8 @@
 static desktop_t desktop;
 
 void desktop_init() {
-    desktop.bg_color = 0x0F172A;  // Midnight Slate
-    desktop.topbar_color = 0x1E293B;  // Slate Blue
+    desktop.bg_color = 0x0B0F19;  // Deep Obsidian
+    desktop.topbar_color = 0x0F172A;  // Dark Slate
     desktop.show_wallpaper = 1;
     desktop.active_theme_id = 1;
 }
@@ -214,10 +214,10 @@ void desktop_set_theme(int theme_id) {
             desktop.bg_color = 0x500724;
             desktop.topbar_color = 0x831843;
             break;
-        case 1: // Midnight Slate (Default)
+        case 1: // Cyberpunk Midnight Obsidian (Default)
         default:
-            desktop.bg_color = 0x0F172A;
-            desktop.topbar_color = 0x1E293B;
+            desktop.bg_color = 0x0B0F19;
+            desktop.topbar_color = 0x0F172A;
             break;
     }
 }
