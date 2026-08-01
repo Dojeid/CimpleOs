@@ -425,27 +425,19 @@ void wm_handle_mouse_move(int x, int y) {
         int new_x = x - win->drag_offset_x;
         int new_y = y - win->drag_offset_y;
         
-        // BUG FIX #2: Aggressive bounds clamping with safety margins
+        // BUG FIX #13: Simplified bounds clamping
         extern int screen_w, screen_h;
         
-        // Prevent window from going off-screen (even by 1 pixel)
+        // Prevent window from going off-screen
         if (new_x < 0) new_x = 0;
         if (new_y < 25) new_y = 25;  // Below top bar
         
-        // Ensure window width/height don't exceed screen first
-        if (win->width > screen_w) win->width = screen_w;
-        if (win->height > screen_h - 55) win->height = screen_h - 55;
-        
-        // Now apply right/bottom bounds with safety check
+        // Simple right/bottom bounds (window width/height already set by create/resize)
         int max_x = screen_w - win->width;
         int max_y = screen_h - 30 - TITLEBAR_HEIGHT - win->height;
         
         if (new_x > max_x) new_x = max_x;
         if (new_y > max_y) new_y = max_y;
-        
-        // Final sanity check - clamp to [0, max] range
-        if (new_x < 0) new_x = 0;
-        if (new_y < 25) new_y = 25;
         
         win->x = new_x;
         win->y = new_y;

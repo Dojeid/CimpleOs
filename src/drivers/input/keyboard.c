@@ -27,10 +27,16 @@ extern void cmd_process(const char* cmd);
 void keyboard_handler() {
     irq_count++;
     static int extended = 0;
+    
+    // Save interrupt state and disable interrupts
+    uint64_t flags;
+    asm volatile("pushfq; cli; pop %0" : "=r"(flags));
+    
     uint8_t scancode = inb(0x60);
 
     if (scancode >= 128) {
-        extended = 0;  // Break codes (incl. E0-prefixed) end any extended sequence
+        // BUG FIX #14: Handle break codes properly - reset extended flag
+        extended = 0;
         outb(0x20, 0x20);
         return;
     }
@@ -41,8 +47,24 @@ void keyboard_handler() {
         return;
     }
     
+    // BUG FIX #14: Handle E1 prefix (for Pause key)
+    if (scancode == 0xE1) {
+        // E1 prefix - Pause key sequence
+        extended = 2;
+        outb(0x20, 0x20);
+        return;
+    }
+    
+    // BUG FIX #14: Handle break codes for E0/E1 prefixed keys
+    if (extended > 0 && (scancode & 0x80)) {
+        // Break code for extended key sequence
+        extended = 0;
+        outb(0x20, 0x20);
+        return;
+    }
+    
     if (!(scancode & 0x80)) {
-        if (extended) {
+        if (extended == 1) {
             extended = 0;
             
             if (scancode == 0x48) {
@@ -118,6 +140,9 @@ void keyboard_handler() {
             }
         }
     }
+    
+    // BUG FIX #3: Restore interrupts before returning
+    if (flags & 0x200) asm volatile("sti");
     
     outb(0x20, 0x20);
 }

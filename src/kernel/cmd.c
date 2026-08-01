@@ -12,8 +12,8 @@
 extern char terminal_buffer[];
 extern int term_idx;
 
-// Active terminal instance (set by keyboard handler)
-terminal_instance_t* active_terminal = NULL;
+// BUG FIX #1: active_terminal is now extern'd from terminal.h
+// to avoid multiple definitions across translation units
 
 static void cmd_print(const char* text) {
     if (active_terminal) {

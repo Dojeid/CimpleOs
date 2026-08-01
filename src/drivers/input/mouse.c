@@ -126,7 +126,10 @@ void mouse_handler() {
             // Ignore overflow packets
             if ((flags & 0xC0) == 0) {
                 mouse_x += x_rel;
-                mouse_y -= y_rel; // Invert Y axis for screen coordinates
+                // BUG FIX #12: Y-axis should be ADDED, not subtracted
+                // PS/2 reports positive delta as "down" (towards bottom of screen)
+                // but screen Y coordinates increase downwards, so we add
+                mouse_y += y_rel;
             }
         }
         

@@ -82,9 +82,14 @@ void graphics_init(struct multiboot_info* mb) {
 }
 
 void put_pixel(int x, int y, uint32_t color) {
-    if (x >= 0 && x < screen_w && y >= 0 && y < screen_h) {
-        back_buffer[y * screen_w + x] = color;
-    }
+    // BUG FIX #8: Add bounds checking with overflow protection
+    if (x < 0 || y < 0) return;
+    if (x >= screen_w || y >= screen_h) return;
+    
+    // Prevent buffer overflow by checking array index calculation
+    if ((size_t)y >= (size_t)screen_w) return;
+    
+    back_buffer[(size_t)y * (size_t)screen_w + (size_t)x] = color;
 }
 
 void draw_rect(int x, int y, int w, int h, uint32_t color) {

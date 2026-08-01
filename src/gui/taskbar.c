@@ -56,7 +56,8 @@ void taskbar_add_button(int window_id, const char* label) {
     taskbar.button_count++;
     
     extern int screen_w;
-    int available_width = screen_w - 270;
+    // BUG FIX #10: Calculate available width dynamically based on launcher width
+    int available_width = screen_w - (launcher_btn.x + launcher_btn.width + 10 + 20);
     int button_width = available_width / taskbar.button_count;
     
     if (button_width < 80) button_width = 80;
@@ -81,7 +82,8 @@ void taskbar_remove_button(int window_id) {
             taskbar.buttons[taskbar.button_count].window_id = -1;
             
             extern int screen_w;
-            int available_width = screen_w - 170;
+            // BUG FIX #10: Calculate available width dynamically based on launcher width
+            int available_width = screen_w - (launcher_btn.x + launcher_btn.width + 10 + 20);
             int button_width = available_width / (taskbar.button_count > 0 ? taskbar.button_count : 1);
             
             if (button_width < 80) button_width = 80;
@@ -149,7 +151,10 @@ void taskbar_render() {
     // Render Start Menu Popup Overlay if open
     if (taskbar.start_menu_open) {
         int menu_x = 10;
-        int menu_y = taskbar.y_position - 240;
+        // BUG FIX #6: Calculate menu_y dynamically based on available space
+        // Instead of hardcoded 240, use a reasonable default with room check
+        int menu_y = taskbar.y_position - 230;
+        if (menu_y < 100) menu_y = taskbar.y_position - 150;  // Fallback if screen is small
         int menu_w = 190;
         int menu_h = 235;
 
@@ -185,7 +190,9 @@ void taskbar_render() {
 
 void taskbar_handle_click(int x, int y) {
     int menu_x = 10;
-    int menu_y = taskbar.y_position - 240;
+    // BUG FIX #6: Use same dynamic calculation as taskbar_render()
+    int menu_y = taskbar.y_position - 230;
+    if (menu_y < 100) menu_y = taskbar.y_position - 150;
     int menu_w = 190;
     int menu_h = 235;
 

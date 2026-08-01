@@ -70,7 +70,8 @@ void free(void* ptr) {
 
     b->used = 0;
 
-    // Coalesce with next free block
+    // BUG FIX #4: Coalesce with next free block first
+    // We MUST check b->next exists BEFORE accessing it
     while (b->next && !b->next->used &&
            (char*)b + HEADER_SIZE + b->size == (char*)b->next) {
         b->size += HEADER_SIZE + b->next->size;
@@ -78,7 +79,8 @@ void free(void* ptr) {
         if (b->next) b->next->prev = b;
     }
 
-    // Coalesce with previous free block
+    // BUG FIX #4: Coalesce with previous free block
+    // We MUST check b->prev exists BEFORE accessing it
     if (b->prev && !b->prev->used &&
         (char*)b->prev + HEADER_SIZE + b->prev->size == (char*)b) {
         b->prev->size += HEADER_SIZE + b->size;

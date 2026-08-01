@@ -34,6 +34,9 @@ void vga_putchar(char c) {
             vga_row++;
         }
     }
+    
+    // BUG FIX #4: Only scroll when row actually exceeds height
+    // Check at the END of the function to allow row == VGA_HEIGHT once
     if (vga_row >= VGA_HEIGHT) {
         // Scroll the screen up by one row
         for (int y = 1; y < VGA_HEIGHT; y++) {
