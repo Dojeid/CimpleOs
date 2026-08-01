@@ -5,6 +5,8 @@ section .text
 
 extern isr_handler
 extern irq_handler
+extern syscall_interrupt_handler
+extern process_exit
 
 %macro ISR_NOERRCODE 1
 global isr%1
@@ -78,6 +80,23 @@ IRQ 12, 44
 IRQ 13, 45
 IRQ 14, 46
 IRQ 15, 47
+
+global syscall80
+syscall80:
+    push qword 0
+    push qword 128
+    jmp syscall_common_stub
+
+global process_entry_trampoline
+process_entry_trampoline:
+    ; RDI contains the kernel thread entry function.
+    and rsp, -16
+    call rdi
+    xor edi, edi
+    call process_exit
+.halt:
+    hlt
+    jmp .halt
 
 isr_common_stub:
     push rax
@@ -176,6 +195,74 @@ irq_common_stub:
     
     mov rdi, rsp
     call irq_handler
+    
+    cmp rax, 0
+    je .no_switch
+    mov rsp, rax
+.no_switch:
+    
+    pop rax
+    mov gs, ax
+    pop rax
+    mov fs, ax
+    pop rax
+    mov es, ax
+    pop rax
+    mov ds, ax
+    
+    pop r15
+    pop r14
+    pop r13
+    pop r12
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
+    pop rax
+    
+    add rsp, 16
+    iretq
+
+syscall_common_stub:
+    push rax
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    push r8
+    push r9
+    push r10
+    push r11
+    push r12
+    push r13
+    push r14
+    push r15
+    
+    mov ax, ds
+    push rax
+    mov ax, es
+    push rax
+    mov ax, fs
+    push rax
+    mov ax, gs
+    push rax
+    
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    
+    mov rdi, rsp
+    call syscall_interrupt_handler
     
     cmp rax, 0
     je .no_switch

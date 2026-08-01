@@ -7,6 +7,8 @@
 #define MAX_PROCESSES 16
 #define PROCESS_NAME_LEN 32
 #define MAX_PROCESS_FDS 32
+#define PROCESS_KERNEL_STACK_SIZE 4096
+#define PROCESS_WAIT_ANY (-1)
 
 typedef struct {
     uint64_t gs, fs, es, ds;
@@ -17,6 +19,7 @@ typedef struct {
 } __attribute__((packed)) cpu_registers_t;
 
 typedef enum {
+    PROCESS_STATE_UNUSED,
     PROCESS_STATE_READY,
     PROCESS_STATE_RUNNING,
     PROCESS_STATE_BLOCKED,
@@ -28,8 +31,15 @@ typedef struct process {
     char name[PROCESS_NAME_LEN];
     process_state_t state;
     uint64_t stack_top;
+    uint64_t saved_rsp;
+    uint64_t kernel_stack_base;
+    uint64_t kernel_stack_size;
+    uint32_t parent_pid;
     uint32_t priority;
     uint32_t cpu_time_ms;
+    int exit_code;
+    int wait_pid;
+    int wait_result;
     file_t* fd_table[MAX_PROCESS_FDS];
 } process_t;
 
@@ -40,5 +50,8 @@ void process_exit(int code);
 void process_list(char* buffer, uint32_t max_len);
 process_t* process_get_current(void);
 uint64_t schedule(uint64_t current_rsp);
+int64_t process_fork_from_frame(cpu_registers_t* frame);
+int64_t process_waitpid_from_frame(int32_t pid, cpu_registers_t* frame, uint64_t* next_rsp);
+uint64_t process_exit_from_frame(int code, cpu_registers_t* frame);
 
 #endif // PROCESS_H

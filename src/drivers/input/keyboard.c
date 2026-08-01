@@ -28,22 +28,16 @@ void keyboard_handler() {
     irq_count++;
     static int extended = 0;
     
-    // Save interrupt state and disable interrupts
-    uint64_t flags;
-    asm volatile("pushfq; cli; pop %0" : "=r"(flags));
-    
     uint8_t scancode = inb(0x60);
 
     if (scancode >= 128) {
         // BUG FIX #14: Handle break codes properly - reset extended flag
         extended = 0;
-        outb(0x20, 0x20);
         return;
     }
 
     if (scancode == 0xE0) {
         extended = 1;
-        outb(0x20, 0x20);
         return;
     }
     
@@ -51,7 +45,6 @@ void keyboard_handler() {
     if (scancode == 0xE1) {
         // E1 prefix - Pause key sequence
         extended = 2;
-        outb(0x20, 0x20);
         return;
     }
     
@@ -59,7 +52,6 @@ void keyboard_handler() {
     if (extended > 0 && (scancode & 0x80)) {
         // Break code for extended key sequence
         extended = 0;
-        outb(0x20, 0x20);
         return;
     }
     
@@ -73,7 +65,6 @@ void keyboard_handler() {
                     strcpy(terminal_buffer, prev);
                     term_idx = strlen(prev);
                 }
-                outb(0x20, 0x20);
                 return;
             }
             else if (scancode == 0x50) {
@@ -82,17 +73,14 @@ void keyboard_handler() {
                     strcpy(terminal_buffer, next);
                     term_idx = strlen(next);
                 }
-                outb(0x20, 0x20);
                 return;
             }
             else if (scancode == 0x49) {
                 terminal_scroll_up();
-                outb(0x20, 0x20);
                 return;
             }
             else if (scancode == 0x51) {
                 terminal_scroll_down();
-                outb(0x20, 0x20);
                 return;
             }
         }
@@ -141,8 +129,4 @@ void keyboard_handler() {
         }
     }
     
-    // BUG FIX #3: Restore interrupts before returning
-    if (flags & 0x200) asm volatile("sti");
-    
-    outb(0x20, 0x20);
 }

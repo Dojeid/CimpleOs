@@ -67,8 +67,6 @@ void init_mouse() {
 void mouse_handler() {
     uint8_t status = inb(0x64);
     if ((status & 0x01) == 0 || (status & 0x20) == 0) {
-        outb(0xA0, 0x20);
-        outb(0x20, 0x20);
         return;
     }
     
@@ -85,8 +83,6 @@ void mouse_handler() {
     // If packet index is 1 (byte 0 flags), verify bit 3 alignment flag (must be 1 for PS/2 mouse packet header)
     if (mouse_cycle == 1 && !(mouse_byte[0] & 0x08)) {
         mouse_cycle = 0;
-        outb(0xA0, 0x20);
-        outb(0x20, 0x20);
         return;
     }
 
@@ -139,8 +135,6 @@ void mouse_handler() {
         if (mouse_y >= screen_h) mouse_y = screen_h - 1;
     }
     
-    outb(0xA0, 0x20);
-    outb(0x20, 0x20);
 }
 
 int mouse_button_left() {

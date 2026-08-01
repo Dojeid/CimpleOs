@@ -289,6 +289,42 @@ def ensure_iso_builder():
         sys.exit(1)
     return str(ISO_BUILDER_EXE)
 
+def get_cached_cmake_generator():
+    cache_file = BUILD_DIR / "CMakeCache.txt"
+    if not cache_file.exists():
+        return None
+    try:
+        for line in cache_file.read_text(errors="ignore").splitlines():
+            if line.startswith("CMAKE_GENERATOR:"):
+                return line.split("=", 1)[1].strip()
+    except Exception:
+        return None
+    return None
+
+def clear_cmake_config_cache():
+    for path in [
+        BUILD_DIR / "CMakeCache.txt",
+        BUILD_DIR / "build.ninja",
+        BUILD_DIR / "rules.ninja",
+        BUILD_DIR / "Makefile",
+        BUILD_DIR / "cmake_install.cmake",
+    ]:
+        try:
+            if path.exists():
+                path.unlink()
+        except Exception:
+            pass
+
+    cmake_files = BUILD_DIR / "CMakeFiles"
+    if cmake_files.exists():
+        shutil.rmtree(cmake_files, ignore_errors=True)
+
+def run_cmake_configure(cmake_cmd):
+    res = subprocess.run(cmake_cmd, cwd=ROOT_DIR, capture_output=True, text=True)
+    with open(LOGS_DIR / "cmake.log", "w") as f:
+        f.write(res.stdout + "\n" + res.stderr)
+    return res
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Core Build Pipeline
 # ─────────────────────────────────────────────────────────────────────────────
@@ -316,12 +352,22 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
     draw_progress_bar(10, "Configuring Engine")
     t0 = time.time()
     cmake_cmd = ["cmake", "-B", str(BUILD_DIR)]
-    if shutil.which("ninja"): cmake_cmd += ["-G", "Ninja"]
+    preferred_generator = "Ninja" if shutil.which("ninja") else None
+    if preferred_generator:
+        cmake_cmd += ["-G", preferred_generator]
     prof_cfg = PROFILES.get(profile, PROFILES["dev"])
     cmake_cmd.append(f"-DCMAKE_BUILD_TYPE={prof_cfg['type']}")
 
-    res = subprocess.run(cmake_cmd, cwd=ROOT_DIR, capture_output=True, text=True)
-    with open(LOGS_DIR / "cmake.log", "w") as f: f.write(res.stdout + "\n" + res.stderr)
+    cached_generator = get_cached_cmake_generator()
+    if force_rebuild and preferred_generator and cached_generator and cached_generator != preferred_generator:
+        log_warning(f"CMake generator changed from '{cached_generator}' to '{preferred_generator}'. Resetting configure cache.")
+        clear_cmake_config_cache()
+
+    res = run_cmake_configure(cmake_cmd)
+    if res.returncode != 0 and "Does not match the generator used previously" in (res.stdout + res.stderr):
+        log_warning("Detected stale CMake generator cache. Resetting configure cache and retrying.")
+        clear_cmake_config_cache()
+        res = run_cmake_configure(cmake_cmd)
 
     if res.returncode != 0:
         log_error(f"CMake configuration failed. See {LOGS_DIR / 'cmake.log'}")
@@ -935,4 +981,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
