@@ -153,6 +153,9 @@ void kmain(void* multiboot_info_addr) {
     int last_mouse_btn = 0;  // Moved outside loop for clarity
 
     while (1) {
+        // Poll VirtualBox absolute mouse integration
+        mouse_update_vbox();
+
         // Handle mouse interactions
         int mouse_btn = mouse_button_left();
         
@@ -163,7 +166,12 @@ void kmain(void* multiboot_info_addr) {
             if (mouse_y >= screen_h - 30 || (tb->start_menu_open && mouse_y >= menu_y && mouse_x <= 200)) {
                 taskbar_handle_click(mouse_x, mouse_y);
             } else {
-                wm_handle_mouse_down(mouse_x, mouse_y);
+                int clicked_win = wm_get_window_at(mouse_x, mouse_y);
+                if (clicked_win != -1) {
+                    wm_handle_mouse_down(mouse_x, mouse_y);
+                } else {
+                    desktop_handle_click(mouse_x, mouse_y);
+                }
             }
         }
         

@@ -44,19 +44,12 @@ int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t
             return 0;
         }
         case SYS_FORK:
-            // TODO: Requires page table cloning or deep stack copying
             return -1;
         case SYS_EXECVE:
             // TODO: Requires ELF loader (Phase 3)
             return -1;
-        case SYS_WAITPID: {
-            // Block current process until child (arg1) exits
-            process_t* curr = process_get_current();
-            curr->state = PROCESS_STATE_BLOCKED;
-            // The scheduler will skip it until unblocked
-            process_yield();
-            return 0;
-        }
+        case SYS_WAITPID:
+            return -1;
         case SYS_MALLOC:
             return (int64_t)kmalloc((size_t)arg1);
         case SYS_FREE:
@@ -72,5 +65,33 @@ int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t
             return 0;
         default:
             return -1;
+    }
+}
+
+uint64_t syscall_interrupt_handler(cpu_registers_t* frame) {
+    if (!frame) return 0;
+
+    uint64_t sys_num = frame->rax;
+
+    switch (sys_num) {
+        case SYS_FORK:
+            frame->rax = (uint64_t)process_fork_from_frame(frame);
+            return 0;
+
+        case SYS_WAITPID: {
+            uint64_t next_rsp = 0;
+            frame->rax = (uint64_t)process_waitpid_from_frame((int32_t)frame->rdi, frame, &next_rsp);
+            return next_rsp;
+        }
+
+        case SYS_EXIT:
+            return process_exit_from_frame((int)frame->rdi, frame);
+
+        case SYS_YIELD:
+            return schedule((uint64_t)frame);
+
+        default:
+            frame->rax = (uint64_t)syscall_handler(sys_num, frame->rdi, frame->rsi, frame->rdx);
+            return 0;
     }
 }

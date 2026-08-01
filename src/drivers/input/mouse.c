@@ -119,13 +119,17 @@ void mouse_handler() {
                 y_rel = 0;
             }
 
-            // Ignore overflow packets
+            // Ignore overflow packets and clamp per-packet deltas
             if ((flags & 0xC0) == 0) {
+                if (x_rel > 45) x_rel = 45;
+                if (x_rel < -45) x_rel = -45;
+                if (y_rel > 45) y_rel = 45;
+                if (y_rel < -45) y_rel = -45;
+
                 mouse_x += x_rel;
-                // BUG FIX #12: Y-axis should be ADDED, not subtracted
-                // PS/2 reports positive delta as "down" (towards bottom of screen)
-                // but screen Y coordinates increase downwards, so we add
-                mouse_y += y_rel;
+                // FIX MOUSE INVERSION: PS/2 reports positive y_rel for upward motion.
+                // Screen Y increases downwards, so we subtract y_rel.
+                mouse_y -= y_rel;
             }
         }
         
@@ -182,4 +186,13 @@ int mouse_button_released() {
     if (flags & 0x200) asm volatile("sti");
     
     return released;
+}
+
+void mouse_update_vbox() {
+    int vx = 0, vy = 0;
+    if (vbox_mouse_is_active() && vbox_mouse_poll(&vx, &vy, NULL)) {
+        extern int screen_w, screen_h;
+        if (vx >= 0 && vx < screen_w) mouse_x = vx;
+        if (vy >= 0 && vy < screen_h) mouse_y = vy;
+    }
 }

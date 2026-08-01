@@ -12,16 +12,20 @@ typedef struct {
     uint32_t bg_color;
     uint32_t topbar_color;
     int show_wallpaper;
+    int active_theme_id;
 } desktop_t;
 
 // Initialize desktop
 void desktop_init();
 
-// Render desktop background
+// Render desktop background & icons
 void desktop_render_background();
 
 // Render top bar
 void desktop_render_topbar();
+
+// Handle clicks on desktop icons
+void desktop_handle_click(int x, int y);
 
 // Get desktop state
 desktop_t* desktop_get_state();

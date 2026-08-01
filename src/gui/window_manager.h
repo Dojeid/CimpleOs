@@ -26,6 +26,7 @@ typedef struct window {
     
     // Render callback
     void (*render_content)(struct window* win);
+    void (*on_click)(struct window* win, int rel_x, int rel_y);
     void (*on_close)(struct window* win);
     void (*on_minimize)(struct window* win);
     void (*on_maximize)(struct window* win);

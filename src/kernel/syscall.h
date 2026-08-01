@@ -2,6 +2,7 @@
 #define SYSCALL_H
 
 #include <stdint.h>
+#include "kernel/process.h"
 
 #define SYS_READ    1
 #define SYS_WRITE   2
@@ -18,5 +19,6 @@
 
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);
+uint64_t syscall_interrupt_handler(cpu_registers_t* frame);
 
 #endif // SYSCALL_H

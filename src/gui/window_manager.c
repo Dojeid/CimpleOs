@@ -87,6 +87,7 @@ window_t* wm_create_window(int x, int y, int width, int height, const char* titl
     
     win->flags = WIN_FLAG_VISIBLE;
     win->render_content = NULL;
+    win->on_click = NULL;
     win->on_close = NULL;
     win->on_minimize = NULL;
     win->on_maximize = NULL;
@@ -403,6 +404,14 @@ void wm_handle_mouse_down(int x, int y) {
         win->flags |= WIN_FLAG_DRAGGING;
         win->drag_offset_x = x - win->x;
         win->drag_offset_y = y - win->y;
+        return;
+    }
+    
+    // Content area click dispatch
+    if (win->on_click && y >= win->y + TITLEBAR_HEIGHT) {
+        int rel_x = x - win->x;
+        int rel_y = y - (win->y + TITLEBAR_HEIGHT);
+        win->on_click(win, rel_x, rel_y);
     }
 }
 
