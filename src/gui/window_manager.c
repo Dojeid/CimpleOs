@@ -1,6 +1,7 @@
 #include "window_manager.h"
 #include "drivers/video/graphics.h"
 #include "lib/string.h"
+#include "gui/desktop.h"
 
 // Forward declaration for error messages
 extern void terminal_print(const char*);
@@ -88,6 +89,7 @@ window_t* wm_create_window(int x, int y, int width, int height, const char* titl
     win->flags = WIN_FLAG_VISIBLE;
     win->render_content = NULL;
     win->on_click = NULL;
+    win->on_keydown = NULL;
     win->on_close = NULL;
     win->on_minimize = NULL;
     win->on_maximize = NULL;
@@ -313,28 +315,32 @@ void wm_render_window(window_t* win) {
     }
     
     int is_focused = (win->flags & WIN_FLAG_FOCUSED);
+    gui_theme_t* theme = theme_get_current();
     
-    // Draw modern title bar
-    uint32_t titlebar_color = is_focused ? 0x1E293B : 0x0F172A;
+    // Draw modern title bar based on active theme
+    uint32_t titlebar_color = is_focused ? theme->titlebar_active : theme->titlebar_inactive;
     draw_rect(win->x, win->y, win->width, TITLEBAR_HEIGHT, titlebar_color);
     
     // Title text
     draw_string(win->x + 10, win->y + 7, is_focused ? 0xF1F5F9 : 0x94A3B8, win->title);
     
-    // Draw modern circular control dots (Close: Red, Max: Green, Min: Yellow)
-    int btn_y = win->y + 7;
+    // Draw Windows 11 Style Window Control Buttons (Min, Max, Close)
+    int btn_y = win->y + 4;
     
-    // Close dot (Red 0xEF4444)
-    int close_btn_x = win->x + win->width - 18;
-    draw_rect(close_btn_x, btn_y, 11, 11, 0xEF4444);
+    // Close button box (Vibrant Red 0xEF4444)
+    int close_btn_x = win->x + win->width - 24;
+    draw_rect(close_btn_x, btn_y, 20, 16, 0xEF4444);
+    draw_string(close_btn_x + 6, btn_y + 4, 0xFFFFFF, "x");
     
-    // Maximize dot (Green 0x10B981)
-    int max_btn_x = win->x + win->width - 34;
-    draw_rect(max_btn_x, btn_y, 11, 11, 0x10B981);
+    // Maximize button box (Green 0x10B981)
+    int max_btn_x = win->x + win->width - 48;
+    draw_rect(max_btn_x, btn_y, 20, 16, 0x10B981);
+    draw_string(max_btn_x + 6, btn_y + 4, 0xFFFFFF, "+");
 
-    // Minimize dot (Yellow 0xF59E0B)
-    int min_btn_x = win->x + win->width - 50;
-    draw_rect(min_btn_x, btn_y, 11, 11, 0xF59E0B);
+    // Minimize button box (Yellow 0xF59E0B)
+    int min_btn_x = win->x + win->width - 72;
+    draw_rect(min_btn_x, btn_y, 20, 16, 0xF59E0B);
+    draw_string(min_btn_x + 6, btn_y + 4, 0xFFFFFF, "-");
     
     // Draw window content area background
     draw_rect(win->x, win->y + TITLEBAR_HEIGHT, win->width, win->height, COLOR_WINDOW_BG);
@@ -344,8 +350,8 @@ void wm_render_window(window_t* win) {
         win->render_content(win);
     }
     
-    // Draw active window glow border (Cyan 0x38BDF8 if focused, Slate 0x334155 if unfocused)
-    uint32_t border_color = is_focused ? 0x38BDF8 : 0x334155;
+    // Draw active window glow border based on theme
+    uint32_t border_color = is_focused ? theme->accent_color : 0x334155;
     // Top
     draw_rect(win->x, win->y, win->width, 1, border_color);
     // Bottom

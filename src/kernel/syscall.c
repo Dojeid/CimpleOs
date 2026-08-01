@@ -1,5 +1,6 @@
 #include "kernel/syscall.h"
 #include "kernel/process.h"
+#include "kernel/elf.h"
 #include "fs/vfs.h"
 #include "mm/heap.h"
 #include "drivers/video/vga.h"
@@ -46,8 +47,7 @@ int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t
         case SYS_FORK:
             return -1;
         case SYS_EXECVE:
-            // TODO: Requires ELF loader (Phase 3)
-            return -1;
+            return elf_load_and_run((const char*)arg1, (char* const*)arg2, (char* const*)arg3);
         case SYS_WAITPID:
             return -1;
         case SYS_MALLOC:

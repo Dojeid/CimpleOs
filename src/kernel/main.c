@@ -248,7 +248,13 @@ void kmain(void* multiboot_info_addr) {
         // 4. Cursor (absolutely last - on top of everything)
         cursor_render();
         
-        // Swap buffers to display
+        // Swap buffers to display (applies brightness & night light tint)
         swap_buffers();
+
+        // Frame rate target delay pacing
+        int fps_delay = graphics_get_fps_delay_ticks();
+        if (fps_delay > 0) {
+            timer_wait(fps_delay);
+        }
     }
 }

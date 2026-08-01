@@ -17,4 +17,12 @@ void draw_string(int x, int y, uint32_t color, const char *str);
 void swap_buffers();
 void clear_screen(uint32_t color);
 
+void graphics_set_brightness(int percent);
+int graphics_get_brightness(void);
+void graphics_set_night_light(int enabled);
+int graphics_get_night_light(void);
+void graphics_set_fps_target(int fps_preset);
+int graphics_get_fps_delay_ticks(void);
+void graphics_set_resolution(int width, int height);
+
 #endif

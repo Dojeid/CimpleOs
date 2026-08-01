@@ -7,6 +7,17 @@
 #define DESKTOP_TOPBAR_HEIGHT 25
 #define DESKTOP_TASKBAR_HEIGHT 30
 
+// System-wide Theme Colors Structure
+typedef struct {
+    uint32_t bg_color;
+    uint32_t topbar_color;
+    uint32_t taskbar_color;
+    uint32_t titlebar_active;
+    uint32_t titlebar_inactive;
+    uint32_t accent_color;
+    uint32_t text_primary;
+} gui_theme_t;
+
 // Desktop state
 typedef struct {
     uint32_t bg_color;
@@ -30,10 +41,8 @@ void desktop_handle_click(int x, int y);
 // Get desktop state
 desktop_t* desktop_get_state();
 
-// Set background color
-void desktop_set_bg_color(uint32_t color);
-
-// Set desktop color theme
+// System Theme Controls
+gui_theme_t* theme_get_current(void);
 void desktop_set_theme(int theme_id);
 
 #endif

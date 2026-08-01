@@ -87,6 +87,15 @@ void keyboard_handler() {
         
         char c = kbd_US[scancode];
         
+        // Dispatch keypress to focused window if it registers on_keydown
+        window_manager_t* wm = wm_get_state();
+        window_t* focused_win = wm_get_window(wm->focused_window_id);
+        if (focused_win && focused_win->on_keydown) {
+            focused_win->on_keydown(focused_win, c, scancode);
+            return;
+        }
+        
+        // Fallback for Terminal shell input
         if (c == '\b') {
             if (term_idx > 0) {
                 term_idx--;
@@ -97,16 +106,9 @@ void keyboard_handler() {
         else if (c == '\n') {
             terminal_buffer[term_idx] = '\0';
             
-            // Route to focused terminal (only windows without a render callback
-            // are terminals; app windows store their own user_data).
             extern terminal_instance_t* active_terminal;
-            window_manager_t* wm = wm_get_state();
-            window_t* focused_win = wm_get_window(wm->focused_window_id);
-            
             if (focused_win && focused_win->render_content == NULL && focused_win->user_data) {
                 active_terminal = (terminal_instance_t*)focused_win->user_data;
-                
-                // Echo command
                 char cmd_line[300];
                 cmd_line[0] = '$';
                 cmd_line[1] = ' ';
@@ -119,6 +121,8 @@ void keyboard_handler() {
             
             cmd_process(terminal_buffer);
             active_terminal = NULL;
+            term_idx = 0;
+            terminal_buffer[0] = '\0';
         }
         else if (c != 0) {
             if (term_idx < 255) {

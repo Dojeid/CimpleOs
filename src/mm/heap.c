@@ -2,7 +2,7 @@
 #include "mm/pmm.h"
 
 #define HEAP_START 0x1000000
-#define HEAP_SIZE 0x1000000
+#define HEAP_SIZE 0x4000000 // 64 MB Kernel Heap
 
 // Block header: 32 bytes (two pointers + size + magic/used flags).
 // 16-byte aligned so payloads are always 16-byte aligned for 64-bit.
