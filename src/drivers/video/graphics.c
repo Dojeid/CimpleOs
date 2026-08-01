@@ -46,6 +46,9 @@ void graphics_init(struct multiboot_info* mb) {
             bga_write(1, 1024);        // Width
             bga_write(2, 768);         // Height
             bga_write(3, 32);          // 32 bpp
+            bga_write(5, 1024);        // Virt Width
+            bga_write(6, 0);           // X offset
+            bga_write(7, 0);           // Y offset
             bga_write(4, 0x01 | 0x40); // VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED
         }
 
@@ -182,6 +185,9 @@ void graphics_set_resolution(int width, int height) {
         bga_write(1, (uint16_t)width);  // Width
         bga_write(2, (uint16_t)height); // Height
         bga_write(3, 32);              // 32 bpp
+        bga_write(5, (uint16_t)width);  // Virt Width
+        bga_write(6, 0);               // X offset
+        bga_write(7, 0);               // Y offset
         bga_write(4, 0x01 | 0x40);     // VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED
     }
 
