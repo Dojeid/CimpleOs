@@ -7,6 +7,7 @@
 #include "fs/vfs.h"
 #include "fs/ext4.h"
 #include "mm/pmm.h"
+#include "mm/heap.h"
 
 extern char terminal_buffer[];
 extern int term_idx;
@@ -47,12 +48,12 @@ static void int_to_str(int num, char* str) {
     str[j] = '\0';
 }
 
-static vfs_node_t* get_target_dir(const char* path_arg, char* resolved_out) {
+static dentry_t* get_target_dir(const char* path_arg, char* resolved_out) {
     const char* cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
     char resolved[256];
     vfs_resolve_path(cwd, path_arg, resolved, sizeof(resolved));
     if (resolved_out) strcpy(resolved_out, resolved);
-    return vfs_lookup(0, resolved);
+    return vfs_lookup(resolved);
 }
 
 void cmd_process(const char* cmd) {
@@ -90,10 +91,10 @@ void cmd_process(const char* cmd) {
         char resolved[256];
         vfs_resolve_path(current_cwd, target_path, resolved, sizeof(resolved));
 
-        vfs_node_t* target = vfs_lookup(0, resolved);
+        dentry_t* target = vfs_lookup(resolved);
         if (!target) {
             cmd_print("cd: Directory not found.");
-        } else if (target->type != VFS_DIRECTORY) {
+        } else if (!(target->d_inode && (target->d_inode->i_mode & 0x4000))) {
             cmd_print("cd: Target is not a directory.");
         } else {
             if (active_terminal) {
@@ -116,22 +117,22 @@ void cmd_process(const char* cmd) {
     else if (strncmp(cmd, "ls", 2) == 0 && (cmd[2] == '\0' || cmd[2] == ' ')) {
         const char* path_arg = (strlen(cmd) > 3) ? (cmd + 3) : ".";
         char resolved[256];
-        vfs_node_t* target = get_target_dir(path_arg, resolved);
+        dentry_t* target = get_target_dir(path_arg, resolved);
 
         if (!target) {
             cmd_print("ls: Directory not found.");
-        } else if (target->type != VFS_DIRECTORY) {
+        } else if (!(target->d_inode && (target->d_inode->i_mode & 0x4000))) {
             char line[128];
-            sprintf(line, "[FILE] %-16s (%u B)", target->name, target->size);
+            sprintf(line, "[FILE] %-16s (%u B)", target->d_name, target->d_inode ? target->d_inode->i_size : 0);
             cmd_print(line);
         } else {
             char line[128];
-            for (uint32_t i = 0; i < target->child_count; i++) {
-                vfs_node_t* child = target->children[i];
-                if (child->type == VFS_DIRECTORY) {
-                    sprintf(line, "[DIR]  %s/", child->name);
+            for (uint32_t i = 0; i < target->d_child_count; i++) {
+                dentry_t* child = target->d_subdirs[i];
+                if (child->d_inode && (child->d_inode->i_mode & 0x4000)) {
+                    sprintf(line, "[DIR]  %s/", child->d_name);
                 } else {
-                    sprintf(line, "[FILE] %-16s (%u B)", child->name, child->size);
+                    sprintf(line, "[FILE] %-16s (%u B)", child->d_name, child->d_inode ? child->d_inode->i_size : 0);
                 }
                 cmd_print(line);
             }
@@ -141,14 +142,14 @@ void cmd_process(const char* cmd) {
     else if (strncmp(cmd, "cat ", 4) == 0) {
         const char* path_arg = cmd + 4;
         char resolved[256];
-        vfs_node_t* file = get_target_dir(path_arg, resolved);
+        dentry_t* file = get_target_dir(path_arg, resolved);
 
         if (!file) {
             cmd_print("cat: File not found.");
-        } else if (file->type != VFS_FILE) {
+        } else if (!(file->d_inode && (file->d_inode->i_mode & 0x8000))) {
             cmd_print("cat: Target is a directory.");
-        } else if (file->data && file->size > 0) {
-            cmd_print((const char*)file->data);
+        } else if (file->d_inode && file->d_inode->i_private && file->d_inode->i_size > 0) {
+            cmd_print((const char*)file->d_inode->i_private);
         } else {
             cmd_print("[File is empty]");
         }
@@ -177,8 +178,8 @@ void cmd_process(const char* cmd) {
             strcpy(filename, resolved);
         }
 
-        vfs_node_t* parent = vfs_lookup(0, dir_path);
-        if (!parent || parent->type != VFS_DIRECTORY) {
+        dentry_t* parent = vfs_lookup(dir_path);
+        if (!parent || !(parent->d_inode && (parent->d_inode->i_mode & 0x4000))) {
             cmd_print("touch: Target directory not found.");
         } else if (vfs_create_file(parent, filename, 0, 0)) {
             cmd_print("File created successfully.");
@@ -210,8 +211,8 @@ void cmd_process(const char* cmd) {
             strcpy(dirname, resolved);
         }
 
-        vfs_node_t* parent = vfs_lookup(0, dir_path);
-        if (!parent || parent->type != VFS_DIRECTORY) {
+        dentry_t* parent = vfs_lookup(dir_path);
+        if (!parent || !(parent->d_inode && (parent->d_inode->i_mode & 0x4000))) {
             cmd_print("mkdir: Target parent directory not found.");
         } else if (vfs_mkdir(parent, dirname)) {
             cmd_print("Directory created successfully.");
@@ -243,7 +244,7 @@ void cmd_process(const char* cmd) {
             strcpy(filename, resolved);
         }
 
-        vfs_node_t* parent = vfs_lookup(0, dir_path);
+        dentry_t* parent = vfs_lookup(dir_path);
         if (vfs_remove(parent, filename) == 0) {
             cmd_print("File/Directory removed.");
         } else {
@@ -268,7 +269,7 @@ void cmd_process(const char* cmd) {
         const char* cwd = (active_terminal && active_terminal->cwd[0]) ? active_terminal->cwd : "/";
         vfs_resolve_path(cwd, filename, resolved, sizeof(resolved));
 
-        vfs_node_t* file = vfs_lookup(0, resolved);
+        dentry_t* file = vfs_lookup(resolved);
         if (!file) {
             char dir_path[256] = "/";
             char fname[64] = "";
@@ -284,10 +285,18 @@ void cmd_process(const char* cmd) {
                     strcpy(fname, last_slash + 1);
                 }
             }
-            vfs_node_t* parent = vfs_lookup(0, dir_path);
+            dentry_t* parent = vfs_lookup(dir_path);
             file = vfs_create_file(parent, fname, (const uint8_t*)content, strlen(content));
         } else {
-            vfs_write(file, 0, strlen(content), (const uint8_t*)content);
+            if (file->d_inode && file->d_inode->i_private) {
+                kfree(file->d_inode->i_private);
+            }
+            if (file->d_inode) {
+                file->d_inode->i_size = strlen(content);
+                file->d_inode->i_private = kmalloc(file->d_inode->i_size + 1);
+                memcpy(file->d_inode->i_private, content, file->d_inode->i_size);
+                ((uint8_t*)file->d_inode->i_private)[file->d_inode->i_size] = '\0';
+            }
         }
 
         if (file) cmd_print("Wrote data to file successfully.");

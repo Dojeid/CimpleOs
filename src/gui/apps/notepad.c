@@ -46,12 +46,12 @@ void notepad_open(const char* filepath) {
     window_t* win = wm_create_window(200, 120, 480, 320, "Notepad");
     if (!win) return;
 
-    vfs_node_t* file = vfs_lookup(0, filepath ? filepath : "/docs/welcome.txt");
-    const char* text = (file && file->data) ? (const char*)file->data : "Welcome to Falkon-OS Text Editor!\nType commands in Terminal or explore VFS files.";
+    dentry_t* file = vfs_lookup(filepath ? filepath : "/docs/welcome.txt");
+    const char* text = (file && file->d_inode && file->d_inode->i_private) ? (const char*)file->d_inode->i_private : "Welcome to Falkon-OS Text Editor!\nType commands in Terminal or explore VFS files.";
 
     notepad_state_t* state = (notepad_state_t*)malloc(sizeof(notepad_state_t));
     if (!state) return;
-    state->filename = file ? file->name : "welcome.txt";
+    state->filename = file ? file->d_name : "welcome.txt";
     state->content = text;
 
     win->user_data = state;

@@ -177,6 +177,11 @@ irq_common_stub:
     mov rdi, rsp
     call irq_handler
     
+    cmp rax, 0
+    je .no_switch
+    mov rsp, rax
+.no_switch:
+    
     pop rax
     mov gs, ax
     pop rax

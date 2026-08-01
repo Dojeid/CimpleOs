@@ -3,58 +3,201 @@
 #include "lib/string.h"
 #include "drivers/video/vga.h"
 
-static vfs_node_t root_node;
+static file_system_type_t *file_systems = NULL;
+static dentry_t *vfs_root = NULL;
 
 void vfs_init(void) {
-    memset(&root_node, 0, sizeof(vfs_node_t));
-    strcpy(root_node.name, "/");
-    root_node.type = VFS_DIRECTORY;
-    vga_print("[VFS] Root File System initialized.\n");
+    vfs_root = (dentry_t*)kmalloc(sizeof(dentry_t));
+    memset(vfs_root, 0, sizeof(dentry_t));
+    strcpy(vfs_root->d_name, "/");
+    vga_print("[VFS] Virtual File System core initialized.\n");
 }
 
-vfs_node_t* vfs_get_root(void) {
-    return &root_node;
+int register_filesystem(file_system_type_t *fs) {
+    if (!fs) return -1;
+    fs->next = file_systems;
+    file_systems = fs;
+    vga_print("[VFS] Registered filesystem: ");
+    vga_print(fs->name);
+    vga_print("\n");
+    return 0;
 }
 
-vfs_node_t* vfs_mkdir(vfs_node_t* parent, const char* name) {
-    if (!parent || parent->type != VFS_DIRECTORY) return 0;
-    if (parent->child_count >= VFS_MAX_CHILDREN) return 0;
+int vfs_mount(const char *dev_name, const char *dir_name, const char *fs_type) {
+    // Basic mount: currently only supports mounting at root "/"
+    if (strcmp(dir_name, "/") != 0) {
+        vga_print("[VFS] Currently only root mounts are supported.\n");
+        return -1;
+    }
 
-    vfs_node_t* dir = (vfs_node_t*)kmalloc(sizeof(vfs_node_t));
-    if (!dir) return 0;
+    file_system_type_t *fs = file_systems;
+    while (fs) {
+        if (strcmp(fs->name, fs_type) == 0) {
+            super_block_t *sb = fs->mount(fs, dev_name);
+            if (!sb) {
+                vga_print("[VFS] Mount failed.\n");
+                return -1;
+            }
+            vfs_root->d_sb = sb;
+            vfs_root->d_inode = sb->s_root->d_inode;
+            vga_print("[VFS] Successfully mounted ");
+            vga_print(fs_type);
+            vga_print(" on ");
+            vga_print(dir_name);
+            vga_print("\n");
+            return 0;
+        }
+        fs = fs->next;
+    }
+    vga_print("[VFS] Filesystem type not found.\n");
+    return -1;
+}
 
-    memset(dir, 0, sizeof(vfs_node_t));
-    strncpy(dir->name, name, VFS_MAX_FILENAME - 1);
-    dir->type = VFS_DIRECTORY;
-    dir->parent = parent;
+dentry_t* vfs_lookup(const char *path) {
+    if (!vfs_root || !vfs_root->d_inode) return NULL;
+    if (strcmp(path, "/") == 0) return vfs_root;
 
-    parent->children[parent->child_count++] = dir;
+    // Simple one-level lookup for now
+    const char *name = path;
+    if (name[0] == '/') name++;
+    
+    if (vfs_root->d_inode->i_op && vfs_root->d_inode->i_op->lookup) {
+        return vfs_root->d_inode->i_op->lookup(vfs_root->d_inode, name);
+    }
+    return NULL;
+}
+
+file_t* vfs_open(const char *path, uint32_t flags) {
+    dentry_t *dentry = vfs_lookup(path);
+    if (!dentry || !dentry->d_inode) return NULL;
+
+    file_t *f = (file_t*)kmalloc(sizeof(file_t));
+    if (!f) return NULL;
+    memset(f, 0, sizeof(file_t));
+    f->f_dentry = dentry;
+    f->f_inode = dentry->d_inode;
+    f->f_pos = 0;
+    f->f_mode = flags;
+    f->f_op = dentry->d_inode->i_fop;
+    
+    if (f->f_op && f->f_op->open) {
+        if (f->f_op->open(f->f_inode, f) != 0) {
+            kfree(f);
+            return NULL;
+        }
+    }
+    return f;
+}
+
+int vfs_read(file_t *file, uint32_t size, uint8_t *buffer) {
+    if (!file || !file->f_op || !file->f_op->read) return -1;
+    int bytes = file->f_op->read(file, file->f_pos, size, buffer);
+    if (bytes > 0) file->f_pos += bytes;
+    return bytes;
+}
+
+int vfs_write(file_t *file, uint32_t size, const uint8_t *buffer) {
+    if (!file || !file->f_op || !file->f_op->write) return -1;
+    int bytes = file->f_op->write(file, file->f_pos, size, buffer);
+    if (bytes > 0) file->f_pos += bytes;
+    return bytes;
+}
+
+int vfs_close(file_t *file) {
+    if (!file) return -1;
+    if (file->f_op && file->f_op->release) {
+        file->f_op->release(file->f_inode, file);
+    }
+    kfree(file);
+    return 0;
+}
+
+// =========================================================================
+// LEGACY TRANSITION HELPERS (Ramdisk / GUI / Shell)
+// =========================================================================
+
+dentry_t* vfs_get_root(void) {
+    return vfs_root;
+}
+
+dentry_t* vfs_mkdir(dentry_t* parent, const char* name) {
+    if (!parent) return 0;
+    dentry_t* dir = (dentry_t*)kmalloc(sizeof(dentry_t));
+    memset(dir, 0, sizeof(dentry_t));
+    strncpy(dir->d_name, name, VFS_MAX_FILENAME - 1);
+    dir->d_parent = parent;
+    
+    inode_t* ino = (inode_t*)kmalloc(sizeof(inode_t));
+    memset(ino, 0, sizeof(inode_t));
+    ino->i_mode = 0x4000; // DIR
+    dir->d_inode = ino;
+    
+    parent->d_subdirs[parent->d_child_count++] = dir;
     return dir;
 }
 
-vfs_node_t* vfs_create_file(vfs_node_t* parent, const char* name, const uint8_t* data, uint32_t size) {
-    if (!parent || parent->type != VFS_DIRECTORY) return 0;
-    if (parent->child_count >= VFS_MAX_CHILDREN) return 0;
+static int ram_read(file_t *file, uint32_t offset, uint32_t size, uint8_t *buffer) {
+    if (!file || !file->f_inode || !buffer) return -1;
+    if (offset >= file->f_inode->i_size) return 0;
+    uint32_t read_bytes = size;
+    if (offset + read_bytes > file->f_inode->i_size) {
+        read_bytes = file->f_inode->i_size - offset;
+    }
+    if (file->f_inode->i_private) {
+        memcpy(buffer, (uint8_t*)file->f_inode->i_private + offset, read_bytes);
+    }
+    return read_bytes;
+}
 
-    vfs_node_t* file = (vfs_node_t*)kmalloc(sizeof(vfs_node_t));
-    if (!file) return 0;
+static file_operations_t ram_fops = {
+    .read = ram_read,
+    .write = 0,
+    .open = 0,
+    .release = 0
+};
 
-    memset(file, 0, sizeof(vfs_node_t));
-    strncpy(file->name, name, VFS_MAX_FILENAME - 1);
-    file->type = VFS_FILE;
-    file->size = size;
-    file->parent = parent;
-
+dentry_t* vfs_create_file(dentry_t* parent, const char* name, const uint8_t* data, uint32_t size) {
+    if (!parent) return 0;
+    dentry_t* file = (dentry_t*)kmalloc(sizeof(dentry_t));
+    memset(file, 0, sizeof(dentry_t));
+    strncpy(file->d_name, name, VFS_MAX_FILENAME - 1);
+    file->d_parent = parent;
+    
+    inode_t* ino = (inode_t*)kmalloc(sizeof(inode_t));
+    memset(ino, 0, sizeof(inode_t));
+    ino->i_mode = 0x8000; // FILE
+    ino->i_size = size;
+    ino->i_fop = &ram_fops;
+    
     if (size > 0 && data) {
-        file->data = (uint8_t*)kmalloc(size + 1);
-        if (file->data) {
-            memcpy(file->data, data, size);
-            file->data[size] = 0;
+        ino->i_private = kmalloc(size + 1);
+        memcpy(ino->i_private, data, size);
+        ((uint8_t*)ino->i_private)[size] = 0;
+    }
+    file->d_inode = ino;
+    
+    parent->d_subdirs[parent->d_child_count++] = file;
+    return file;
+}
+
+int vfs_remove(dentry_t* parent, const char* name) {
+    if (!parent) return -1;
+    for (uint32_t i = 0; i < parent->d_child_count; i++) {
+        if (strcmp(parent->d_subdirs[i]->d_name, name) == 0) {
+            dentry_t* child = parent->d_subdirs[i];
+            if (child->d_inode && child->d_inode->i_private) {
+                kfree(child->d_inode->i_private);
+            }
+            if (child->d_inode) kfree(child->d_inode);
+            kfree(child);
+            for (uint32_t j = i; j < parent->d_child_count - 1; j++) {
+                parent->d_subdirs[j] = parent->d_subdirs[j + 1];
+            }
+            parent->d_child_count--;
+            return 0;
         }
     }
-
-    parent->children[parent->child_count++] = file;
-    return file;
+    return -1;
 }
 
 void vfs_resolve_path(const char* cwd, const char* path, char* out_buf, size_t buf_size) {
@@ -79,7 +222,6 @@ void vfs_resolve_path(const char* cwd, const char* path, char* out_buf, size_t b
     }
     raw[sizeof(raw) - 1] = '\0';
 
-    // Normalize path tokens
     char segments[16][64];
     int seg_count = 0;
 
@@ -118,126 +260,4 @@ void vfs_resolve_path(const char* cwd, const char* path, char* out_buf, size_t b
         strcat(out_buf, "/");
         strcat(out_buf, segments[i]);
     }
-}
-
-int vfs_get_path(vfs_node_t* node, char* buffer, size_t max_len) {
-    if (!node || !buffer || max_len == 0) return -1;
-    if (node == &root_node || !node->parent) {
-        strncpy(buffer, "/", max_len - 1);
-        buffer[max_len - 1] = 0;
-        return 0;
-    }
-
-    char stack[16][VFS_MAX_FILENAME];
-    int depth = 0;
-
-    vfs_node_t* curr = node;
-    while (curr && curr != &root_node && depth < 16) {
-        strncpy(stack[depth++], curr->name, VFS_MAX_FILENAME - 1);
-        curr = curr->parent;
-    }
-
-    buffer[0] = '\0';
-    for (int i = depth - 1; i >= 0; i--) {
-        strcat(buffer, "/");
-        strcat(buffer, stack[i]);
-    }
-    return 0;
-}
-
-vfs_node_t* vfs_lookup(vfs_node_t* relative_to, const char* path) {
-    char resolved[256];
-    char cwd_str[128] = "/";
-
-    if (relative_to) {
-        vfs_get_path(relative_to, cwd_str, sizeof(cwd_str));
-    }
-
-    vfs_resolve_path(cwd_str, path, resolved, sizeof(resolved));
-
-    if (strcmp(resolved, "/") == 0) return &root_node;
-
-    vfs_node_t* curr = &root_node;
-    int idx = 1;
-    int len = strlen(resolved);
-
-    while (idx < len && curr) {
-        char token[64];
-        int t_idx = 0;
-        while (idx < len && resolved[idx] != '/') {
-            if (t_idx < 63) token[t_idx++] = resolved[idx];
-            idx++;
-        }
-        token[t_idx] = '\0';
-        if (resolved[idx] == '/') idx++;
-
-        vfs_node_t* found = 0;
-        for (uint32_t i = 0; i < curr->child_count; i++) {
-            if (strcmp(curr->children[i]->name, token) == 0) {
-                found = curr->children[i];
-                break;
-            }
-        }
-        curr = found;
-    }
-
-    return curr;
-}
-
-int vfs_remove(vfs_node_t* parent, const char* name) {
-    if (!parent || parent->type != VFS_DIRECTORY || !name) return -1;
-
-    for (uint32_t i = 0; i < parent->child_count; i++) {
-        if (strcmp(parent->children[i]->name, name) == 0) {
-            vfs_node_t* child = parent->children[i];
-
-            if (child->data) {
-                kfree(child->data);
-            }
-            kfree(child);
-
-            for (uint32_t j = i; j < parent->child_count - 1; j++) {
-                parent->children[j] = parent->children[j + 1];
-            }
-            parent->child_count--;
-            return 0;
-        }
-    }
-    return -1;
-}
-
-int vfs_read(vfs_node_t* node, uint32_t offset, uint32_t size, uint8_t* buffer) {
-    if (!node || node->type != VFS_FILE || !buffer) return -1;
-    if (offset >= node->size) return 0;
-
-    uint32_t read_bytes = size;
-    if (offset + read_bytes > node->size) {
-        read_bytes = node->size - offset;
-    }
-
-    if (node->data) {
-        memcpy(buffer, node->data + offset, read_bytes);
-    }
-    return read_bytes;
-}
-
-int vfs_write(vfs_node_t* node, uint32_t offset, uint32_t size, const uint8_t* buffer) {
-    if (!node || node->type != VFS_FILE || !buffer) return -1;
-
-    uint32_t new_size = offset + size;
-    if (new_size > node->size) {
-        uint8_t* new_data = (uint8_t*)kmalloc(new_size + 1);
-        if (!new_data) return -1;
-
-        if (node->data) {
-            memcpy(new_data, node->data, node->size);
-            kfree(node->data);
-        }
-        node->data = new_data;
-        node->size = new_size;
-        node->data[new_size] = 0;
-    }
-
-    memcpy(node->data + offset, buffer, size);
-    return size;
 }

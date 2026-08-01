@@ -86,5 +86,6 @@ int ext4_format_drive(uint32_t start_lba, uint32_t total_sectors, const char* vo
 int ext4_mount_drive(uint32_t start_lba);
 int ext4_is_mounted(void);
 ext4_superblock_t* ext4_get_superblock(void);
+void ext4_init(void);
 
 #endif // EXT4_H

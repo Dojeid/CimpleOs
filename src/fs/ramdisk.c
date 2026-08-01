@@ -4,11 +4,11 @@
 #include "drivers/video/vga.h"
 
 void ramdisk_init(void) {
-    vfs_node_t* root = vfs_get_root();
+    dentry_t* root = vfs_get_root();
 
-    vfs_node_t* docs = vfs_mkdir(root, "docs");
-    vfs_node_t* sys  = vfs_mkdir(root, "sys");
-    vfs_node_t* bin  = vfs_mkdir(root, "bin");
+    dentry_t* docs = vfs_mkdir(root, "docs");
+    dentry_t* sys  = vfs_mkdir(root, "sys");
+    dentry_t* bin  = vfs_mkdir(root, "bin");
 
     const char* welcome_msg = 
         "Welcome to Falkon-OS v1.0 Enterprise!\n"

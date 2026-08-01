@@ -28,27 +28,66 @@ process_t* process_create(const char* name, void (*entry_point)(void)) {
             processes[i].state = PROCESS_STATE_READY;
             processes[i].priority = 1;
             processes[i].cpu_time_ms = 0;
+            for (int j = 0; j < MAX_PROCESS_FDS; j++) {
+                processes[i].fd_table[j] = 0;
+            }
+            
+            // Allocate a 4KB stack
+            uint8_t* stack = (uint8_t*)kmalloc(4096);
+            memset(stack, 0, 4096);
+            processes[i].stack_top = (uint64_t)(stack + 4096);
+            
+            // Set up initial interrupt frame
+            cpu_registers_t* regs = (cpu_registers_t*)(processes[i].stack_top - sizeof(cpu_registers_t));
+            regs->rip = (uint64_t)entry_point;
+            regs->cs = 0x08; // Kernel code segment
+            regs->rflags = 0x202; // Interrupts enabled
+            regs->rsp = processes[i].stack_top;
+            regs->ss = 0x10; // Kernel data segment
+            regs->ds = 0x10;
+            regs->es = 0x10;
+            regs->fs = 0x10;
+            regs->gs = 0x10;
+            
+            processes[i].stack_top = (uint64_t)regs;
+            
             return &processes[i];
         }
     }
     return 0;
 }
 
-void process_yield(void) {
-    uint32_t prev_pid = current_pid;
+uint64_t schedule(uint64_t current_rsp) {
+    if (processes[current_pid].state == PROCESS_STATE_RUNNING) {
+        processes[current_pid].stack_top = current_rsp;
+        processes[current_pid].state = PROCESS_STATE_READY;
+    } else if (processes[current_pid].state == PROCESS_STATE_TERMINATED || 
+               processes[current_pid].state == PROCESS_STATE_BLOCKED) {
+        processes[current_pid].stack_top = current_rsp;
+    }
+    
     uint32_t next_p = (current_pid + 1) % MAX_PROCESSES;
-
     for (int count = 0; count < MAX_PROCESSES; count++) {
         if (processes[next_p].pid != 0 && processes[next_p].state == PROCESS_STATE_READY) {
-            if (processes[prev_pid].state == PROCESS_STATE_RUNNING) {
-                processes[prev_pid].state = PROCESS_STATE_READY;
-            }
             processes[next_p].state = PROCESS_STATE_RUNNING;
             current_pid = next_p;
-            break;
+            return processes[next_p].stack_top;
         }
         next_p = (next_p + 1) % MAX_PROCESSES;
     }
+    
+    // Fallback to idle if none ready
+    if (processes[current_pid].state != PROCESS_STATE_RUNNING) {
+        current_pid = 0;
+        processes[0].state = PROCESS_STATE_RUNNING;
+    }
+    return processes[current_pid].stack_top;
+}
+
+void process_yield(void) {
+    // Legacy yielding is now replaced by software interrupts or just waiting
+    // For now we simulate an int $0x20 (timer tick) to yield
+    asm volatile("int $32");
 }
 
 void process_exit(int code) {

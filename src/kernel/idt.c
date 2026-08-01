@@ -4,6 +4,7 @@
 #include "drivers/input/mouse.h"
 #include "kernel/timer.h"
 #include "drivers/video/vga.h"
+#include "kernel/process.h"
 
 // 64-bit IDT entries (16 bytes each)
 struct idt_entry_64 {
@@ -122,14 +123,18 @@ void isr_handler(void* stack_ptr) {
 }
 
 // IRQ handler - called from assembly
-void irq_handler(void* stack_ptr) {
+uint64_t irq_handler(void* stack_ptr) {
     // Stack layout (from irq_common_stub):
     // gs, fs, es, ds, r15..rax, vector number (stack[19]), error code (stack[20])
     uint64_t* stack = (uint64_t*)stack_ptr;
     uint8_t vector = (uint8_t)(stack[19] & 0xFF);
+    uint64_t new_rsp = 0;
 
     switch (vector) {
-        case 32: timer_handler(); break;      // PIT timer (IRQ0)
+        case 32: 
+            timer_handler(); 
+            new_rsp = schedule((uint64_t)stack_ptr);
+            break;      // PIT timer (IRQ0)
         case 33: keyboard_handler(); break;   // PS/2 keyboard (IRQ1)
         case 44: mouse_handler(); break;      // PS/2 mouse (IRQ12)
         default:
@@ -138,4 +143,6 @@ void irq_handler(void* stack_ptr) {
             outb(0x20, 0x20);                    // EOI to master PIC
             break;
     }
+    
+    return new_rsp;
 }

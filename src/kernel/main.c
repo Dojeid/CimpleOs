@@ -27,6 +27,7 @@
 // FS / Process / Syscall
 #include "fs/vfs.h"
 #include "fs/ramdisk.h"
+#include "fs/ext4.h"
 #include "kernel/process.h"
 #include "kernel/syscall.h"
 // GUI
@@ -109,6 +110,13 @@ void kmain(void* multiboot_info_addr) {
 
     // Initialize VFS, Ramdisk, Process Scheduler, and Syscalls
     vfs_init();
+    ext4_init();
+    
+    // Attempt to mount EXT4 volume to root
+    if (vfs_mount("hda", "/", "ext4") != 0) {
+        vga_print("[VFS] Failed to mount EXT4 root filesystem. Ensure volume is formatted.\n");
+    }
+
     ramdisk_init();
     process_init();
     syscall_init();

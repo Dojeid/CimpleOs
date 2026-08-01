@@ -11,6 +11,10 @@
 #define SYS_GETPID  6
 #define SYS_YIELD   7
 #define SYS_EXIT    8
+#define SYS_CLOSE   9
+#define SYS_FORK    10
+#define SYS_EXECVE  11
+#define SYS_WAITPID 12
 
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);

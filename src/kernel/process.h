@@ -2,9 +2,19 @@
 #define PROCESS_H
 
 #include <stdint.h>
+#include "fs/vfs.h"
 
 #define MAX_PROCESSES 16
 #define PROCESS_NAME_LEN 32
+#define MAX_PROCESS_FDS 32
+
+typedef struct {
+    uint64_t gs, fs, es, ds;
+    uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
+    uint64_t rbp, rdi, rsi, rdx, rcx, rbx, rax;
+    uint64_t int_no, err_code;
+    uint64_t rip, cs, rflags, rsp, ss;
+} __attribute__((packed)) cpu_registers_t;
 
 typedef enum {
     PROCESS_STATE_READY,
@@ -20,6 +30,7 @@ typedef struct process {
     uint64_t stack_top;
     uint32_t priority;
     uint32_t cpu_time_ms;
+    file_t* fd_table[MAX_PROCESS_FDS];
 } process_t;
 
 void process_init(void);
@@ -28,5 +39,6 @@ void process_yield(void);
 void process_exit(int code);
 void process_list(char* buffer, uint32_t max_len);
 process_t* process_get_current(void);
+uint64_t schedule(uint64_t current_rsp);
 
 #endif // PROCESS_H

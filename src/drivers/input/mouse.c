@@ -10,7 +10,8 @@ int mouse_y = 300;
 uint8_t mouse_cycle = 0;
 int8_t mouse_byte[3];
 volatile uint8_t mouse_left_btn = 0;
-static volatile uint8_t prev_mouse_left_btn = 0;
+volatile uint8_t mouse_click_latch = 0;
+volatile uint8_t mouse_release_latch = 0;
 
 extern void outb(uint16_t port, uint8_t val);
 extern uint8_t inb(uint16_t port);
@@ -102,7 +103,10 @@ void mouse_handler() {
         extern int screen_w, screen_h;
 
         // Button state updated cleanly at end of 3-byte cycle
-        mouse_left_btn = (flags & 0x01);
+        uint8_t new_btn = (flags & 0x01);
+        if (new_btn && !mouse_left_btn) mouse_click_latch = 1;
+        if (!new_btn && mouse_left_btn) mouse_release_latch = 1;
+        mouse_left_btn = new_btn;
 
         // Check VirtualBox VMMDev Absolute Mouse Integration
         int vbox_x = 0, vbox_y = 0;
@@ -143,7 +147,7 @@ int mouse_button_left() {
 // SECURITY FIX + BUG FIX #7: Critical section with debounce
 int mouse_button_pressed() {
     uint64_t flags;
-    int pressed;
+    int pressed = 0;
     
     // BUG FIX #7: Debounce protection (prevent double-clicks)
     static uint32_t last_press_time = 0;
@@ -152,19 +156,13 @@ int mouse_button_pressed() {
     // Save interrupt flag and disable interrupts (64-bit pushfq/popfq)
     asm volatile("pushfq; cli; pop %0" : "=r"(flags));
     
-    // Read button state atomically
-    pressed = (mouse_left_btn && !prev_mouse_left_btn);
-    
-    // Debounce: Ignore if less than 10 ticks (100ms) since last press
-    if (pressed) {
-        if (timer_ticks - last_press_time < 10) {
-            pressed = 0;
-        } else {
+    if (mouse_click_latch) {
+        mouse_click_latch = 0;
+        // Debounce: Ignore if less than 10 ticks (100ms) since last press
+        if (timer_ticks - last_press_time >= 10) {
+            pressed = 1;
             last_press_time = timer_ticks;
-            prev_mouse_left_btn = mouse_left_btn;
         }
-    } else {
-        prev_mouse_left_btn = mouse_left_btn;
     }
     
     // Restore interrupts if they were enabled
@@ -175,12 +173,14 @@ int mouse_button_pressed() {
 
 int mouse_button_released() {
     uint64_t flags;
-    int released;
+    int released = 0;
     
     asm volatile("pushfq; cli; pop %0" : "=r"(flags));
     
-    released = (!mouse_left_btn && prev_mouse_left_btn);
-    prev_mouse_left_btn = mouse_left_btn;
+    if (mouse_release_latch) {
+        mouse_release_latch = 0;
+        released = 1;
+    }
     
     if (flags & 0x200) asm volatile("sti");
     
