@@ -498,7 +498,7 @@ def run_qemu(mode="normal"):
 
     mem = cfg.get("qemu", "memory", fallback="512").strip('"\'')
     cpu = cfg.get("qemu", "cpu", fallback="qemu64").strip('"\'')
-    mach = cfg.get("qemu", "machine", fallback="q35").strip('"\'')
+    mach = cfg.get("qemu", "machine", fallback="pc").strip('"\'')
     vga = cfg.get("qemu", "graphics", fallback="std").strip('"\'')
 
     cmd = [
@@ -506,8 +506,7 @@ def run_qemu(mode="normal"):
         "-m", mem + "M",
         "-cpu", cpu,
         "-machine", mach,
-        "-vga", vga,
-        "-boot", "order=d"
+        "-vga", vga
     ]
 
     if mode == "debug" or mode == "gdb":
@@ -519,10 +518,10 @@ def run_qemu(mode="normal"):
         cmd.extend(["-accel", "kvm" if platform.system().lower() != "windows" else "whpx"])
     raw_img = OUT_DIR / "FalkonOS.img"
     if mode == "img" and raw_img.exists():
-        cmd.extend(["-drive", f"format=raw,file={raw_img}", "-boot", "order=c"])
+        cmd.extend(["-hda", str(raw_img), "-boot", "order=c"])
         log_info(f"Launching QEMU (Raw Disk Image) -> {raw_img}")
     else:
-        cmd.extend(["-drive", f"file={PRIMARY_ISO},media=cdrom,readonly=on", "-boot", "order=d"])
+        cmd.extend(["-cdrom", str(PRIMARY_ISO), "-boot", "d"])
         log_info(f"Launching QEMU (ISO 9660 + El-Torito CD-ROM) -> {PRIMARY_ISO}")
 
     res = subprocess.run(cmd)
