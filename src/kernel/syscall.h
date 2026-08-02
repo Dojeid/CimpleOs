@@ -18,6 +18,11 @@
 #define SYS_MMAP    12
 #define SYS_FORK    13
 #define SYS_WAITPID 14
+#define SYS_SLEEP   15
+#define SYS_GETCWD  16
+#define SYS_CHDIR   17
+#define SYS_UNLINK  18
+#define SYS_MKDIR   19
 
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);

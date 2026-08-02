@@ -4,6 +4,7 @@
 #include "fs/vfs.h"
 #include "mm/heap.h"
 #include "drivers/video/vga.h"
+#include "lib/string.h"
 
 void syscall_init(void) {
     vga_print("[Syscall] System Call Dispatcher registered.\n");
@@ -87,6 +88,35 @@ int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t
             }
         case SYS_MMAP:
             return (int64_t)kmalloc((size_t)arg1);
+        case SYS_SLEEP:
+            {
+                extern void timer_wait(uint32_t ticks);
+                timer_wait((uint32_t)arg1);
+                return 0;
+            }
+        case SYS_GETCWD:
+            {
+                char* buf = (char*)arg1;
+                size_t sz = (size_t)arg2;
+                if (buf && sz > 0) {
+                    strncpy(buf, "/", sz - 1);
+                }
+                return 0;
+            }
+        case SYS_CHDIR:
+            return 0;
+        case SYS_UNLINK:
+            {
+                extern dentry_t* vfs_get_root(void);
+                extern int vfs_remove(dentry_t* parent, const char* name);
+                return vfs_remove(vfs_get_root(), (const char*)arg1);
+            }
+        case SYS_MKDIR:
+            {
+                extern dentry_t* vfs_get_root(void);
+                extern dentry_t* vfs_mkdir(dentry_t* parent, const char* name);
+                return vfs_mkdir(vfs_get_root(), (const char*)arg1) ? 0 : -1;
+            }
         default:
             return -1;
     }

@@ -102,6 +102,36 @@ void cmd_process(const char* cmd) {
 
     terminal_add_to_history(cmd);
 
+    // File Redirection Handling (e.g. "echo Hello World > /docs/out.txt")
+    const char* redir = strstr(cmd, ">");
+    if (redir) {
+        int append = (redir[1] == '>');
+        char left_cmd[128];
+        char file_path[128];
+        
+        size_t left_len = (size_t)(redir - cmd);
+        if (left_len >= sizeof(left_cmd)) left_len = sizeof(left_cmd) - 1;
+        strncpy(left_cmd, cmd, left_len);
+        left_cmd[left_len] = '\0';
+
+        const char* fp = redir + (append ? 2 : 1);
+        while (*fp == ' ') fp++;
+        strncpy(file_path, fp, sizeof(file_path) - 1);
+
+        // Perform redirection output writing to VFS file
+        dentry_t* target_dir = get_target_dir(file_path, NULL);
+        if (!target_dir) target_dir = vfs_get_root();
+        
+        const char* content = strstr(left_cmd, "echo ") ? (left_cmd + 5) : left_cmd;
+        vfs_create_file(target_dir, file_path, (const uint8_t*)content, strlen(content));
+        
+        char msg[160];
+        sprintf(msg, "[POSIX] Redirected output to file: %s (%u bytes)", file_path, strlen(content));
+        cmd_print(msg);
+        cmd_print("");
+        return;
+    }
+
     if (strcmp(cmd, "help") == 0) {
         cmd_print("GNU Bash / Falkon Shell (fsh) Builtins:");
         cmd_print("  bash        - GNU Bash shell banner & mode");

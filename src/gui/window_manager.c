@@ -425,10 +425,34 @@ void wm_handle_mouse_down(int x, int y) {
 }
 
 void wm_handle_mouse_up(int x, int y) {
-    // Stop dragging all windows
+    extern int screen_w, screen_h;
+    
+    // Stop dragging and check window snapping
     for (int i = 0; i < MAX_WINDOWS; i++) {
-        if (wm.windows[i].id != -1) {
-            wm.windows[i].flags &= ~WIN_FLAG_DRAGGING;
+        if (wm.windows[i].id != -1 && (wm.windows[i].flags & WIN_FLAG_DRAGGING)) {
+            window_t* win = &wm.windows[i];
+            win->flags &= ~WIN_FLAG_DRAGGING;
+
+            // Window Edge Snapping
+            if (x <= 15) {
+                // Snap Left Half
+                win->x = 0;
+                win->y = 24;
+                win->width = screen_w / 2;
+                win->height = screen_h - 54;
+            } else if (x >= screen_w - 15) {
+                // Snap Right Half
+                win->x = screen_w / 2;
+                win->y = 24;
+                win->width = screen_w / 2;
+                win->height = screen_h - 54;
+            } else if (y <= 26) {
+                // Snap Top / Maximize
+                win->x = 0;
+                win->y = 24;
+                win->width = screen_w;
+                win->height = screen_h - 54;
+            }
         }
     }
 }
