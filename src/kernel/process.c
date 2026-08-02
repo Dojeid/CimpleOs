@@ -1,4 +1,5 @@
 #include "kernel/process.h"
+#include "fs/vfs.h"
 #include "mm/heap.h"
 #include "lib/string.h"
 #include "lib/printf.h"
@@ -32,6 +33,38 @@ process_t* process_create(const char* name, void (*entry_point)(void)) {
         }
     }
     return 0;
+}
+
+process_t* process_create_elf(const char* name, const char* path) {
+    extern vfs_node_t* vfs_lookup(vfs_node_t* relative_to, const char* path);
+    extern int vfs_read(vfs_node_t* node, uint32_t offset, uint32_t size, uint8_t* buffer);
+    extern int elf_validate_header(const void* buf, size_t size);
+    extern uint64_t elf_load_executable(const void* buf, size_t size, uint64_t* out_entry);
+    
+    static char elf_buf[512 * 1024]; // 512KB VFS file buffer
+    vfs_node_t* node = vfs_lookup(0, path);
+    if (!node) {
+        printf("[Process] ELF file not found in VFS: %s\n", path);
+        return 0;
+    }
+    
+    int sz = vfs_read(node, 0, sizeof(elf_buf), (uint8_t*)elf_buf);
+    if (sz <= 0) {
+        printf("[Process] Failed to read ELF file: %s\n", path);
+        return 0;
+    }
+    
+    uint64_t entry_point = 0;
+    if (!elf_load_executable(elf_buf, (size_t)sz, &entry_point)) {
+        printf("[Process] Failed to parse/load ELF binary: %s\n", path);
+        return 0;
+    }
+    
+    process_t* proc = process_create(name, (void(*)(void))entry_point);
+    if (proc) {
+        printf("[Process] Spawned Ring 3 User-Mode Process '%s' (PID %u) @ 0x%lX\n", name, proc->pid, entry_point);
+    }
+    return proc;
 }
 
 void process_yield(void) {

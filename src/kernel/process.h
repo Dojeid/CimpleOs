@@ -24,6 +24,7 @@ typedef struct process {
 
 void process_init(void);
 process_t* process_create(const char* name, void (*entry_point)(void));
+process_t* process_create_elf(const char* name, const char* path);
 void process_yield(void);
 void process_exit(int code);
 void process_list(char* buffer, uint32_t max_len);

@@ -313,6 +313,9 @@ void wm_render_window(window_t* win) {
     
     int is_focused = (win->flags & WIN_FLAG_FOCUSED);
     
+    // Draw Window Drop Shadow
+    draw_window_shadow(win->x, win->y, win->width, TITLEBAR_HEIGHT + win->height);
+    
     // Draw modern title bar
     uint32_t titlebar_color = is_focused ? 0x1E293B : 0x0F172A;
     draw_rect(win->x, win->y, win->width, TITLEBAR_HEIGHT, titlebar_color);

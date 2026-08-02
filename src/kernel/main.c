@@ -8,8 +8,10 @@
 #include "drivers/video/vga.h"
 #include "drivers/bus/pci.h"
 #include "drivers/bus/usb.h"
-#include "drivers/input/mouse.h"
+#include "drivers/audio/sound.h"
+#include "drivers/storage/ata.h"
 #include "drivers/input/keyboard.h"
+#include "drivers/input/mouse.h"
 // Memory management
 #include "mm/pmm.h"
 #include "mm/vmm.h"
@@ -92,9 +94,10 @@ void kmain(void* multiboot_info_addr) {
     timer_init(100);
     sysinfo_init();
     
-    // 5. Initialize USB and ATA Storage
-    vga_print("Checking for USB & ATA Storage...\n");
+    // 5. Initialize USB, Audio & ATA Storage
+    vga_print("Checking for USB, Audio & ATA Storage...\n");
     usb_init();
+    sound_init();
     ata_init();
     
     vga_print("System ready! Starting GUI...\n");
@@ -121,22 +124,20 @@ void kmain(void* multiboot_info_addr) {
     terminal_init();
     wm_init();
     
-    // Create default Terminal window
-    window_t* term_win = wm_create_window(50, 80, 680, 440, "Terminal");
+    // Create default Falkon Bash Terminal window
+    window_t* term_win = wm_create_window(50, 80, 680, 440, "Falkon Bash (fbash)");
     if (term_win) {
-        // Reuse the global default instance so terminal_print() (used by
-        // cmd.c and window_manager errors) renders inside this window.
         term_win->user_data = terminal_get_state();
-        taskbar_add_button(term_win->id, "Terminal");
+        taskbar_add_button(term_win->id, "Falkon Bash");
         term_win->render_content = NULL;
         
         terminal_instance_t* term = (terminal_instance_t*)term_win->user_data;
         if (term) {
-            terminal_instance_print(term, "Falkon-OS v1.0 Enterprise Shell");
-            terminal_instance_print(term, "=================================");
-            terminal_instance_print(term, "VFS, Ramdisk, Scheduler & Syscalls Active.");
+            terminal_instance_print(term, "Falkon Bash (fbash) v1.0 POSIX Interactive Shell");
+            terminal_instance_print(term, "=================================================");
+            terminal_instance_print(term, "Ring 3 ELF Loader, VFS, Ramdisk & Syscall ABI Active.");
             terminal_instance_print(term, "Type 'help' for command list.");
-            terminal_instance_print(term, "Type 'ls', 'ps', 'cat /docs/welcome.txt' or 'fetch'.");
+            terminal_instance_print(term, "Type 'vlc /videos/sample.mp4', 'ls', 'ps', or 'fetch'.");
             terminal_instance_print(term, "");
         }
     }

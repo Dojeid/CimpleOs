@@ -31,8 +31,17 @@ void cursor_init() {
 }
 
 void cursor_set_position(int x, int y) {
+    if (x < 0) x = 0;
+    if (x >= screen_w) x = screen_w - 1;
+    if (y < 0) y = 0;
+    if (y >= screen_h) y = screen_h - 1;
     cursor.x = x;
     cursor.y = y;
+}
+
+void cursor_set_screen_bounds(int w, int h) {
+    if (cursor.x >= w) cursor.x = w - 1;
+    if (cursor.y >= h) cursor.y = h - 1;
 }
 
 void cursor_get_position(int* x, int* y) {

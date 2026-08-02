@@ -76,6 +76,20 @@ void itoa(int value, char* str, int base) {
     }
 }
 
+int atoi(const char* str) {
+    if (!str) return 0;
+    int res = 0;
+    int sign = 1;
+    while (*str == ' ' || *str == '\t' || *str == '\n') str++;
+    if (*str == '-') { sign = -1; str++; }
+    else if (*str == '+') { str++; }
+    while (*str >= '0' && *str <= '9') {
+        res = res * 10 + (*str - '0');
+        str++;
+    }
+    return res * sign;
+}
+
 void* memset(void* dest, int val, size_t count) {
     uint8_t v8 = (uint8_t)val;
     uint64_t v64 = ((uint64_t)v8 << 56) | ((uint64_t)v8 << 48) |
@@ -133,6 +147,18 @@ char* strrchr(const char* s, int c) {
     }
     if ((char)c == '\0') return (char*)s;
     return (char*)last;
+}
+
+char* strstr(const char* haystack, const char* needle) {
+    if (!*needle) return (char*)haystack;
+    for (; *haystack; haystack++) {
+        if (*haystack == *needle) {
+            const char *h = haystack, *n = needle;
+            while (*h && *n && *h == *n) { h++; n++; }
+            if (!*n) return (char*)haystack;
+        }
+    }
+    return 0;
 }
 
 static char* strtok_saved = 0;

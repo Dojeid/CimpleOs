@@ -1,5 +1,6 @@
 #include "terminal.h"
 #include "lib/string.h"
+#include "lib/printf.h"
 #include "drivers/video/graphics.h"
 #include "mm/heap.h"
 
@@ -96,9 +97,8 @@ void terminal_instance_clear(terminal_instance_t* term) {
 void terminal_instance_render(terminal_instance_t* term, int x, int y) {
     if (!term) return;
     
-    // Calculate which lines to show
     int total_lines = term->line_count;
-    int start_line = total_lines - VISIBLE_LINES - term->scroll_offset;
+    int start_line = total_lines - (VISIBLE_LINES - 1) - term->scroll_offset;
     
     if (start_line < 0) start_line = 0;
     if (start_line > total_lines) start_line = total_lines;
@@ -106,11 +106,31 @@ void terminal_instance_render(terminal_instance_t* term, int x, int y) {
     int line_y = y;
     int lines_drawn = 0;
     
-    for (int i = start_line; i < total_lines && lines_drawn < VISIBLE_LINES; i++) {
+    for (int i = start_line; i < total_lines && lines_drawn < (VISIBLE_LINES - 1); i++) {
         const char* line = term->lines[i % MAX_LINES];
         draw_string(x, line_y, 0xCCCCCC, line);
-        line_y += 12;  // Line height
+        line_y += 12;
         lines_drawn++;
+    }
+    
+    // Draw Active POSIX GNU Bash Prompt & Live Typing Input Buffer
+    extern char terminal_buffer[];
+    const char* cwd = term->cwd[0] ? term->cwd : "/";
+    char prompt_str[128];
+    sprintf(prompt_str, "root@falkon-os:%s$ ", cwd);
+    draw_string(x, line_y, 0x4ADE80, "root@falkon-os"); // Green user@host
+    draw_string(x + 14 * 8, line_y, 0xFFFFFF, ":");
+    draw_string(x + 15 * 8, line_y, 0x38BDF8, cwd); // Blue cwd
+    draw_string(x + (15 + strlen(cwd)) * 8, line_y, 0xFFFFFF, "$ ");
+    
+    int prompt_width = strlen(prompt_str) * 8;
+    draw_string(x + prompt_width, line_y, 0xFFFFFF, terminal_buffer); // Live input text
+    
+    // Blinking Green Cursor
+    extern volatile uint32_t timer_ticks;
+    if ((timer_ticks / 30) % 2 == 0) {
+        int cursor_x = x + prompt_width + (strlen(terminal_buffer) * 8);
+        draw_rect(cursor_x, line_y + 9, 8, 2, 0x4ADE80);
     }
 }
 

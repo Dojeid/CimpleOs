@@ -1,5 +1,6 @@
 #include "kernel/idt.h"
 #include "lib/io.h"
+#include "lib/printf.h"
 #include "gui/terminal.h"
 #include "lib/string.h"
 #include "gui/window_manager.h"
@@ -9,14 +10,25 @@ char terminal_buffer[256];
 int term_idx = 0;
 int backspace_pressed = 0;
 volatile int irq_count = 0;
+static int shift_pressed = 0;
 
-char kbd_US[128] = {
+static const char kbd_US[128] = {
     0,  27, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
   '\t', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
     0, 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`',
     0, '\\', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',   0,
   '*',    0,  ' ',    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0, '-',    0,    0,
+    0, '+',   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0
+};
+
+static const char kbd_US_shift[128] = {
+    0,  27, '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '\b',
+  '\t', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', '\n',
+    0, 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~',
+    0, '|', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?',   0,
+  '*',    0,  ' ',    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, '_',    0,    0,
     0, '+',   0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0
 };
 
@@ -29,8 +41,20 @@ void keyboard_handler() {
     static int extended = 0;
     uint8_t scancode = inb(0x60);
 
+    // Track Shift press / release
+    if (scancode == 0x2A || scancode == 0x36) {
+        shift_pressed = 1;
+        outb(0x20, 0x20);
+        return;
+    }
+    if (scancode == 0xAA || scancode == 0xB6) {
+        shift_pressed = 0;
+        outb(0x20, 0x20);
+        return;
+    }
+
     if (scancode >= 128) {
-        extended = 0;  // Break codes (incl. E0-prefixed) end any extended sequence
+        extended = 0;  // Break code
         outb(0x20, 0x20);
         return;
     }
@@ -75,7 +99,7 @@ void keyboard_handler() {
             }
         }
         
-        char c = kbd_US[scancode];
+        char c = shift_pressed ? kbd_US_shift[scancode] : kbd_US[scancode];
         
         if (c == '\b') {
             if (term_idx > 0) {
@@ -87,8 +111,6 @@ void keyboard_handler() {
         else if (c == '\n') {
             terminal_buffer[term_idx] = '\0';
             
-            // Route to focused terminal (only windows without a render callback
-            // are terminals; app windows store their own user_data).
             extern terminal_instance_t* active_terminal;
             window_manager_t* wm = wm_get_state();
             window_t* focused_win = wm_get_window(wm->focused_window_id);
@@ -96,18 +118,15 @@ void keyboard_handler() {
             if (focused_win && focused_win->render_content == NULL && focused_win->user_data) {
                 active_terminal = (terminal_instance_t*)focused_win->user_data;
                 
-                // Echo command
                 char cmd_line[300];
-                cmd_line[0] = '$';
-                cmd_line[1] = ' ';
-                for (int i = 0; i < term_idx && i < 297; i++) {
-                    cmd_line[i + 2] = terminal_buffer[i];
-                }
-                cmd_line[term_idx + 2] = '\0';
+                const char* cwd = active_terminal->cwd[0] ? active_terminal->cwd : "/";
+                sprintf(cmd_line, "root@falkon-os:%s$ %s", cwd, terminal_buffer);
                 terminal_instance_print(active_terminal, cmd_line);
             }
             
             cmd_process(terminal_buffer);
+            term_idx = 0;
+            terminal_buffer[0] = '\0';
             active_terminal = NULL;
         }
         else if (c != 0) {

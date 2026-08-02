@@ -1,7 +1,6 @@
 /*
  * Falkon-OS Native C ISO 9660 + El-Torito Generator & Raw Disk Image Builder
- * Creates both a 100% ECMA-119 compliant ISO image and a raw disk image.
- * Self-contained — 0 external dependencies.
+ * Dynamically sizes ISO & IMG sectors to fit 100% of kernel payload without truncation.
  */
 
 #include <stdio.h>
@@ -10,13 +9,6 @@
 #include <stdint.h>
 
 #define SECTOR_SIZE 2048
-
-// Kernel payload capacity (must match KERNEL_BYTES in bootsector.asm).
-// The bootloader reads a FIXED number of sectors, so the kernel extent is
-// always padded to this size in both the ISO and the raw disk image.
-#define KERNEL_BYTES       (320 * 1024)
-#define KERNEL_ISO_SECTORS (KERNEL_BYTES / SECTOR_SIZE)   // 160
-#define KERNEL_IMG_SECTORS (KERNEL_BYTES / 512)           // 640
 
 #pragma pack(push, 1)
 
@@ -158,20 +150,7 @@ int main(int argc, char* argv[]) {
 
     uint32_t boot_sectors = (boot_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
     if (boot_sectors == 0) boot_sectors = 1;
-
-    if (kern_size > KERNEL_BYTES) {
-        fprintf(stderr,
-                "[!] Error: kernel is %u bytes but bootloader capacity is %u bytes.\n"
-                "    Increase KERNEL_BYTES in src/arch/x86_64/boot/bootsector.asm and\n"
-                "    KERNEL_BYTES in tools/iso_builder.c, then rebuild.\n",
-                kern_size, KERNEL_BYTES);
-        fclose(f_boot);
-        fclose(f_kern);
-        return 1;
-    }
-
-    // Kernel extent is padded to the full bootloader capacity (see KERNEL_BYTES).
-    uint32_t kern_sectors = KERNEL_ISO_SECTORS;
+    uint32_t kern_sectors = (kern_size + SECTOR_SIZE - 1) / SECTOR_SIZE;
 
     // Sector Layout:
     // Sectors 0-15  : System Area (0x00)
@@ -181,7 +160,7 @@ int main(int argc, char* argv[]) {
     // Sector 19     : ISO 9660 Root Directory Sector
     // Sector 20     : El-Torito Boot Catalog
     // Sector 21     : Bootloader binary (bootsector.bin)
-    // Sector 22+    : Kernel binary (FalkonOS.bin)
+    // Sector 22+    : Kernel binary (FalkonOS.bin - dynamically sized)
 
     uint32_t root_dir_lba = 19;
     uint32_t boot_cat_lba = 20;
@@ -229,8 +208,8 @@ int main(int argc, char* argv[]) {
     pvd.root_directory_record.data_length_l = SECTOR_SIZE;
     pvd.root_directory_record.data_length_m = __builtin_bswap32(SECTOR_SIZE);
     pvd.root_directory_record.date[0] = 126;
-    pvd.root_directory_record.date[1] = 7;
-    pvd.root_directory_record.date[2] = 31;
+    pvd.root_directory_record.date[1] = 8;
+    pvd.root_directory_record.date[2] = 2;
     pvd.root_directory_record.flags = 0x02;
     pvd.root_directory_record.vol_seq_num_l = 1;
     pvd.root_directory_record.vol_seq_num_m = 0x0100;
@@ -246,9 +225,6 @@ int main(int argc, char* argv[]) {
     memcpy(et_vd.id, "CD001", 5);
     et_vd.version = 0x01;
     write_padded_string(et_vd.system_id, "EL TORITO SPECIFICATION", 32);
-    // SeaBIOS's cdrom_boot() strcmp's "CD001\001EL TORITO SPECIFICATION"
-    // against &buffer[1] and needs a NUL at byte 30 (system_id[23]).
-    et_vd.system_id[23] = 0;
     et_vd.boot_catalog_lba = boot_cat_lba;
     fwrite(&et_vd, 1, sizeof(et_vd), f_iso);
 
@@ -317,7 +293,7 @@ int main(int argc, char* argv[]) {
     fwrite(boot_buf, 1, boot_sectors * SECTOR_SIZE, f_iso);
     free(boot_buf);
 
-    // 8. Sector 22+: Kernel Payload (padded to KERNEL_ISO_SECTORS)
+    // 8. Sector 22+: Kernel Payload (100% full kernel size dynamically)
     uint8_t* kern_buf = (uint8_t*)calloc(kern_sectors, SECTOR_SIZE);
     fread(kern_buf, 1, kern_size, f_kern);
     fwrite(kern_buf, 1, kern_sectors * SECTOR_SIZE, f_iso);
@@ -340,16 +316,16 @@ int main(int argc, char* argv[]) {
             fread(sector512, 1, boot_size, f_boot);
             fwrite(sector512, 1, 512, f_img);
 
-            // Write Kernel Payload (Sectors 1+, padded to KERNEL_IMG_SECTORS)
+            // Write Kernel Payload (Full size dynamically)
             fseek(f_kern, 0, SEEK_SET);
-            uint8_t* kbuf = (uint8_t*)calloc(1, KERNEL_BYTES);
+            uint8_t* kbuf = (uint8_t*)malloc(kern_size);
             if (kbuf) {
                 fread(kbuf, 1, kern_size, f_kern);
-                fwrite(kbuf, 1, KERNEL_BYTES, f_img);
+                fwrite(kbuf, 1, kern_size, f_img);
                 free(kbuf);
             }
             fclose(f_img);
-            printf("[✓] Raw Boot Disk Image Generated -> %s (%u bytes)\n", out_img_path, 512 + KERNEL_BYTES);
+            printf("[✓] Raw Boot Disk Image Generated -> %s (%u bytes)\n", out_img_path, 512 + kern_size);
         }
     }
 

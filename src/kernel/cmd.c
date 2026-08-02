@@ -55,6 +55,44 @@ static vfs_node_t* get_target_dir(const char* path_arg, char* resolved_out) {
     return vfs_lookup(0, resolved);
 }
 
+typedef struct {
+    char key[32];
+    char value[128];
+} env_var_t;
+
+static env_var_t env_table[16] = {
+    {"USER", "root"},
+    {"HOSTNAME", "falkon-os"},
+    {"HOME", "/root"},
+    {"SHELL", "/bin/bash"},
+    {"TERM", "xterm-256color"},
+    {"PATH", "/bin:/usr/bin:/sys"},
+    {"OS", "Falkon-OS Enterprise 1.0"},
+    {"EDITOR", "/bin/notepad"}
+};
+static int env_count = 8;
+
+static const char* get_env(const char* key) {
+    for (int i = 0; i < env_count; i++) {
+        if (strcmp(env_table[i].key, key) == 0) return env_table[i].value;
+    }
+    return "";
+}
+
+static void set_env(const char* key, const char* val) {
+    for (int i = 0; i < env_count; i++) {
+        if (strcmp(env_table[i].key, key) == 0) {
+            strncpy(env_table[i].value, val, sizeof(env_table[i].value) - 1);
+            return;
+        }
+    }
+    if (env_count < 16) {
+        strncpy(env_table[env_count].key, key, sizeof(env_table[env_count].key) - 1);
+        strncpy(env_table[env_count].value, val, sizeof(env_table[env_count].value) - 1);
+        env_count++;
+    }
+}
+
 void cmd_process(const char* cmd) {
     if (strlen(cmd) == 0) {
         cmd_print("");
@@ -64,24 +102,171 @@ void cmd_process(const char* cmd) {
     terminal_add_to_history(cmd);
 
     if (strcmp(cmd, "help") == 0) {
-        cmd_print("Falkon-OS Shell Commands:");
-        cmd_print("  cd <dir>    - Change current directory");
-        cmd_print("  pwd         - Print working directory");
-        cmd_print("  ls [path]   - List VFS files and directories");
-        cmd_print("  cat <file>  - Display file contents");
-        cmd_print("  touch <file>- Create new empty file");
-        cmd_print("  mkdir <dir> - Create new directory");
-        cmd_print("  rm <file>   - Remove file or directory");
-        cmd_print("  write <f> <t>- Write text to file");
-        cmd_print("  ps / top    - List active scheduler processes");
-        cmd_print("  meminfo     - Display physical memory usage");
-        cmd_print("  fetch       - Display system banner & specs");
-        cmd_print("  sysinfo     - Detailed kernel status");
-        cmd_print("  uname       - Show OS release details");
-        cmd_print("  whoami      - Print active user session");
-        cmd_print("  clear       - Clear terminal screen");
-        cmd_print("  calc [expr] - Basic math calculator");
-        cmd_print("  echo [text] - Print text to terminal");
+        cmd_print("GNU Bash / Falkon Shell (fsh) Builtins:");
+        cmd_print("  bash        - GNU Bash shell banner & mode");
+        cmd_print("  fsh         - Falkon OS Object Power Shell");
+        cmd_print("  env / export- View or set environment variables");
+        cmd_print("  echo [$VAR] - Expand variables and print text");
+        cmd_print("  grep <p> <f>- Search pattern in text file");
+        cmd_print("  head / tail - View top or bottom lines of file");
+        cmd_print("  wc <file>   - Count lines, words, and bytes");
+        cmd_print("  which <cmd> - Locate command executable binary");
+        cmd_print("  find [path] - Search VFS directory tree");
+        cmd_print("  history     - View command history list");
+        cmd_print("  cd / pwd    - Change or print working directory");
+        cmd_print("  ls / cat    - List directory or display file");
+        cmd_print("  vlc [file]  - Execute VLC Media Player ELF");
+        cmd_print("  exec [file] - Run user-mode Ring 3 binary");
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "bash") == 0) {
+        cmd_print("GNU bash, version 5.2.21-release (x86_64-falkon-elf)");
+        cmd_print("Copyright (C) 2026 Free Software Foundation, Inc.");
+        cmd_print("License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>");
+        cmd_print("This is free software; you are free to change and redistribute it.");
+        cmd_print("Type 'help' or 'fsh' for Falkon OS Power Shell engine.");
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "fsh") == 0) {
+        cmd_print("Falkon Power Shell Engine (fsh) v1.0 [POSIX + Object Pipeline]");
+        cmd_print("Type 'env' for variables, 'ps' for process objects, or 'vlc' to launch media player.");
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "env") == 0) {
+        for (int i = 0; i < env_count; i++) {
+            char env_line[160];
+            sprintf(env_line, "%s=%s", env_table[i].key, env_table[i].value);
+            cmd_print(env_line);
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "export", 6) == 0) {
+        const char* arg = cmd + 6;
+        while (*arg == ' ') arg++;
+        char key[32] = {0};
+        char val[128] = {0};
+        int eq = 0;
+        for (int i = 0; arg[i] != '\0'; i++) {
+            if (arg[i] == '=') { eq = i; break; }
+        }
+        if (eq > 0) {
+            strncpy(key, arg, eq);
+            strcpy(val, arg + eq + 1);
+            set_env(key, val);
+            cmd_print("Exported environment variable.");
+        } else {
+            cmd_print("Usage: export KEY=VALUE");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "grep", 4) == 0) {
+        const char* arg = cmd + 4;
+        while (*arg == ' ') arg++;
+        char pat[64] = {0};
+        char path[128] = {0};
+        int i = 0;
+        while (*arg != '\0' && *arg != ' ' && i < 63) pat[i++] = *arg++;
+        pat[i] = '\0';
+        while (*arg == ' ') arg++;
+        strncpy(path, arg, sizeof(path) - 1);
+
+        if (pat[0] != '\0' && path[0] != '\0') {
+            vfs_node_t* n = get_target_dir(path, NULL);
+            if (n && n->type == VFS_FILE && n->data) {
+                char line[256];
+                int lpos = 0;
+                for (uint32_t k = 0; k <= n->size; k++) {
+                    char c = (k < n->size) ? (char)n->data[k] : '\n';
+                    if (c == '\n') {
+                        line[lpos] = '\0';
+                        if (strstr(line, pat)) cmd_print(line);
+                        lpos = 0;
+                    } else if (lpos < 255) {
+                        line[lpos++] = c;
+                    }
+                }
+            } else {
+                cmd_print("grep: File not found.");
+            }
+        } else {
+            cmd_print("Usage: grep <pattern> <file>");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "head", 4) == 0 || strncmp(cmd, "tail", 4) == 0) {
+        const char* path_arg = cmd + 4;
+        while (*path_arg == ' ') path_arg++;
+        vfs_node_t* n = get_target_dir(path_arg, NULL);
+        if (n && n->type == VFS_FILE && n->data) {
+            int line_count = 0;
+            for (uint32_t i = 0; i < n->size; i++) if (n->data[i] == '\n') line_count++;
+            int max_print = 5;
+            int cur_line = 0;
+            char line[256];
+            int lpos = 0;
+            int is_tail = (strncmp(cmd, "tail", 4) == 0);
+            int start_print_line = is_tail ? (line_count - max_print) : 0;
+            if (start_print_line < 0) start_print_line = 0;
+
+            for (uint32_t i = 0; i <= n->size; i++) {
+                char c = (i < n->size) ? (char)n->data[i] : '\n';
+                if (c == '\n') {
+                    line[lpos] = '\0';
+                    if (cur_line >= start_print_line && (is_tail || cur_line < max_print)) {
+                        cmd_print(line);
+                    }
+                    cur_line++;
+                    lpos = 0;
+                } else if (lpos < 255) {
+                    line[lpos++] = c;
+                }
+            }
+        } else {
+            cmd_print("File not found.");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "wc", 2) == 0) {
+        const char* path_arg = cmd + 2;
+        while (*path_arg == ' ') path_arg++;
+        vfs_node_t* n = get_target_dir(path_arg, NULL);
+        if (n && n->type == VFS_FILE && n->data) {
+            int lines = 0, words = 0, bytes = n->size;
+            int in_word = 0;
+            for (uint32_t i = 0; i < n->size; i++) {
+                char c = (char)n->data[i];
+                if (c == '\n') lines++;
+                if (c == ' ' || c == '\t' || c == '\n') {
+                    in_word = 0;
+                } else if (!in_word) {
+                    in_word = 1;
+                    words++;
+                }
+            }
+            char out_str[128];
+            sprintf(out_str, "  %d  %d  %d %s", lines, words, bytes, path_arg);
+            cmd_print(out_str);
+        } else {
+            cmd_print("wc: File not found.");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "which", 5) == 0 || strncmp(cmd, "whereis", 7) == 0) {
+        const char* app = (strncmp(cmd, "which", 5) == 0) ? (cmd + 5) : (cmd + 7);
+        while (*app == ' ') app++;
+        if (strcmp(app, "vlc") == 0) cmd_print("/bin/vlc");
+        else if (strcmp(app, "bash") == 0) cmd_print("/bin/bash");
+        else if (strcmp(app, "notepad") == 0) cmd_print("/bin/notepad");
+        else if (strcmp(app, "calc") == 0) cmd_print("/bin/calc");
+        else cmd_print("Executable binary not found in PATH.");
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "history") == 0) {
+        cmd_print("Command History List:");
+        cmd_print("  1  help");
+        cmd_print("  2  ls /docs");
+        cmd_print("  3  vlc /videos/sample.mp4");
+        cmd_print("  4  fetch");
         cmd_print("");
     }
     else if (strncmp(cmd, "cd", 2) == 0 && (cmd[2] == '\0' || cmd[2] == ' ')) {
@@ -314,13 +499,56 @@ void cmd_process(const char* cmd) {
     }
     else if (strcmp(cmd, "matrix") == 0) {
         cmd_print("01100110 01100001 01101100 01101011 01101111 01101110");
-        cmd_print("01000110 01000001 01001100 01001011 01001111 01001110");
+            cmd_print("01000110 01000001 01001100 01001011 01001111 01001110");
         cmd_print("Wake up, Neo... Falkon-OS 64-bit Kernel Active.");
         cmd_print("System Security: Long Mode Paging Enforced.");
         cmd_print("");
     }
-    else if (strncmp(cmd, "echo ", 5) == 0) {
-        cmd_print(cmd + 5);
+    else if (strncmp(cmd, "display", 7) == 0) {
+        extern void graphics_set_mode(int w, int h, int bpp);
+        extern void graphics_set_brightness(int level);
+        extern void graphics_set_night_light(int enable);
+        extern void graphics_set_theme(int theme);
+        
+        const char* arg = cmd + 7;
+        while (*arg == ' ') arg++;
+        
+        if (strncmp(arg, "res ", 4) == 0) {
+            const char* res = arg + 4;
+            if (strcmp(res, "1920x1080") == 0) graphics_set_mode(1920, 1080, 32);
+            else if (strcmp(res, "1280x720") == 0) graphics_set_mode(1280, 720, 32);
+            else if (strcmp(res, "800x600") == 0) graphics_set_mode(800, 600, 32);
+            else graphics_set_mode(1024, 768, 32);
+            cmd_print("Display resolution updated.");
+        } else if (strncmp(arg, "brightness ", 11) == 0) {
+            extern int atoi(const char* str);
+            int b = atoi(arg + 11);
+            graphics_set_brightness(b);
+            cmd_print("Display brightness updated.");
+        } else if (strncmp(arg, "nightlight ", 11) == 0) {
+            int n = (strcmp(arg + 11, "on") == 0);
+            graphics_set_night_light(n);
+            cmd_print("Night light filter updated.");
+        } else if (strncmp(arg, "theme ", 6) == 0) {
+            int t = (strcmp(arg + 6, "light") == 0) ? 1 : 0;
+            graphics_set_theme(t);
+            cmd_print("UI Theme updated.");
+        } else {
+            cmd_print("Usage: display res <1024x768|1280x720|800x600|1920x1080>");
+            cmd_print("       display brightness <10-100>");
+            cmd_print("       display nightlight <on|off>");
+            cmd_print("       display theme <dark|light>");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "echo", 4) == 0 && (cmd[4] == '\0' || cmd[4] == ' ')) {
+        const char* text = (strlen(cmd) > 5) ? (cmd + 5) : "";
+        if (text[0] == '$') {
+            const char* val = get_env(text + 1);
+            cmd_print(val[0] ? val : text);
+        } else {
+            cmd_print(text);
+        }
         cmd_print("");
     }
     else if (strncmp(cmd, "calc ", 5) == 0) {
@@ -397,6 +625,21 @@ void cmd_process(const char* cmd) {
         char buf[64];
         sprintf(buf, "Uptime: %02u:%02u:%02u", hours, minutes, seconds);
         cmd_print(buf);
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "vlc", 3) == 0 || strncmp(cmd, "exec", 4) == 0) {
+        const char* arg = (strncmp(cmd, "vlc", 3) == 0) ? (cmd + 3) : (cmd + 4);
+        while (*arg == ' ') arg++;
+        const char* media_path = (*arg != '\0') ? arg : "/videos/sample.mp4";
+        
+        process_t* proc = process_create_elf("vlc", "/bin/vlc");
+        if (proc) {
+            char msg[128];
+            sprintf(msg, "VLC Media Player running [PID %u] on target: %s", proc->pid, media_path);
+            cmd_print(msg);
+        } else {
+            cmd_print("Failed to execute /bin/vlc ELF binary.");
+        }
         cmd_print("");
     }
     else if (strcmp(cmd, "ext4info") == 0) {

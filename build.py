@@ -399,14 +399,17 @@ def create_history_entry(target_iso, kern_bin):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def print_stats_summary(kern_bin, target_iso, t_tot):
-    k_size = kern_bin.stat().st_size if kern_bin.exists() else 0
+    flat_bin = BUILD_DIR / "FalkonOS_flat.bin"
+    raw_size = flat_bin.stat().st_size if flat_bin.exists() else (kern_bin.stat().st_size if kern_bin.exists() else 0)
+    elf_size = kern_bin.stat().st_size if kern_bin.exists() else 0
     i_size = target_iso.stat().st_size if target_iso.exists() else 0
     c_files = len(glob.glob(str(SRC_DIR / "**" / "*.c"), recursive=True))
 
     print(f"\n{Color.GREEN}{Color.BOLD}=== Falkon-OS Build Statistics ==={Color.RESET}")
     print(f"  Source Files Compiled : {c_files}")
-    print(f"  Kernel Binary Size    : {k_size / 1024:.1f} KB")
-    print(f"  ISO Image Size        : {i_size / (1024*1024):.2f} MB")
+    print(f"  Kernel Payload (Raw)  : {raw_size / 1024:.1f} KB")
+    print(f"  Kernel ELF (Debug)    : {elf_size / 1024:.1f} KB")
+    print(f"  Output ISO Image Size : {i_size / (1024*1024):.2f} MB ({i_size / 1024:.1f} KB)")
     print(f"  Build Duration        : {t_tot:.2f} seconds")
     print(f"{Color.GREEN}=================================={Color.RESET}\n")
 

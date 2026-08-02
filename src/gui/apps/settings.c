@@ -10,9 +10,10 @@
 
 static int active_tab = 1; // 1=Display, 2=Personalize, 3=Input, 4=Storage/EXT4
 static int active_theme = 1;
-static int active_res = 1;  // 1=1024x768, 2=1280x720, 3=800x600
+static int active_res = 1;  // 1=1024x768, 2=1280x720, 3=800x600, 4=1920x1080
 static int active_fps = 2;  // 1=30, 2=60, 3=Uncapped
 static int brightness_level = 100; // 100%, 75%, 50%
+static int night_light_on = 0;
 
 static void settings_redraw(window_t* win) {
     if (!win) return;
@@ -47,40 +48,39 @@ static void settings_redraw(window_t* win) {
     if (active_tab == 1) {
         // Tab 1: Display & Resolution
         draw_string(x, content_y, 0xF1F5F9, "Screen Resolution & Acceleration:");
-        draw_rect(x + 10, content_y + 18, 120, 24, (active_res == 1) ? 0x38BDF8 : 0x1E293B);
-        draw_string(x + 16, content_y + 23, (active_res == 1) ? 0x000000 : 0xFFFFFF, "1024 x 768");
+        draw_rect(x + 10, content_y + 18, 100, 24, (active_res == 1) ? 0x38BDF8 : 0x1E293B);
+        draw_string(x + 14, content_y + 23, (active_res == 1) ? 0x000000 : 0xFFFFFF, "1024x768");
 
-        draw_rect(x + 135, content_y + 18, 120, 24, (active_res == 2) ? 0x38BDF8 : 0x1E293B);
-        draw_string(x + 141, content_y + 23, (active_res == 2) ? 0x000000 : 0xFFFFFF, "1280 x 720");
+        draw_rect(x + 115, content_y + 18, 100, 24, (active_res == 2) ? 0x38BDF8 : 0x1E293B);
+        draw_string(x + 119, content_y + 23, (active_res == 2) ? 0x000000 : 0xFFFFFF, "1280x720");
 
-        draw_rect(x + 260, content_y + 18, 120, 24, (active_res == 3) ? 0x38BDF8 : 0x1E293B);
-        draw_string(x + 266, content_y + 23, (active_res == 3) ? 0x000000 : 0xFFFFFF, "800 x 600");
+        draw_rect(x + 220, content_y + 18, 100, 24, (active_res == 3) ? 0x38BDF8 : 0x1E293B);
+        draw_string(x + 224, content_y + 23, (active_res == 3) ? 0x000000 : 0xFFFFFF, "800x600");
 
-        draw_string(x, content_y + 54, 0xF1F5F9, "Frame Rate Pacing Target:");
-        draw_rect(x + 10, content_y + 72, 100, 24, (active_fps == 1) ? 0x10B981 : 0x1E293B);
-        draw_string(x + 20, content_y + 77, (active_fps == 1) ? 0x000000 : 0xFFFFFF, "30 FPS");
+        draw_rect(x + 325, content_y + 18, 100, 24, (active_res == 4) ? 0x38BDF8 : 0x1E293B);
+        draw_string(x + 329, content_y + 23, (active_res == 4) ? 0x000000 : 0xFFFFFF, "1920x1080");
 
-        draw_rect(x + 115, content_y + 72, 100, 24, (active_fps == 2) ? 0x10B981 : 0x1E293B);
-        draw_string(x + 125, content_y + 77, (active_fps == 2) ? 0x000000 : 0xFFFFFF, "60 FPS");
+        draw_string(x, content_y + 54, 0xF1F5F9, "Night Light (Blue Light Filter):");
+        draw_rect(x + 10, content_y + 72, 90, 24, night_light_on ? 0xF59E0B : 0x1E293B);
+        draw_string(x + 20, content_y + 77, night_light_on ? 0x000000 : 0xFFFFFF, night_light_on ? "ON [Warm]" : "OFF");
 
-        draw_rect(x + 220, content_y + 72, 120, 24, (active_fps == 3) ? 0x10B981 : 0x1E293B);
-        draw_string(x + 230, content_y + 77, (active_fps == 3) ? 0x000000 : 0xFFFFFF, "Max Uncapped");
+        draw_string(x + 130, content_y + 54, 0xF1F5F9, "Screen Brightness Level:");
+        draw_rect(x + 130, content_y + 72, 80, 24, (brightness_level == 100) ? 0x10B981 : 0x1E293B);
+        draw_string(x + 138, content_y + 77, (brightness_level == 100) ? 0x000000 : 0xFFFFFF, "100% Max");
 
-        draw_string(x, content_y + 108, 0xF1F5F9, "Screen Brightness Level:");
-        draw_rect(x + 10, content_y + 126, 90, 24, (brightness_level == 100) ? 0xF59E0B : 0x1E293B);
-        draw_string(x + 18, content_y + 131, (brightness_level == 100) ? 0x000000 : 0xFFFFFF, "100% Full");
+        draw_rect(x + 215, content_y + 72, 80, 24, (brightness_level == 75) ? 0x10B981 : 0x1E293B);
+        draw_string(x + 223, content_y + 77, (brightness_level == 75) ? 0x000000 : 0xFFFFFF, "75% Soft");
 
-        draw_rect(x + 105, content_y + 126, 90, 24, (brightness_level == 75) ? 0xF59E0B : 0x1E293B);
-        draw_string(x + 113, content_y + 131, (brightness_level == 75) ? 0x000000 : 0xFFFFFF, "75% Soft");
+        draw_rect(x + 300, content_y + 72, 80, 24, (brightness_level == 50) ? 0x10B981 : 0x1E293B);
+        draw_string(x + 308, content_y + 77, (brightness_level == 50) ? 0x000000 : 0xFFFFFF, "50% Dim");
 
-        draw_rect(x + 200, content_y + 126, 90, 24, (brightness_level == 50) ? 0xF59E0B : 0x1E293B);
-        draw_string(x + 208, content_y + 131, (brightness_level == 50) ? 0x000000 : 0xFFFFFF, "50% Dim");
-
-        draw_string(x + 10, content_y + 160, 0x4ADE80, "VBE Driver: Bochs BGA / PCI LFB Active @ 0xFD000000");
+        draw_string(x, content_y + 110, 0xF1F5F9, "Alpha Blending & Compositing Engine:");
+        draw_string(x + 10, content_y + 128, 0x4ADE80, "[X] Hardware Double-Buffered VESA/BGA Framebuffer");
+        draw_string(x + 10, content_y + 144, 0x38BDF8, "[X] Real-Time Translucent Window Drop Shadows & Alpha Blur");
     }
     else if (active_tab == 2) {
         // Tab 2: Personalization & Themes
-        draw_string(x, content_y, 0xF1F5F9, "System Wallpaper & Color Schemes:");
+        draw_string(x, content_y, 0xF1F5F9, "System Theme & Color Schemes:");
 
         draw_rect(x + 10, content_y + 18, 95, 24, (active_theme == 1) ? 0x38BDF8 : 0x1E293B);
         draw_string(x + 16, content_y + 23, (active_theme == 1) ? 0x000000 : 0xFFFFFF, "1. Midnight");
@@ -94,11 +94,8 @@ static void settings_redraw(window_t* win) {
         draw_rect(x + 310, content_y + 18, 95, 24, (active_theme == 4) ? 0x38BDF8 : 0x1E293B);
         draw_string(x + 316, content_y + 23, (active_theme == 4) ? 0x000000 : 0xFFFFFF, "4. Purple");
 
-        draw_rect(x + 10, content_y + 48, 95, 24, (active_theme == 5) ? 0x38BDF8 : 0x1E293B);
-        draw_string(x + 16, content_y + 53, (active_theme == 5) ? 0x000000 : 0xFFFFFF, "5. Synth");
-
         draw_string(x, content_y + 86, 0xF1F5F9, "Desktop Effects & Window Decorations:");
-        draw_string(x + 10, content_y + 106, 0x4ADE80, "[X] Modern macOS/Linux Circular Dot Controls (Red/Yellow/Green)");
+        draw_string(x + 10, content_y + 106, 0x4ADE80, "[X] Modern macOS/Linux Circular Control Dots (Red/Yellow/Green)");
         draw_string(x + 10, content_y + 122, 0x4ADE80, "[X] Active Window Cyan Glow Highlight Border (0x38BDF8)");
         draw_string(x + 10, content_y + 138, 0x4ADE80, "[X] Translucent Taskbar & Falkon Menu Badges");
     }

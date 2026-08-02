@@ -16,14 +16,16 @@ char* strcpy(char* dest, const char* src);
 char* strncpy(char* dest, const char* src, size_t n);
 char* strcat(char* dest, const char* src);
 
-// Integer to ASCII
+// Integer to ASCII & ASCII to Integer
 void itoa(int value, char* str, int base);
+int  atoi(const char* str);
 
 // Memory operations
 void* memset(void* dest, int val, size_t count);
 void* memcpy(void* dest, const void* src, size_t n);
 char* strchr(const char* s, int c);
 char* strrchr(const char* s, int c);
+char* strstr(const char* haystack, const char* needle);
 char* strtok(char* str, const char* delim);
 
 #endif
