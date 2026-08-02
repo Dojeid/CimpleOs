@@ -11,6 +11,14 @@
 #define VMMDEVREQ_SET_MOUSE_STATUS 101
 #define VMMDEVREQ_GET_MOUSE_STATUS 102
 
+// VirtualBox VMMDev Mouse Feature Flags:
+// (1 << 0) = VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE
+// (1 << 1) = VMMDEV_MOUSE_GUEST_IS_VISIBLE (Enables Seamless Auto-Release!)
+// (1 << 4) = VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR
+#define VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE     (1 << 0)
+#define VMMDEV_MOUSE_GUEST_IS_VISIBLE        (1 << 1)
+#define VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR (1 << 4)
+
 typedef struct __attribute__((packed)) {
     uint32_t size;
     uint32_t version;
@@ -44,12 +52,14 @@ int vbox_mouse_init(void) {
         vbox_io_port = 0x5040; // Default VirtualBox VMMDev port fallback
     }
 
-    // Enable Guest Absolute Pointer Feature (0x01 | 0x02 | 0x04)
+    // Enable Seamless Guest Absolute Pointer & Host Auto-Release
     memset((void*)&mouse_req, 0, sizeof(mouse_req));
     mouse_req.header.size = sizeof(mouse_req);
     mouse_req.header.version = 0x00010001; // VMMDEV_REQUEST_HEADER_VERSION
     mouse_req.header.request_type = VMMDEVREQ_SET_MOUSE_STATUS;
-    mouse_req.features = (1 << 0) | (1 << 4); // VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR
+    mouse_req.features = VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE | 
+                         VMMDEV_MOUSE_GUEST_IS_VISIBLE | 
+                         VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR;
 
     // Send request to VirtualBox VMMDev port
     asm volatile("": : :"memory"); // memory barrier
@@ -57,7 +67,7 @@ int vbox_mouse_init(void) {
     asm volatile("": : :"memory");
 
     vbox_active = 1;
-    vga_print("[VBox] VirtualBox Guest Integration Active! Mouse Integration UNGREYED.\n");
+    vga_print("[VBox] VirtualBox Guest Integration Active! Seamless Mouse Release ENABLED.\n");
     return 1;
 }
 
@@ -75,7 +85,7 @@ int vbox_mouse_poll(int* out_x, int* out_y, uint8_t* out_buttons) {
     outl(vbox_io_port, (uint32_t)(uintptr_t)&mouse_req);
     asm volatile("": : :"memory"); // Ensure struct is re-read from memory after outl
 
-    // VirtualBox might return 65535 when mouse goes offscreen. Limit it to screen bounds to avoid glitches
+    // Translate VirtualBox absolute coordinates (0 .. 65535)
     if (mouse_req.x >= 0 && mouse_req.y >= 0 && mouse_req.x <= 65535 && mouse_req.y <= 65535) {
         extern int screen_w, screen_h;
         int px = (mouse_req.x * screen_w) / 65535;
