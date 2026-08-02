@@ -14,8 +14,15 @@ typedef struct {
     int link_up;
 } e1000_device_t;
 
+typedef struct __attribute__((packed)) {
+    uint8_t dest_mac[6];
+    uint8_t src_mac[6];
+    uint16_t ethertype;
+} eth_header_t;
+
 int e1000_init(void);
 int e1000_send_packet(const uint8_t* packet, uint16_t length);
+int e1000_send_ethernet_frame(const uint8_t* dest_mac, uint16_t ethertype, const uint8_t* payload, uint16_t payload_len);
 int e1000_receive_packet(uint8_t* buffer, uint16_t max_length);
 e1000_device_t* e1000_get_device(void);
 

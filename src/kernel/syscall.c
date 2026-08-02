@@ -117,6 +117,20 @@ int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t
                 extern dentry_t* vfs_mkdir(dentry_t* parent, const char* name);
                 return vfs_mkdir(vfs_get_root(), (const char*)arg1) ? 0 : -1;
             }
+        case SYS_SOCKET:
+            // sys_socket(domain=arg1, type=arg2, protocol=arg3) -> returns virtual socket fd 3
+            return 3;
+        case SYS_BIND:
+        case SYS_CONNECT:
+            return 0;
+        case SYS_SENDTO:
+            // sys_sendto(sockfd=arg1, buf=arg2, len=arg3)
+            {
+                extern int e1000_send_packet(const uint8_t* packet, uint16_t length);
+                return e1000_send_packet((const uint8_t*)arg2, (uint16_t)arg3);
+            }
+        case SYS_RECVFROM:
+            return 0;
         default:
             return -1;
     }

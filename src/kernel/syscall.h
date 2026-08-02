@@ -23,6 +23,11 @@
 #define SYS_CHDIR   17
 #define SYS_UNLINK  18
 #define SYS_MKDIR   19
+#define SYS_SOCKET  20
+#define SYS_BIND    21
+#define SYS_CONNECT 22
+#define SYS_SENDTO  23
+#define SYS_RECVFROM 24
 
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);

@@ -102,6 +102,40 @@ void cmd_process(const char* cmd) {
 
     terminal_add_to_history(cmd);
 
+    // POSIX Pipe Handling (e.g. "cat /docs/welcome.txt | grep Falkon")
+    const char* pipe_ptr = strstr(cmd, "|");
+    if (pipe_ptr) {
+        char left_cmd[128] = {0};
+        char right_cmd[128] = {0};
+        size_t left_len = (size_t)(pipe_ptr - cmd);
+        if (left_len >= sizeof(left_cmd)) left_len = sizeof(left_cmd) - 1;
+        strncpy(left_cmd, cmd, left_len);
+        left_cmd[left_len] = '\0';
+
+        const char* right_ptr = pipe_ptr + 1;
+        while (*right_ptr == ' ') right_ptr++;
+        strncpy(right_cmd, right_ptr, sizeof(right_cmd) - 1);
+
+        char combined[256];
+        sprintf(combined, "%s > /tmp/pipe.tmp", left_cmd);
+        cmd_process(combined);
+
+        if (strncmp(right_cmd, "grep ", 5) == 0) {
+            sprintf(combined, "%s /tmp/pipe.tmp", right_cmd);
+            cmd_process(combined);
+        } else if (strcmp(right_cmd, "wc") == 0 || strncmp(right_cmd, "wc ", 3) == 0) {
+            sprintf(combined, "wc /tmp/pipe.tmp");
+            cmd_process(combined);
+        } else if (strcmp(right_cmd, "head") == 0 || strncmp(right_cmd, "head ", 5) == 0) {
+            sprintf(combined, "head /tmp/pipe.tmp");
+            cmd_process(combined);
+        } else {
+            sprintf(combined, "cat /tmp/pipe.tmp");
+            cmd_process(combined);
+        }
+        return;
+    }
+
     // File Redirection Handling (e.g. "echo Hello World > /docs/out.txt")
     const char* redir = strstr(cmd, ">");
     if (redir) {
@@ -134,6 +168,11 @@ void cmd_process(const char* cmd) {
 
     if (strcmp(cmd, "help") == 0) {
         cmd_print("GNU Bash / Falkon Shell (fsh) Builtins:");
+        cmd_print("  uname [-a]  - Print system architecture info");
+        cmd_print("  uptime      - Show system uptime & tick timer");
+        cmd_print("  free [-m]   - Display memory statistics");
+        cmd_print("  df [-h]     - Display filesystem disk space");
+        cmd_print("  kill <pid>  - Send termination signal to process");
         cmd_print("  bash        - GNU Bash shell banner & mode");
         cmd_print("  fsh         - Falkon OS Object Power Shell");
         cmd_print("  env / export- View or set environment variables");
@@ -146,8 +185,55 @@ void cmd_process(const char* cmd) {
         cmd_print("  history     - View command history list");
         cmd_print("  cd / pwd    - Change or print working directory");
         cmd_print("  ls / cat    - List directory or display file");
-        cmd_print("  vlc [file]  - Execute VLC Media Player ELF");
-        cmd_print("  exec [file] - Run user-mode Ring 3 binary");
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "uname", 5) == 0) {
+        cmd_print("Falkon 6.8.0-falkon #1 SMP PREEMPT 2026 x86_64 GNU/Linux");
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "uptime") == 0) {
+        extern volatile uint32_t timer_ticks;
+        uint32_t sec = timer_ticks / 100;
+        uint32_t min = sec / 60;
+        uint32_t hrs = min / 60;
+        char up_buf[128];
+        sprintf(up_buf, " uptime: %02u:%02u:%02u up %u sec, 1 user, load average: 0.05, 0.02, 0.00",
+                hrs % 24, min % 60, sec % 60, sec);
+        cmd_print(up_buf);
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "free", 4) == 0) {
+        uint64_t total = pmm_get_total_memory();
+        uint64_t free_mem = pmm_get_free_memory();
+        uint64_t used = (total > free_mem) ? (total - free_mem) : 0;
+        cmd_print("               total        used        free      shared  buff/cache   available");
+        char mem_buf[160];
+        sprintf(mem_buf, "Mem:        %8uMB   %8uMB   %8uMB         0MB         8MB   %8uMB",
+                (uint32_t)(total / (1024*1024)),
+                (uint32_t)(used / (1024*1024)),
+                (uint32_t)(free_mem / (1024*1024)),
+                (uint32_t)(free_mem / (1024*1024)));
+        cmd_print(mem_buf);
+        cmd_print("Swap:            0MB         0MB         0MB");
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "df", 2) == 0) {
+        cmd_print("Filesystem     Type      Size  Used Avail Use% Mounted on");
+        cmd_print("/dev/ram0      ramdisk   16M   4.2M   12M  26% /");
+        cmd_print("/dev/sda1      ext4     512M    48M  464M  10% /home");
+        cmd_print("/dev/sr0       iso9660  422K   422K     0 100% /media/iso");
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "kill ", 5) == 0) {
+        int pid = atoi(cmd + 5);
+        extern int process_kill(uint32_t pid);
+        if (pid > 0 && process_kill(pid) == 0) {
+            char kbuf[64];
+            sprintf(kbuf, "[POSIX] Process %d terminated (SIGKILL).", pid);
+            cmd_print(kbuf);
+        } else {
+            cmd_print("kill: process ID invalid or process 0.");
+        }
         cmd_print("");
     }
     else if (strcmp(cmd, "startx") == 0 || strcmp(cmd, "gui") == 0 || strcmp(cmd, "init 5") == 0) {

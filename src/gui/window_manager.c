@@ -406,6 +406,10 @@ void wm_render_window(window_t* win) {
 }
 
 void wm_render_all() {
+    extern int screen_w, screen_h, mouse_x, mouse_y;
+    gui_theme_t* theme = theme_get_current();
+    uint32_t snap_col = theme ? theme->accent_color : 0x38BDF8;
+
     // Render unfocused windows first
     for (int i = 0; i < MAX_WINDOWS; i++) {
         if (wm.windows[i].id == -1) continue;
@@ -418,6 +422,26 @@ void wm_render_all() {
         window_t* focused = wm_get_window(wm.focused_window_id);
         if (focused) {
             wm_render_window(focused);
+        }
+    }
+
+    // Render Snap Region Visual Overlay preview when actively dragging a window near screen boundary
+    for (int i = 0; i < MAX_WINDOWS; i++) {
+        if (wm.windows[i].id != -1 && (wm.windows[i].flags & WIN_FLAG_DRAGGING)) {
+            if (mouse_x <= 20) {
+                // Snap Left Overlay
+                draw_rounded_rect_alpha(4, 28, screen_w / 2 - 8, screen_h - 60, 10, snap_col, 50);
+                draw_rounded_rect_outline(4, 28, screen_w / 2 - 8, screen_h - 60, 10, 2, snap_col);
+            } else if (mouse_x >= screen_w - 20) {
+                // Snap Right Overlay
+                draw_rounded_rect_alpha(screen_w / 2 + 4, 28, screen_w / 2 - 8, screen_h - 60, 10, snap_col, 50);
+                draw_rounded_rect_outline(screen_w / 2 + 4, 28, screen_w / 2 - 8, screen_h - 60, 10, 2, snap_col);
+            } else if (mouse_y <= 28) {
+                // Snap Top / Maximize Overlay
+                draw_rounded_rect_alpha(4, 28, screen_w - 8, screen_h - 60, 10, snap_col, 50);
+                draw_rounded_rect_outline(4, 28, screen_w - 8, screen_h - 60, 10, 2, snap_col);
+            }
+            break;
         }
     }
 }

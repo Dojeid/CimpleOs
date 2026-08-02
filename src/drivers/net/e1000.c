@@ -40,6 +40,19 @@ int e1000_send_packet(const uint8_t* packet, uint16_t length) {
     return (int)length;
 }
 
+int e1000_send_ethernet_frame(const uint8_t* dest_mac, uint16_t ethertype, const uint8_t* payload, uint16_t payload_len) {
+    if (!e1000_active || !dest_mac || !payload || payload_len == 0) return 0;
+    uint8_t frame_buf[1514];
+    eth_header_t* eth = (eth_header_t*)frame_buf;
+    memcpy(eth->dest_mac, dest_mac, 6);
+    memcpy(eth->src_mac, e1000_dev.mac, 6);
+    eth->ethertype = ((ethertype & 0xFF) << 8) | ((ethertype >> 8) & 0xFF);
+    uint16_t frame_len = sizeof(eth_header_t) + payload_len;
+    if (frame_len > sizeof(frame_buf)) frame_len = sizeof(frame_buf);
+    memcpy(frame_buf + sizeof(eth_header_t), payload, frame_len - sizeof(eth_header_t));
+    return e1000_send_packet(frame_buf, frame_len);
+}
+
 int e1000_receive_packet(uint8_t* buffer, uint16_t max_length) {
     if (!e1000_active || !buffer || max_length == 0) return 0;
     return 0;

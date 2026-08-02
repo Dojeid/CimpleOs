@@ -54,5 +54,6 @@ uint64_t schedule(uint64_t current_rsp);
 int64_t process_fork_from_frame(cpu_registers_t* frame);
 int64_t process_waitpid_from_frame(int32_t pid, cpu_registers_t* frame, uint64_t* next_rsp);
 uint64_t process_exit_from_frame(int code, cpu_registers_t* frame);
+int process_kill(uint32_t pid);
 
 #endif // PROCESS_H

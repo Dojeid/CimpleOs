@@ -428,3 +428,16 @@ void process_list(char* buffer, uint32_t max_len) {
         }
     }
 }
+
+int process_kill(uint32_t pid) {
+    uint64_t flags = irq_save();
+    int slot = process_find_slot_by_pid(pid);
+    if (slot <= 0) {
+        irq_restore(flags);
+        return -1;
+    }
+    processes[slot].state = PROCESS_STATE_TERMINATED;
+    processes[slot].exit_code = -9;
+    irq_restore(flags);
+    return 0;
+}
