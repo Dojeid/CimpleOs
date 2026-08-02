@@ -32,10 +32,13 @@ typedef struct window {
     void (*on_minimize)(struct window* win);
     void (*on_maximize)(struct window* win);
     
-    // Internal
+    // Internal & Windows 11 Animations
     int drag_offset_x, drag_offset_y;
+    uint8_t alpha_anim;          // 0 to 255 fade animation
+    int anim_scale;              // 0 to 100 scale animation
+    uint32_t accent_glow_color;  // Dynamic accent glow
     
-    // FEATURE 1: User data for custom window state (e.g., terminal instance)
+    // User data for custom window state
     void* user_data;
 } window_t;
 

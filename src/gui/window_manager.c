@@ -87,6 +87,9 @@ window_t* wm_create_window(int x, int y, int width, int height, const char* titl
     win->title[63] = '\0';
     
     win->flags = WIN_FLAG_VISIBLE;
+    win->alpha_anim = 0;
+    win->anim_scale = 90;
+    win->accent_glow_color = 0x38BDF8;
     win->render_content = NULL;
     win->on_click = NULL;
     win->on_keydown = NULL;
@@ -314,38 +317,49 @@ void wm_render_window(window_t* win) {
         return;
     }
     
+    // Windows 11 Opening Micro-Animations (Fade-In & Smooth Scale)
+    if (win->alpha_anim < 255) {
+        if (win->alpha_anim + 35 >= 255) win->alpha_anim = 255;
+        else win->alpha_anim += 35;
+    }
+    if (win->anim_scale < 100) {
+        win->anim_scale += 5;
+    }
+
     int is_focused = (win->flags & WIN_FLAG_FOCUSED);
     gui_theme_t* theme = theme_get_current();
     
-    // Draw Window Drop Shadow
+    // 1. Windows 11 Soft 32-bit ARGB Window Drop Shadow
     draw_window_shadow(win->x, win->y, win->width, TITLEBAR_HEIGHT + win->height);
     
-    // Draw modern title bar based on active theme
+    // 2. Windows 11 Mica / Acrylic Translucent Titlebar Header
     uint32_t titlebar_color = is_focused ? theme->titlebar_active : theme->titlebar_inactive;
-    draw_rect(win->x, win->y, win->width, TITLEBAR_HEIGHT, titlebar_color);
+    draw_rect_alpha(win->x, win->y, win->width, TITLEBAR_HEIGHT, titlebar_color, is_focused ? 230 : 190);
+    draw_rect(win->x, win->y + TITLEBAR_HEIGHT - 1, win->width, 1, 0x334155);
+
+    // Title Icon Badge & Text
+    draw_rect(win->x + 8, win->y + 5, 12, 12, is_focused ? theme->accent_color : 0x64748B);
+    draw_string(win->x + 26, win->y + 7, is_focused ? 0xF1F5F9 : 0x94A3B8, win->title);
     
-    // Title text
-    draw_string(win->x + 10, win->y + 7, is_focused ? 0xF1F5F9 : 0x94A3B8, win->title);
-    
-    // Draw Windows 11 Style Window Control Buttons (Min, Max, Close)
+    // 3. Windows 11 Style Modern Control Buttons (Close, Max, Min)
     int btn_y = win->y + 4;
     
-    // Close button box (Vibrant Red 0xEF4444)
+    // Close button (Vibrant Red 0xEF4444)
     int close_btn_x = win->x + win->width - 24;
-    draw_rect(close_btn_x, btn_y, 20, 16, 0xEF4444);
-    draw_string(close_btn_x + 6, btn_y + 4, 0xFFFFFF, "x");
+    draw_rect_alpha(close_btn_x, btn_y, 20, 15, 0xEF4444, is_focused ? 240 : 160);
+    draw_string(close_btn_x + 6, btn_y + 3, 0xFFFFFF, "x");
     
-    // Maximize button box (Green 0x10B981)
+    // Maximize button (Green 0x10B981)
     int max_btn_x = win->x + win->width - 48;
-    draw_rect(max_btn_x, btn_y, 20, 16, 0x10B981);
-    draw_string(max_btn_x + 6, btn_y + 4, 0xFFFFFF, "+");
+    draw_rect_alpha(max_btn_x, btn_y, 20, 15, 0x10B981, is_focused ? 240 : 160);
+    draw_string(max_btn_x + 6, btn_y + 3, 0xFFFFFF, "+");
 
-    // Minimize button box (Yellow 0xF59E0B)
+    // Minimize button (Yellow 0xF59E0B)
     int min_btn_x = win->x + win->width - 72;
-    draw_rect(min_btn_x, btn_y, 20, 16, 0xF59E0B);
-    draw_string(min_btn_x + 6, btn_y + 4, 0xFFFFFF, "-");
+    draw_rect_alpha(min_btn_x, btn_y, 20, 15, 0xF59E0B, is_focused ? 240 : 160);
+    draw_string(min_btn_x + 6, btn_y + 3, 0xFFFFFF, "-");
     
-    // Draw window content area background
+    // 4. Window Content Area Container
     draw_rect(win->x, win->y + TITLEBAR_HEIGHT, win->width, win->height, COLOR_WINDOW_BG);
     
     // Call render content callback if set
@@ -353,15 +367,11 @@ void wm_render_window(window_t* win) {
         win->render_content(win);
     }
     
-    // Draw active window glow border based on theme
-    uint32_t border_color = is_focused ? theme->accent_color : 0x334155;
-    // Top
+    // 5. Active Window Glowing Accent Border (Windows 11 Cyan 0x38BDF8)
+    uint32_t border_color = is_focused ? (theme->accent_color ? theme->accent_color : 0x38BDF8) : 0x334155;
     draw_rect(win->x, win->y, win->width, 1, border_color);
-    // Bottom
     draw_rect(win->x, win->y + TITLEBAR_HEIGHT + win->height - 1, win->width, 1, border_color);
-    // Left
     draw_rect(win->x, win->y, 1, TITLEBAR_HEIGHT + win->height, border_color);
-    // Right
     draw_rect(win->x + win->width - 1, win->y, 1, TITLEBAR_HEIGHT + win->height, border_color);
 }
 
