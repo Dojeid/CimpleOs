@@ -24,8 +24,10 @@ typedef struct window {
     char title[64];
     uint32_t flags;
     
-    // Render callback
+    // Render & Event callbacks
     void (*render_content)(struct window* win);
+    void (*on_click)(struct window* win, int rel_x, int rel_y);
+    void (*on_keydown)(struct window* win, char c, uint8_t scancode);
     void (*on_close)(struct window* win);
     void (*on_minimize)(struct window* win);
     void (*on_maximize)(struct window* win);

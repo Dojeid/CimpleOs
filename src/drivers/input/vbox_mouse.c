@@ -29,7 +29,7 @@ typedef struct __attribute__((packed)) {
 
 static uint16_t vbox_io_port = 0;
 static int vbox_active = 0;
-static vbox_mouse_req_t mouse_req;
+static volatile vbox_mouse_req_t mouse_req;
 
 int vbox_mouse_init(void) {
     struct pci_device dev;
@@ -45,14 +45,16 @@ int vbox_mouse_init(void) {
     }
 
     // Enable Guest Absolute Pointer Feature (0x01 | 0x02 | 0x04)
-    memset(&mouse_req, 0, sizeof(mouse_req));
+    memset((void*)&mouse_req, 0, sizeof(mouse_req));
     mouse_req.header.size = sizeof(mouse_req);
     mouse_req.header.version = 0x00010001; // VMMDEV_REQUEST_HEADER_VERSION
     mouse_req.header.request_type = VMMDEVREQ_SET_MOUSE_STATUS;
     mouse_req.features = (1 << 0) | (1 << 4); // VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR
 
     // Send request to VirtualBox VMMDev port
+    asm volatile("": : :"memory"); // memory barrier
     outl(vbox_io_port, (uint32_t)(uintptr_t)&mouse_req);
+    asm volatile("": : :"memory");
 
     vbox_active = 1;
     vga_print("[VBox] VirtualBox Guest Integration Active! Mouse Integration UNGREYED.\n");
@@ -62,17 +64,28 @@ int vbox_mouse_init(void) {
 int vbox_mouse_poll(int* out_x, int* out_y, uint8_t* out_buttons) {
     if (!vbox_active || !out_x || !out_y) return 0;
 
-    memset(&mouse_req, 0, sizeof(mouse_req));
+    memset((void*)&mouse_req, 0, sizeof(mouse_req));
     mouse_req.header.size = sizeof(mouse_req);
     mouse_req.header.version = 0x00010001;
     mouse_req.header.request_type = VMMDEVREQ_GET_MOUSE_STATUS;
+    mouse_req.x = -1;
+    mouse_req.y = -1;
 
+    asm volatile("": : :"memory"); // Ensure struct is written before outl
     outl(vbox_io_port, (uint32_t)(uintptr_t)&mouse_req);
+    asm volatile("": : :"memory"); // Ensure struct is re-read from memory after outl
 
-    if (mouse_req.x >= 0 && mouse_req.y >= 0) {
+    // VirtualBox might return 65535 when mouse goes offscreen. Limit it to screen bounds to avoid glitches
+    if (mouse_req.x >= 0 && mouse_req.y >= 0 && mouse_req.x <= 65535 && mouse_req.y <= 65535) {
         extern int screen_w, screen_h;
-        *out_x = (mouse_req.x * screen_w) / 65535;
-        *out_y = (mouse_req.y * screen_h) / 65535;
+        int px = (mouse_req.x * screen_w) / 65535;
+        int py = (mouse_req.y * screen_h) / 65535;
+        
+        if (px >= screen_w) px = screen_w - 1;
+        if (py >= screen_h) py = screen_h - 1;
+        
+        *out_x = px;
+        *out_y = py;
         if (out_buttons) *out_buttons = 0; // Handled by IRQ12 button mask
         return 1;
     }

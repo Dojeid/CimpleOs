@@ -1,3 +1,5 @@
+// Falkon-OS Web OS & Documentation Interactive Engine
+
 // Section Switching
 function showSection(sectionId) {
     const sections = document.querySelectorAll('.doc-section');
@@ -35,7 +37,7 @@ function switchTab(event, tabId) {
     }
 }
 
-// Dark / Light Theme Toggle
+// Cyberpunk Theme Toggle
 function toggleTheme() {
     const body = document.body;
     const btn = document.getElementById('themeToggle');
@@ -43,12 +45,31 @@ function toggleTheme() {
     if (body.classList.contains('dark-theme')) {
         body.classList.remove('dark-theme');
         body.classList.add('light-theme');
-        btn.innerHTML = '🌙 Dark Mode';
+        btn.innerHTML = '🌙 Dark Cyber Mode';
+        showToast('System theme set to Light Cyber Matrix');
     } else {
         body.classList.remove('light-theme');
         body.classList.add('dark-theme');
-        btn.innerHTML = '☀️ Light Mode';
+        btn.innerHTML = '⚡ Cyber Neon Mode';
+        showToast('System theme set to Obsidian Neon Cyan');
     }
+}
+
+// Cyberpunk Notification Toast System
+function showToast(message) {
+    const existing = document.querySelector('.cyber-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.className = 'cyber-toast';
+    toast.innerHTML = `<span>⚡</span> <span>[SYSTEM]: ${message}</span>`;
+    document.body.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.5s ease';
+        setTimeout(() => toast.remove(), 500);
+    }, 3000);
 }
 
 // Live Search Filtering
@@ -57,7 +78,6 @@ function filterDocs() {
     const sections = document.querySelectorAll('.doc-section');
     
     if (!input.trim()) {
-        // Reset to first active section or hash
         const currentHash = window.location.hash.substring(1) || 'overview';
         showSection(currentHash);
         return;
@@ -79,4 +99,5 @@ window.addEventListener('DOMContentLoaded', () => {
     if (hash) {
         showSection(hash);
     }
+    showToast('Falkon-OS Cyberpunk Web Interface Initialized');
 });

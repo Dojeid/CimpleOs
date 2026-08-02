@@ -7,7 +7,7 @@
 int avformat_open_input(AVFormatContext** ps, const char* url, void* fmt, void* options) {
     if (!ps || !url) return -1;
     
-    vfs_node_t* node = vfs_lookup(0, url);
+    vfs_node_t* node = vfs_lookup(url);
     if (!node || node->type != VFS_FILE || !node->data) {
         printf("[FFmpeg/libavformat] Failed to open container URL: %s\n", url);
         return -1;

@@ -2,6 +2,7 @@
 #define SYSCALL_H
 
 #include <stdint.h>
+#include "kernel/process.h"
 
 #define SYS_READ    1
 #define SYS_WRITE   2
@@ -11,11 +12,15 @@
 #define SYS_GETPID  6
 #define SYS_YIELD   7
 #define SYS_EXIT    8
+#define SYS_CLOSE   9
 #define SYS_EXECVE  10
 #define SYS_FB_DRAW 11
 #define SYS_MMAP    12
+#define SYS_FORK    13
+#define SYS_WAITPID 14
 
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);
+uint64_t syscall_interrupt_handler(cpu_registers_t* frame);
 
 #endif // SYSCALL_H

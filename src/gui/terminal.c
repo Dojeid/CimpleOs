@@ -7,6 +7,10 @@
 // Global default instance for backwards compatibility
 static terminal_instance_t* default_instance = NULL;
 
+// Active terminal instance (externally declared in terminal.h)
+// This is set by the keyboard handler to route input to the focused terminal
+terminal_instance_t* active_terminal = NULL;
+
 // FEATURE 1: Create new terminal instance
 terminal_instance_t* terminal_create_instance() {
     terminal_instance_t* term = (terminal_instance_t*)malloc(sizeof(terminal_instance_t));
@@ -80,8 +84,6 @@ void terminal_instance_print(terminal_instance_t* term, const char* text) {
     // Auto-scroll to bottom when new text appears
     term->scroll_offset = 0;
 }
-
-// FEATURE 1: Clear specific terminal instance
 void terminal_instance_clear(terminal_instance_t* term) {
     if (!term) return;
     
@@ -150,8 +152,13 @@ void terminal_instance_scroll_up(terminal_instance_t* term) {
 void terminal_instance_scroll_down(terminal_instance_t* term) {
     if (!term) return;
     
+    // BUG FIX #9: Prevent scroll_offset from going negative
     if (term->scroll_offset > 0) {
         term->scroll_offset--;
+    }
+    // Ensure we never go negative due to overflow
+    if (term->scroll_offset < 0) {
+        term->scroll_offset = 0;
     }
 }
 

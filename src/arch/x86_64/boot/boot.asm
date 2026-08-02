@@ -16,6 +16,12 @@ align 4
 align 16
 bits 32
 global start
+global pml4_table
+global pdpt_table
+global pd_table_0
+global pd_table_1
+global pd_table_2
+global pd_table_3
 extern kmain
 
 start:

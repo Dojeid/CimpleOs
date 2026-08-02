@@ -6,11 +6,11 @@
 // Initialize heap
 void heap_init();
 
-// Allocate memory
+// Memory allocation
 void* malloc(size_t size);
-
-// Free memory
-void free(void* ptr);
+void* calloc(size_t num, size_t size);
+void* realloc(void* ptr, size_t size);
+void  free(void* ptr);
 
 #define kmalloc(sz) malloc(sz)
 #define kfree(ptr) free(ptr)

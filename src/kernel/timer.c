@@ -5,7 +5,6 @@ volatile uint32_t timer_ticks = 0;
 
 void timer_handler() {
     timer_ticks++;
-    outb(0x20, 0x20); // Send EOI
 }
 
 void timer_init(uint32_t frequency) {
@@ -25,6 +24,21 @@ uint32_t timer_get_ticks() {
 }
 
 void timer_wait(uint32_t ticks) {
+    // BUG FIX #7: Add overflow protection for timer_ticks
     uint32_t start = timer_ticks;
-    while (timer_ticks < start + ticks);
+    uint32_t target = start + ticks;
+    
+    // Handle overflow: if target wraps around, wait until we pass start or wrap
+    while (1) {
+        // Check if we've passed the target (considering overflow)
+        if (timer_ticks >= target) break;
+        
+        // If target wrapped (less than start), wait for overflow or pass
+        if (target < start) {
+            if (timer_ticks >= start || timer_ticks < target) break;
+        } else {
+            // Normal case - target is greater than start
+            if (timer_ticks >= target) break;
+        }
+    }
 }

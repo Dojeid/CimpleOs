@@ -7,6 +7,7 @@
 #include "fs/ext4.h"
 #include "mm/pmm.h"
 #include "lib/printf.h"
+#include "lib/string.h"
 
 static int active_tab = 1; // 1=Display, 2=Personalize, 3=Input, 4=Storage/EXT4
 static int active_theme = 1;
@@ -14,6 +15,7 @@ static int active_res = 1;  // 1=1024x768, 2=1280x720, 3=800x600, 4=1920x1080
 static int active_fps = 2;  // 1=30, 2=60, 3=Uncapped
 static int brightness_level = 100; // 100%, 75%, 50%
 static int night_light_on = 0;
+static char settings_msg[128] = "System settings active.";
 
 static void settings_redraw(window_t* win) {
     if (!win) return;
@@ -76,7 +78,7 @@ static void settings_redraw(window_t* win) {
 
         draw_string(x, content_y + 110, 0xF1F5F9, "Alpha Blending & Compositing Engine:");
         draw_string(x + 10, content_y + 128, 0x4ADE80, "[X] Hardware Double-Buffered VESA/BGA Framebuffer");
-        draw_string(x + 10, content_y + 144, 0x38BDF8, "[X] Real-Time Translucent Window Drop Shadows & Alpha Blur");
+        draw_string(x + 10, content_y + 144, 0x38BDF8, settings_msg);
     }
     else if (active_tab == 2) {
         // Tab 2: Personalization & Themes

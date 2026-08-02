@@ -20,6 +20,7 @@ set(CMAKE_C_FLAGS
     "-fno-pic -fno-pie -fno-stack-protector"
     "-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables"
     "-I${CMAKE_SOURCE_DIR}/src"
+    "-I${CMAKE_SOURCE_DIR}/src/include"
 )
 string(REPLACE ";" " " CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
@@ -49,7 +50,7 @@ else()
 endif()
 
 # Source Discovery
-include_directories(src)
+include_directories(src src/include)
 
 file(GLOB_RECURSE ASM_SOURCES "src/arch/x86_64/*.asm")
 list(FILTER ASM_SOURCES EXCLUDE REGEX ".*/bootsector\\.asm$")

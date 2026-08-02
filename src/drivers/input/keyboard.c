@@ -39,6 +39,7 @@ extern void cmd_process(const char* cmd);
 void keyboard_handler() {
     irq_count++;
     static int extended = 0;
+    
     uint8_t scancode = inb(0x60);
 
     // Track Shift press / release
@@ -61,12 +62,25 @@ void keyboard_handler() {
 
     if (scancode == 0xE0) {
         extended = 1;
-        outb(0x20, 0x20);
+        return;
+    }
+    
+    // BUG FIX #14: Handle E1 prefix (for Pause key)
+    if (scancode == 0xE1) {
+        // E1 prefix - Pause key sequence
+        extended = 2;
+        return;
+    }
+    
+    // BUG FIX #14: Handle break codes for E0/E1 prefixed keys
+    if (extended > 0 && (scancode & 0x80)) {
+        // Break code for extended key sequence
+        extended = 0;
         return;
     }
     
     if (!(scancode & 0x80)) {
-        if (extended) {
+        if (extended == 1) {
             extended = 0;
             
             if (scancode == 0x48) {
@@ -75,7 +89,6 @@ void keyboard_handler() {
                     strcpy(terminal_buffer, prev);
                     term_idx = strlen(prev);
                 }
-                outb(0x20, 0x20);
                 return;
             }
             else if (scancode == 0x50) {
@@ -84,23 +97,29 @@ void keyboard_handler() {
                     strcpy(terminal_buffer, next);
                     term_idx = strlen(next);
                 }
-                outb(0x20, 0x20);
                 return;
             }
             else if (scancode == 0x49) {
                 terminal_scroll_up();
-                outb(0x20, 0x20);
                 return;
             }
             else if (scancode == 0x51) {
                 terminal_scroll_down();
-                outb(0x20, 0x20);
                 return;
             }
         }
         
         char c = shift_pressed ? kbd_US_shift[scancode] : kbd_US[scancode];
         
+        // Dispatch keypress to focused window if it registers on_keydown
+        window_manager_t* wm = wm_get_state();
+        window_t* focused_win = wm_get_window(wm->focused_window_id);
+        if (focused_win && focused_win->on_keydown) {
+            focused_win->on_keydown(focused_win, c, scancode);
+            return;
+        }
+        
+        // Fallback for Terminal shell input
         if (c == '\b') {
             if (term_idx > 0) {
                 term_idx--;
@@ -112,12 +131,8 @@ void keyboard_handler() {
             terminal_buffer[term_idx] = '\0';
             
             extern terminal_instance_t* active_terminal;
-            window_manager_t* wm = wm_get_state();
-            window_t* focused_win = wm_get_window(wm->focused_window_id);
-            
             if (focused_win && focused_win->render_content == NULL && focused_win->user_data) {
                 active_terminal = (terminal_instance_t*)focused_win->user_data;
-                
                 char cmd_line[300];
                 const char* cwd = active_terminal->cwd[0] ? active_terminal->cwd : "/";
                 sprintf(cmd_line, "root@falkon-os:%s$ %s", cwd, terminal_buffer);
@@ -128,6 +143,8 @@ void keyboard_handler() {
             term_idx = 0;
             terminal_buffer[0] = '\0';
             active_terminal = NULL;
+            term_idx = 0;
+            terminal_buffer[0] = '\0';
         }
         else if (c != 0) {
             if (term_idx < 255) {
@@ -138,5 +155,4 @@ void keyboard_handler() {
         }
     }
     
-    outb(0x20, 0x20);
 }

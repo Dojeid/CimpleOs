@@ -16,7 +16,7 @@ static char last_dlerror[128] = "";
 void* dlopen(const char* filename, int flags) {
     if (!filename) return NULL;
     
-    vfs_node_t* node = vfs_lookup(0, filename);
+    vfs_node_t* node = vfs_lookup(filename);
     if (!node || node->type != VFS_FILE) {
         sprintf(last_dlerror, "dlopen: shared object file not found: %s", filename);
         return NULL;

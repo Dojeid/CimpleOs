@@ -7,6 +7,10 @@
 #define THEME_DARK  0
 #define THEME_LIGHT 1
 
+extern int screen_w, screen_h;
+extern uint32_t* video_memory;
+extern uint32_t* back_buffer;
+
 void graphics_init(struct multiboot_info* mb);
 void graphics_set_mode(int width, int height, int bpp);
 void put_pixel(int x, int y, uint32_t color);
@@ -27,8 +31,5 @@ void graphics_set_brightness(int level_percent);
 int  graphics_get_brightness(void);
 void graphics_set_night_light(int enabled);
 int  graphics_get_night_light(void);
-
-extern int screen_w, screen_h;
-extern uint32_t* video_memory;
 
 #endif

@@ -3,10 +3,77 @@
 #include "lib/string.h"
 #include "drivers/video/vga.h"
 #include "fs/vfs.h"
+#include "mm/heap.h"
 
 static ext4_superblock_t mounted_sb;
 static int is_mounted = 0;
 static uint32_t mounted_lba = 0;
+
+static int ext4_vfs_read(file_t *file, uint32_t offset, uint32_t size, uint8_t *buffer) {
+    vga_print("[EXT4] vfs_read stub\n");
+    return 0; // Not implemented yet
+}
+
+static file_operations_t ext4_fops = {
+    .read = ext4_vfs_read,
+    .write = 0,
+    .open = 0,
+    .release = 0
+};
+
+static dentry_t* ext4_vfs_lookup(inode_t *dir, const char *name) {
+    vga_print("[EXT4] lookup stub for: ");
+    vga_print(name);
+    vga_print("\n");
+    return 0;
+}
+
+static inode_operations_t ext4_iops = {
+    .lookup = ext4_vfs_lookup,
+    .mkdir = 0,
+    .create = 0
+};
+
+static super_block_t* ext4_vfs_mount(file_system_type_t *fs_type, const char *dev_name) {
+    if (!ext4_is_mounted()) {
+        // Hardcode mounting LBA 0 for now
+        if (ext4_mount_drive(0) != 0) return 0;
+    }
+
+    super_block_t *sb = (super_block_t*)kmalloc(sizeof(super_block_t));
+    memset(sb, 0, sizeof(super_block_t));
+    sb->s_type = fs_type;
+    sb->s_fs_info = &mounted_sb;
+
+    // Create root inode
+    inode_t *root_inode = (inode_t*)kmalloc(sizeof(inode_t));
+    memset(root_inode, 0, sizeof(inode_t));
+    root_inode->i_ino = 2; // EXT4 Root Inode is 2
+    root_inode->i_mode = EXT4_S_IFDIR | 0755;
+    root_inode->i_sb = sb;
+    root_inode->i_op = &ext4_iops;
+    root_inode->i_fop = &ext4_fops;
+
+    // Create root dentry
+    dentry_t *root_dentry = (dentry_t*)kmalloc(sizeof(dentry_t));
+    memset(root_dentry, 0, sizeof(dentry_t));
+    strcpy(root_dentry->d_name, "/");
+    root_dentry->d_inode = root_inode;
+    root_dentry->d_sb = sb;
+
+    sb->s_root = root_dentry;
+    return sb;
+}
+
+static file_system_type_t ext4_fs_type = {
+    .name = "ext4",
+    .mount = ext4_vfs_mount,
+    .next = 0
+};
+
+void ext4_init(void) {
+    register_filesystem(&ext4_fs_type);
+}
 
 int ext4_format_drive(uint32_t start_lba, uint32_t total_sectors, const char* volume_name) {
     if (total_sectors < 4096) return -1; // Require at least 2MB partition

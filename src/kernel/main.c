@@ -29,6 +29,7 @@
 // FS / Process / Syscall
 #include "fs/vfs.h"
 #include "fs/ramdisk.h"
+#include "fs/ext4.h"
 #include "kernel/process.h"
 #include "kernel/syscall.h"
 // GUI
@@ -112,6 +113,13 @@ void kmain(void* multiboot_info_addr) {
 
     // Initialize VFS, Ramdisk, Process Scheduler, and Syscalls
     vfs_init();
+    ext4_init();
+    
+    // Attempt to mount EXT4 volume to root
+    if (vfs_mount("hda", "/", "ext4") != 0) {
+        vga_print("[VFS] Failed to mount EXT4 root filesystem. Ensure volume is formatted.\n");
+    }
+
     ramdisk_init();
     process_init();
     syscall_init();
@@ -146,6 +154,9 @@ void kmain(void* multiboot_info_addr) {
     int last_mouse_btn = 0;  // Moved outside loop for clarity
 
     while (1) {
+        // Poll VirtualBox absolute mouse integration
+        mouse_update_vbox();
+
         // Handle mouse interactions
         int mouse_btn = mouse_button_left();
         
@@ -156,7 +167,12 @@ void kmain(void* multiboot_info_addr) {
             if (mouse_y >= screen_h - 30 || (tb->start_menu_open && mouse_y >= menu_y && mouse_x <= 200)) {
                 taskbar_handle_click(mouse_x, mouse_y);
             } else {
-                wm_handle_mouse_down(mouse_x, mouse_y);
+                int clicked_win = wm_get_window_at(mouse_x, mouse_y);
+                if (clicked_win != -1) {
+                    wm_handle_mouse_down(mouse_x, mouse_y);
+                } else {
+                    desktop_handle_click(mouse_x, mouse_y);
+                }
             }
         }
         
@@ -233,7 +249,10 @@ void kmain(void* multiboot_info_addr) {
         // 4. Cursor (absolutely last - on top of everything)
         cursor_render();
         
-        // Swap buffers to display
+        // Swap buffers to display (applies brightness & night light tint)
         swap_buffers();
+
+        // Frame rate target delay pacing
+        timer_wait(1);
     }
 }

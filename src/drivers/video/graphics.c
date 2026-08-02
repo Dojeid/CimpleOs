@@ -41,11 +41,11 @@ void graphics_init(struct multiboot_info* mb) {
     if (!video_memory) {
         uint16_t bga_id = bga_read(0);
         if (bga_id >= 0xB0C0 && bga_id <= 0xB0C6) {
-            bga_write(4, 0);           // VBE_DISPI_DISABLED
-            bga_write(1, 1024);        // Width
-            bga_write(2, 768);         // Height
-            bga_write(3, 32);          // 32 bpp
-            bga_write(4, 0x01 | 0x40); // VBE_DISPI_ENABLED | VBE_DISPI_LFB_ENABLED
+            bga_write(4, 0);
+            bga_write(1, 1024);
+            bga_write(2, 768);
+            bga_write(3, 32);
+            bga_write(4, 0x01 | 0x40);
         }
 
         struct pci_device pci_vga;
@@ -119,7 +119,7 @@ void put_pixel(int x, int y, uint32_t color) {
         
         if (night_light_active) {
             r = (r * 110 > 255) ? 255 : (r * 110 / 100);
-            b = (b * 65) / 100; // Filter blue spectrum
+            b = (b * 65) / 100;
         }
         
         back_buffer[y * screen_w + x] = (r << 16) | (g << 8) | b;

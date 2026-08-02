@@ -21,6 +21,9 @@ typedef struct {
     int cursor_pos;
 } terminal_instance_t;
 
+// Active terminal instance (externally defined by keyboard handler)
+extern terminal_instance_t* active_terminal;
+
 // Legacy global terminal structure (for backwards compatibility)
 typedef terminal_instance_t terminal_t;
 

@@ -4,6 +4,7 @@
 #include "drivers/input/mouse.h"
 #include "kernel/timer.h"
 #include "drivers/video/vga.h"
+#include "kernel/process.h"
 
 // 64-bit IDT entries (16 bytes each)
 struct idt_entry_64 {
@@ -37,6 +38,14 @@ extern void irq0(void);  extern void irq1(void);  extern void irq2(void);  exter
 extern void irq4(void);  extern void irq5(void);  extern void irq6(void);  extern void irq7(void);
 extern void irq8(void);  extern void irq9(void);  extern void irq10(void); extern void irq11(void);
 extern void irq12(void); extern void irq13(void); extern void irq14(void); extern void irq15(void);
+extern void syscall80(void);
+
+static void pic_send_eoi(uint8_t vector) {
+    if (vector >= 40) {
+        outb(0xA0, 0x20);
+    }
+    outb(0x20, 0x20);
+}
 
 static void idt_set_gate(uint8_t num, uint64_t base, uint16_t selector, uint8_t flags) {
     idt_entries[num].base_low = base & 0xFFFF;
@@ -91,6 +100,9 @@ void init_idt(void) {
     idt_set_gate(42, (uint64_t)irq10, 0x08, 0x8E); idt_set_gate(43, (uint64_t)irq11, 0x08, 0x8E);
     idt_set_gate(44, (uint64_t)irq12, 0x08, 0x8E); idt_set_gate(45, (uint64_t)irq13, 0x08, 0x8E);
     idt_set_gate(46, (uint64_t)irq14, 0x08, 0x8E); idt_set_gate(47, (uint64_t)irq15, 0x08, 0x8E);
+
+    // Simple POSIX-style syscall trap. DPL=3 keeps the ABI ready for user mode.
+    idt_set_gate(0x80, (uint64_t)syscall80, 0x08, 0xEE);
     
     asm volatile("lidt %0" : : "m"(idt_ptr));
 }
@@ -122,20 +134,28 @@ void isr_handler(void* stack_ptr) {
 }
 
 // IRQ handler - called from assembly
-void irq_handler(void* stack_ptr) {
+uint64_t irq_handler(void* stack_ptr) {
     // Stack layout (from irq_common_stub):
     // gs, fs, es, ds, r15..rax, vector number (stack[19]), error code (stack[20])
     uint64_t* stack = (uint64_t*)stack_ptr;
     uint8_t vector = (uint8_t)(stack[19] & 0xFF);
+    uint64_t new_rsp = 0;
 
     switch (vector) {
-        case 32: timer_handler(); break;      // PIT timer (IRQ0)
+        case 32: 
+            timer_handler();
+            pic_send_eoi(vector);
+            new_rsp = schedule((uint64_t)stack_ptr);
+            break;      // PIT timer (IRQ0)
         case 33: keyboard_handler(); break;   // PS/2 keyboard (IRQ1)
         case 44: mouse_handler(); break;      // PS/2 mouse (IRQ12)
         default:
-            // Acknowledge unhandled IRQs so the system does not hang.
-            if (vector >= 40) outb(0xA0, 0x20);  // EOI to slave PIC
-            outb(0x20, 0x20);                    // EOI to master PIC
             break;
     }
+
+    if (vector != 32) {
+        pic_send_eoi(vector);
+    }
+    
+    return new_rsp;
 }

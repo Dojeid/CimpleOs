@@ -2,7 +2,7 @@
 #include "mm/pmm.h"
 
 #define HEAP_START 0x1000000
-#define HEAP_SIZE 0x1000000
+#define HEAP_SIZE 0x4000000 // 64 MB Kernel Heap
 
 // Block header: 32 bytes (two pointers + size + magic/used flags).
 // 16-byte aligned so payloads are always 16-byte aligned for 64-bit.
@@ -61,6 +61,34 @@ void* malloc(size_t size) {
     return NULL;
 }
 
+void* calloc(size_t num, size_t size) {
+    size_t total = num * size;
+    void* ptr = malloc(total);
+    if (ptr) {
+        extern void* memset(void* dest, int val, size_t count);
+        memset(ptr, 0, total);
+    }
+    return ptr;
+}
+
+void* realloc(void* ptr, size_t size) {
+    if (!ptr) return malloc(size);
+    if (size == 0) { free(ptr); return NULL; }
+    
+    block_t* b = (block_t*)((char*)ptr - HEADER_SIZE);
+    if (b->magic != BLOCK_MAGIC) return NULL;
+    
+    if (b->size >= size) return ptr;
+    
+    void* new_ptr = malloc(size);
+    if (new_ptr) {
+        extern void* memcpy(void* dest, const void* src, size_t n);
+        memcpy(new_ptr, ptr, b->size);
+        free(ptr);
+    }
+    return new_ptr;
+}
+
 void free(void* ptr) {
     if (!ptr) return;
     if (!head) return;
@@ -70,7 +98,8 @@ void free(void* ptr) {
 
     b->used = 0;
 
-    // Coalesce with next free block
+    // BUG FIX #4: Coalesce with next free block first
+    // We MUST check b->next exists BEFORE accessing it
     while (b->next && !b->next->used &&
            (char*)b + HEADER_SIZE + b->size == (char*)b->next) {
         b->size += HEADER_SIZE + b->next->size;
@@ -78,7 +107,8 @@ void free(void* ptr) {
         if (b->next) b->next->prev = b;
     }
 
-    // Coalesce with previous free block
+    // BUG FIX #4: Coalesce with previous free block
+    // We MUST check b->prev exists BEFORE accessing it
     if (b->prev && !b->prev->used &&
         (char*)b->prev + HEADER_SIZE + b->prev->size == (char*)b) {
         b->prev->size += HEADER_SIZE + b->size;
