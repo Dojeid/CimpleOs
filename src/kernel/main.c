@@ -94,6 +94,9 @@ void kmain(void* multiboot_info_addr) {
     sound_init();
     ata_init();
     
+    extern int e1000_init(void);
+    e1000_init();
+    
     vga_print("System ready! Starting Core Linux Services...\n");
     
     desktop_init();

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "gui/window_manager.h"
 
-#define TASKBAR_HEIGHT 30
+#define TASKBAR_HEIGHT 48
 #define MAX_TASKBAR_BUTTONS 8
 
 // Launcher button (permanent, not tied to windows)

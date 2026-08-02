@@ -156,6 +156,20 @@ void cmd_process(const char* cmd) {
         cmd_print("Launching Falkon Graphical Desktop Environment (startx)...");
         cmd_print("");
     }
+    else if (strncmp(cmd, "surf ", 5) == 0 || strcmp(cmd, "surf") == 0) {
+        extern void browser_open(const char* url);
+        const char* url = strchr(cmd, ' ') ? (strchr(cmd, ' ') + 1) : "file:///docs/welcome.txt";
+        browser_open(url);
+        cmd_print("[Browser] Opened falkon-surf Web Browser.");
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "code ", 5) == 0 || strcmp(cmd, "code") == 0) {
+        extern void code_editor_open(const char* file_path);
+        const char* file = strchr(cmd, ' ') ? (strchr(cmd, ' ') + 1) : "/src/main.c";
+        code_editor_open(file);
+        cmd_print("[IDE] Opened falkon-code Advanced Editor.");
+        cmd_print("");
+    }
     else if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "init 3") == 0 || strcmp(cmd, "tty") == 0) {
         extern void sys_set_runlevel(int level);
         sys_set_runlevel(3);

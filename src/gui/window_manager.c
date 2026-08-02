@@ -289,90 +289,120 @@ int wm_is_point_in_titlebar(window_t* win, int x, int y) {
 
 int wm_is_point_in_close_button(window_t* win, int x, int y) {
     if (!win) return 0;
-    int btn_x = win->x + win->width - 20;
-    int btn_y = win->y + 4;
-    return (x >= btn_x && x < win->x + win->width &&
-            y >= btn_y && y < btn_y + 16);
+    int cx = win->x + win->width - 18;
+    int cy = win->y + TITLEBAR_HEIGHT / 2;
+    int dx = x - cx, dy = y - cy;
+    return (dx*dx + dy*dy <= 8*8);
 }
 
 int wm_is_point_in_minimize_button(window_t* win, int x, int y) {
     if (!win) return 0;
-    int btn_x = win->x + win->width - 56;
-    int btn_y = win->y + 4;
-    return (x >= btn_x && x < win->x + win->width - 38 &&
-            y >= btn_y && y < btn_y + 16);
+    int cx = win->x + win->width - 54;
+    int cy = win->y + TITLEBAR_HEIGHT / 2;
+    int dx = x - cx, dy = y - cy;
+    return (dx*dx + dy*dy <= 8*8);
 }
 
 int wm_is_point_in_maximize_button(window_t* win, int x, int y) {
     if (!win) return 0;
-    int btn_x = win->x + win->width - 38;
-    int btn_y = win->y + 4;
-    return (x >= btn_x && x < win->x + win->width - 20 &&
-            y >= btn_y && y < btn_y + 16);
+    int cx = win->x + win->width - 36;
+    int cy = win->y + TITLEBAR_HEIGHT / 2;
+    int dx = x - cx, dy = y - cy;
+    return (dx*dx + dy*dy <= 8*8);
 }
 
 void wm_render_window(window_t* win) {
-    if (!win || !(win->flags & WIN_FLAG_VISIBLE) || 
-        (win->flags & WIN_FLAG_MINIMIZED)) {
-        return;
-    }
-    
-    // Windows 11 Opening Micro-Animations (Fade-In & Smooth Scale)
+    if (!win || !(win->flags & WIN_FLAG_VISIBLE) ||
+        (win->flags & WIN_FLAG_MINIMIZED)) return;
+
+    // ── Open animation ──────────────────────────────────────
     if (win->alpha_anim < 255) {
-        if (win->alpha_anim + 35 >= 255) win->alpha_anim = 255;
-        else win->alpha_anim += 35;
+        if (win->alpha_anim + 40 >= 255) win->alpha_anim = 255;
+        else win->alpha_anim += 40;
     }
-    if (win->anim_scale < 100) {
-        win->anim_scale += 5;
-    }
+    if (win->anim_scale < 100) win->anim_scale += 6;
 
     int is_focused = (win->flags & WIN_FLAG_FOCUSED);
     gui_theme_t* theme = theme_get_current();
-    
-    // 1. Windows 11 Soft 32-bit ARGB Window Drop Shadow
-    draw_window_shadow(win->x, win->y, win->width, TITLEBAR_HEIGHT + win->height);
-    
-    // 2. Windows 11 Mica / Acrylic Translucent Titlebar Header
-    uint32_t titlebar_color = is_focused ? theme->titlebar_active : theme->titlebar_inactive;
-    draw_rect_alpha(win->x, win->y, win->width, TITLEBAR_HEIGHT, titlebar_color, is_focused ? 230 : 190);
-    draw_rect(win->x, win->y + TITLEBAR_HEIGHT - 1, win->width, 1, 0x334155);
 
-    // Title Icon Badge & Text
-    draw_rect(win->x + 8, win->y + 5, 12, 12, is_focused ? theme->accent_color : 0x64748B);
-    draw_string(win->x + 26, win->y + 7, is_focused ? 0xF1F5F9 : 0x94A3B8, win->title);
-    
-    // 3. Windows 11 Style Modern Control Buttons (Close, Max, Min)
-    int btn_y = win->y + 4;
-    
-    // Close button (Vibrant Red 0xEF4444)
-    int close_btn_x = win->x + win->width - 24;
-    draw_rect_alpha(close_btn_x, btn_y, 20, 15, 0xEF4444, is_focused ? 240 : 160);
-    draw_string(close_btn_x + 6, btn_y + 3, 0xFFFFFF, "x");
-    
-    // Maximize button (Green 0x10B981)
-    int max_btn_x = win->x + win->width - 48;
-    draw_rect_alpha(max_btn_x, btn_y, 20, 15, 0x10B981, is_focused ? 240 : 160);
-    draw_string(max_btn_x + 6, btn_y + 3, 0xFFFFFF, "+");
+    int wx = win->x, wy = win->y;
+    int ww = win->width, wh_total = TITLEBAR_HEIGHT + win->height;
+    int corner_r = 8;
 
-    // Minimize button (Yellow 0xF59E0B)
-    int min_btn_x = win->x + win->width - 72;
-    draw_rect_alpha(min_btn_x, btn_y, 20, 15, 0xF59E0B, is_focused ? 240 : 160);
-    draw_string(min_btn_x + 6, btn_y + 3, 0xFFFFFF, "-");
-    
-    // 4. Window Content Area Container
-    draw_rect(win->x, win->y + TITLEBAR_HEIGHT, win->width, win->height, COLOR_WINDOW_BG);
-    
-    // Call render content callback if set
-    if (win->render_content) {
-        win->render_content(win);
+    // ── 1. Multi-pass Soft Shadow ───────────────────────────
+    draw_window_shadow(wx, wy, ww, wh_total);
+
+    // ── 2. Mica Box-Blur (sample desktop wallpaper pixels) ──
+    draw_box_blur(wx, wy, ww, TITLEBAR_HEIGHT, 4);
+
+    // ── 3. Rounded Window Body — dark content bg ────────────
+    // Draw content area first (below titlebar)
+    draw_rounded_rect(wx, wy, ww, wh_total, corner_r, 0x1A1F2E);
+
+    // ── 4. Acrylic Titlebar Overlay ─────────────────────────
+    // Top half of window: glassmorphic acrylic tint over blur
+    uint32_t tb_color = is_focused ? 0x1E2A3A : 0x151B26;
+    uint8_t  tb_alpha = is_focused ? 200 : 160;
+    draw_rounded_rect_alpha(wx, wy, ww, TITLEBAR_HEIGHT, corner_r, tb_color, tb_alpha);
+
+    // Sharp bottom edge of titlebar (blends into content)
+    draw_rect(wx, wy + TITLEBAR_HEIGHT - 1, ww, 1, 0x0D1117);
+
+    // ── 5. Title: Small App Icon Box + Centered Title Text ──
+    // Left icon badge (4×4 rounded)
+    uint32_t icon_col = is_focused ? theme->accent_color : 0x4B5563;
+    draw_rounded_rect(wx + 10, wy + TITLEBAR_HEIGHT/2 - 5, 10, 10, 3, icon_col);
+
+    // Title text centered in titlebar
+    int title_len = 0;
+    const char* tp = win->title;
+    while (*tp++) title_len++;
+    int text_px_w = title_len * 8;
+    int text_x = wx + ww/2 - text_px_w/2;
+    int text_y = wy + TITLEBAR_HEIGHT/2 - 4;
+    draw_string_shadow(text_x, text_y,
+        is_focused ? 0xF1F5F9 : 0x6B7280,
+        0x000000,
+        win->title);
+
+    // ── 6. Traffic-Light Control Buttons (circles) ──────────
+    int btn_cy = wy + TITLEBAR_HEIGHT/2;    // vertical center
+    int btn_r  = 6;
+
+    // Close  — red circle (rightmost)
+    int close_cx = wx + ww - 18;
+    draw_circle(close_cx, btn_cy, btn_r, is_focused ? 0xEF4444 : 0x5C2626);
+    if (is_focused) {
+        // "×" inside
+        draw_string(close_cx - 3, btn_cy - 4, 0xFFFFFF, "x");
     }
-    
-    // 5. Active Window Glowing Accent Border (Windows 11 Cyan 0x38BDF8)
-    uint32_t border_color = is_focused ? (theme->accent_color ? theme->accent_color : 0x38BDF8) : 0x334155;
-    draw_rect(win->x, win->y, win->width, 1, border_color);
-    draw_rect(win->x, win->y + TITLEBAR_HEIGHT + win->height - 1, win->width, 1, border_color);
-    draw_rect(win->x, win->y, 1, TITLEBAR_HEIGHT + win->height, border_color);
-    draw_rect(win->x + win->width - 1, win->y, 1, TITLEBAR_HEIGHT + win->height, border_color);
+
+    // Maximize — green circle
+    int max_cx = wx + ww - 36;
+    draw_circle(max_cx, btn_cy, btn_r, is_focused ? 0x22C55E : 0x1A4229);
+    if (is_focused) draw_string(max_cx - 3, btn_cy - 4, 0xFFFFFF, "+");
+
+    // Minimize — yellow circle
+    int min_cx = wx + ww - 54;
+    draw_circle(min_cx, btn_cy, btn_r, is_focused ? 0xF59E0B : 0x4D3508);
+    if (is_focused) draw_string(min_cx - 3, btn_cy - 4, 0x7C4A00, "-");
+
+    // ── 7. Content Area ─────────────────────────────────────
+    // Already filled by rounded rect above.
+    // Thin separator between titlebar and content
+    draw_rect(wx + 2, wy + TITLEBAR_HEIGHT, ww - 4, 1, 0x0D1117);
+
+    if (win->render_content) win->render_content(win);
+
+    // ── 8. Window Accent Border (rounded outline) ───────────
+    uint32_t border_col = is_focused
+        ? (theme->accent_color ? theme->accent_color : 0x38BDF8)
+        : 0x1F2937;
+    draw_rounded_rect_outline(wx, wy, ww, wh_total, corner_r, 1, border_col);
+
+    // Extra inner glow on focused
+    if (is_focused)
+        draw_rounded_rect_outline(wx+1, wy+1, ww-2, wh_total-2, corner_r-1, 1, border_col & 0x7FFFFFFF);
 }
 
 void wm_render_all() {
@@ -477,8 +507,26 @@ void wm_handle_mouse_move(int x, int y) {
         int new_x = x - win->drag_offset_x;
         int new_y = y - win->drag_offset_y;
         
-        // BUG FIX #13: Simplified bounds clamping
         extern int screen_w, screen_h;
+
+        // Windows 11 Snap Ghost Preview Outline while dragging near edges
+        if (x <= 20) {
+            // Snap Left ghost
+            draw_rect_alpha(0, 24, screen_w / 2, screen_h - 54, 0x38BDF8, 40);
+            draw_rect(0, 24, screen_w / 2, 2, 0x38BDF8);
+            draw_rect(0, 24, 2, screen_h - 54, 0x38BDF8);
+            draw_rect(screen_w / 2 - 2, 24, 2, screen_h - 54, 0x38BDF8);
+        } else if (x >= screen_w - 20) {
+            // Snap Right ghost
+            draw_rect_alpha(screen_w / 2, 24, screen_w / 2, screen_h - 54, 0x38BDF8, 40);
+            draw_rect(screen_w / 2, 24, screen_w / 2, 2, 0x38BDF8);
+            draw_rect(screen_w / 2, 24, 2, screen_h - 54, 0x38BDF8);
+            draw_rect(screen_w - 2, 24, 2, screen_h - 54, 0x38BDF8);
+        } else if (y <= 28) {
+            // Snap Maximize ghost
+            draw_rect_alpha(0, 24, screen_w, screen_h - 54, 0x38BDF8, 30);
+            draw_rect(0, 24, screen_w, 2, 0x38BDF8);
+        }
         
         // Prevent window from going off-screen
         if (new_x < 0) new_x = 0;

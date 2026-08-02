@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #define MAX_WINDOWS 16
-#define TITLEBAR_HEIGHT 22
+#define TITLEBAR_HEIGHT 32
 #define WINDOW_BORDER 2
 
 // Window flags
