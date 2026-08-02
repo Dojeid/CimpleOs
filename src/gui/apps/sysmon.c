@@ -94,10 +94,24 @@ static void sysmon_redraw(window_t* win) {
     draw_rect(graph_x, graph_y, graph_w, graph_h, 0x1E293B);
     draw_rect(graph_x, graph_y, graph_w, 1, 0x334155);
 
-    for (int i = 0; i < graph_w - 4; i += 6) {
-        uint32_t sample = (timer_ticks * 3 + i * 7) % (graph_h - 10);
-        int py = graph_y + graph_h - 5 - sample;
-        draw_rect(graph_x + 2 + i, py, 4, 3, 0x10B981); // Emerald Green plot
+    static uint8_t cpu_history[64] = {0};
+    static uint32_t last_sample_tick = 0;
+    if (timer_ticks - last_sample_tick >= 10) {
+        last_sample_tick = timer_ticks;
+        for (int k = 0; k < 63; k++) cpu_history[k] = cpu_history[k + 1];
+        cpu_history[63] = 10 + (timer_ticks % 15);
+    }
+
+    int num_samples = 64;
+    int sample_step = graph_w / num_samples;
+    if (sample_step < 1) sample_step = 1;
+
+    for (int i = 0; i < 63; i++) {
+        int sx1 = graph_x + 4 + i * sample_step;
+        int val1 = cpu_history[i];
+        if (val1 > graph_h - 10) val1 = graph_h - 10;
+        int py1 = graph_y + graph_h - 4 - (val1 * (graph_h - 10)) / 100;
+        draw_rect(sx1, py1, 3, 3, 0x10B981);
     }
 
     // 4. Storage & Network Interfaces

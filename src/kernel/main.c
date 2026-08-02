@@ -58,6 +58,22 @@ int sys_get_runlevel(void) {
     return sys_runlevel;
 }
 
+void sys_shutdown(void) {
+    vga_print("\n[Falkon-OS] Performing ACPI/QEMU Hardware Shutdown...\n");
+    // 1. QEMU ACPI / PIIX4 shutdown port
+    outw(0x604, 0x2000);
+    outw(0xB004, 0x2000);
+    // 2. VirtualBox / Bochs ACPI shutdown port
+    outw(0x4004, 0x3400);
+    // 3. APM / Legacy PC shutdown
+    outw(0x2000, 0x2000);
+    // 4. Keyboard Controller Reset Fallback
+    outb(0x64, 0xFE);
+    while (1) {
+        asm volatile("cli; hlt");
+    }
+}
+
 static void boot_log_ok(const char* message) {
     terminal_instance_t* tty = (terminal_instance_t*)terminal_get_state();
     char line[160];
@@ -227,6 +243,7 @@ void kmain(void* multiboot_info_addr) {
             taskbar_render();
             cursor_render();
             swap_buffers();
+            timer_wait(1); // 60 FPS Frame Limiter
         } else {
             // === RUNLEVEL 3: CORE LINUX CONSOLE TTY CLI MODE ===
             clear_screen(0x0A0E17);
@@ -238,9 +255,7 @@ void kmain(void* multiboot_info_addr) {
             terminal_instance_render(tty, 20, 40);
             
             swap_buffers();
+            timer_wait(1);
         }
-
-        // Frame pacing delay
-        timer_wait(1);
     }
 }

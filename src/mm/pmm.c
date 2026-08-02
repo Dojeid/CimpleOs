@@ -42,10 +42,13 @@ void pmm_init(uint64_t mem_size) {
     // Clamp to the range the bitmap can represent (4GB).
     if (mem_size > MAX_MANAGEABLE) mem_size = MAX_MANAGEABLE;
     total_memory = mem_size;
-    used_frames = 0;
+    used_frames = 4096; // Reserve initial 16MB kernel base allocation (4096 frames * 4KB)
     
     for (uint32_t i = 0; i < BITMAP_SIZE; i++) {
         bitmap[i] = 0;
+    }
+    for (uint64_t f = 0; f < 4096; f++) {
+        mmap_set(f);
     }
 }
 

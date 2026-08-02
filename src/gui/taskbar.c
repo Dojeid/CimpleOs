@@ -300,10 +300,10 @@ void taskbar_render() {
 
 void taskbar_handle_click(int x, int y) {
     extern int screen_w;
-    int menu_w = 340;
-    int menu_h = 330;
+    int menu_w = 360;
+    int menu_h = 370;
     int menu_x = (screen_w / 2) - (menu_w / 2);
-    int menu_y = taskbar.y_position - menu_h - 10;
+    int menu_y = taskbar.y_position - menu_h - 12;
 
     int tray_x = screen_w - 225;
 
@@ -321,31 +321,53 @@ void taskbar_handle_click(int x, int y) {
         x >= menu_x && x < menu_x + menu_w && 
         y >= menu_y && y < menu_y + menu_h) {
         
-        // App Grid Item Clicks
-        if (y >= menu_y + 62 && y < menu_y + 94) {
-            if (x >= menu_x + 12 && x < menu_x + 164) {
-                window_t* new_term = wm_create_window(60, 80, 700, 480, "Terminal");
-                if (new_term) taskbar_add_button(new_term->id, "Terminal");
-            } else if (x >= menu_x + 176 && x < menu_x + 328) {
-                file_explorer_open();
-            }
+        int footer_y = menu_y + menu_h - 40;
+        if (y >= footer_y && x >= menu_x + menu_w - 50) {
+            extern void sys_shutdown(void);
+            sys_shutdown();
+            return;
         }
-        else if (y >= menu_y + 100 && y < menu_y + 132) {
-            if (x >= menu_x + 12 && x < menu_x + 164) {
-                notepad_open("/docs/welcome.txt");
-            } else if (x >= menu_x + 176 && x < menu_x + 328) {
-                installer_open();
+
+        // App Grid Item Clicks (Pinned Section)
+        int tile_area_x = menu_x + 14;
+        int tile_area_y = menu_y + 70;
+        int mt_w = 100, mt_h = 52, mt_gap_x = 12, mt_gap_y = 10;
+
+        for (int i = 0; i < 9; i++) {
+            int col = i % 3;
+            int row = i / 3;
+            int tx = tile_area_x + col * (mt_w + mt_gap_x);
+            int ty = tile_area_y + row * (mt_h + mt_gap_y);
+            if (x >= tx && x < tx + mt_w && y >= ty && y < ty + mt_h) {
+                switch (i) {
+                    case 0: { // Term
+                        window_t* new_term = wm_create_window(60, 80, 680, 440, "Falkon Bash (fbash)");
+                        if (new_term) taskbar_add_button(new_term->id, "Falkon Bash");
+                        break;
+                    }
+                    case 1: file_explorer_open(); break; // Explr
+                    case 2: { // Surf
+                        extern void browser_open(const char* url);
+                        browser_open("file:///docs/welcome.txt");
+                        break;
+                    }
+                    case 3: notepad_open("/docs/welcome.txt"); break; // Notepad
+                    case 4: installer_open(); break; // Instlr
+                    case 5: { // Code
+                        extern void code_editor_open(const char* file_path);
+                        code_editor_open("/src/main.c");
+                        break;
+                    }
+                    case 6: settings_open(); break; // Settings
+                    case 7: sysmon_open(); break;   // SysMon
+                    case 8: { // Calc
+                        extern void calc_open(void);
+                        calc_open();
+                        break;
+                    }
+                }
+                break;
             }
-        }
-        else if (y >= menu_y + 138 && y < menu_y + 170) {
-            if (x >= menu_x + 12 && x < menu_x + 164) {
-                settings_open();
-            } else if (x >= menu_x + 176 && x < menu_x + 328) {
-                sysmon_open();
-            }
-        }
-        else if (y >= menu_y + menu_h - 30 && x >= menu_x + menu_w - 85) {
-            outb(0x64, 0xFE); // Keyboard controller reboot
         }
 
         taskbar.start_menu_open = 0;

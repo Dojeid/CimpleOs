@@ -79,6 +79,11 @@ void graphics_set_mode(int width, int height, int bpp) {
     back_buffer = (uint32_t*)malloc(buffer_size);
     if (!back_buffer) back_buffer = video_memory;
     clear_screen(current_theme == THEME_DARK ? 0x0D1117 : 0xF3F4F6);
+    if (video_memory && back_buffer && video_memory != back_buffer) {
+        memcpy(video_memory, back_buffer, buffer_size);
+    }
+    extern void taskbar_init(void);
+    taskbar_init();
     extern void cursor_set_screen_bounds(int w, int h);
     cursor_set_screen_bounds(screen_w, screen_h);
 }
