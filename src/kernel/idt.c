@@ -107,15 +107,18 @@ void init_idt(void) {
     asm volatile("lidt %0" : : "m"(idt_ptr));
 }
 
+// ISR/IRQ Register Stack Frame Layout:
+// Index 0..18: Saved segment & general-purpose registers (gs, fs, es, ds, r15..rax)
+// Index 19: Vector number pushed by assembly entry stub (isr0..isr31, irq0..irq15)
+// Index 20: Error code (or dummy 0) pushed by assembly entry stub
+#define IRQ_STACK_VECTOR_IDX  19
+#define IRQ_STACK_ERRCODE_IDX 20
+
 // ISR handler - called from assembly
 void isr_handler(void* stack_ptr) {
-    // Stack layout (from isr_common_stub):
-    // gs, fs, es, ds, r15..rax, vector number (stack[19]), error code (stack[20])
     uint64_t* stack = (uint64_t*)stack_ptr;
-    uint8_t vector = (uint8_t)(stack[19] & 0xFF);
+    uint8_t vector = (uint8_t)(stack[IRQ_STACK_VECTOR_IDX] & 0xFF);
 
-    // Unhandled CPU exception: halt with a visible message instead of
-    // re-entering the faulting instruction in an endless loop.
     const char* names[] = {
         "Division by Zero", "Debug", "NMI", "Breakpoint", "Overflow",
         "Bound Range", "Invalid Opcode", "Device Not Available", "Double Fault",
@@ -123,11 +126,10 @@ void isr_handler(void* stack_ptr) {
         "General Protection Fault", "Page Fault", "Reserved", "x87 FP Exception",
         "Alignment Check", "Machine Check"
     };
-    const char* name = (vector < 19) ? names[vector] : "Unknown";
+    const char* name = (vector < 19) ? names[vector] : "Unknown Exception";
     vga_print("EXCEPTION: ");
     vga_print(name);
     vga_print("\n");
-    // Halt permanently so execution never returns to the faulting instruction.
     for (;;) {
         asm volatile("cli; hlt");
     }
@@ -135,10 +137,8 @@ void isr_handler(void* stack_ptr) {
 
 // IRQ handler - called from assembly
 uint64_t irq_handler(void* stack_ptr) {
-    // Stack layout (from irq_common_stub):
-    // gs, fs, es, ds, r15..rax, vector number (stack[19]), error code (stack[20])
     uint64_t* stack = (uint64_t*)stack_ptr;
-    uint8_t vector = (uint8_t)(stack[19] & 0xFF);
+    uint8_t vector = (uint8_t)(stack[IRQ_STACK_VECTOR_IDX] & 0xFF);
     uint64_t new_rsp = 0;
 
     switch (vector) {

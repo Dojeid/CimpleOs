@@ -240,15 +240,15 @@ void desktop_handle_click(int x, int y) {
         else if (y >= tile_start + 4*stride && y < tile_start + 4*stride + 60)
             notepad_open("/docs/welcome.txt");
         // i=5 Sysmon
-        else if (y >= tile_start + 5*stride && y < tile_start + 5*stride + 76)
+        else if (y >= tile_start + 5*stride && y < tile_start + 5*stride + 60)
             sysmon_open();
         // i=6 falkon-surf
-        else if (y >= tile_start + 6*stride && y < tile_start + 6*stride + 76) {
+        else if (y >= tile_start + 6*stride && y < tile_start + 6*stride + 60) {
             extern void browser_open(const char* url);
             browser_open("falkon://home");
         }
         // i=7 falkon-code
-        else if (y >= tile_start + 7*stride && y < tile_start + 7*stride + 76) {
+        else if (y >= tile_start + 7*stride && y < tile_start + 7*stride + 60) {
             extern void code_editor_open(const char* file_path);
             code_editor_open("/untitled.c");
         }

@@ -57,9 +57,12 @@ void graphics_init(struct multiboot_info* mb) {
         }
     }
 
+#include "drivers/video/vga.h"
+
     uint32_t buffer_size = screen_w * screen_h * sizeof(uint32_t);
     back_buffer = (uint32_t*)malloc(buffer_size);
     if (!back_buffer) {
+        vga_print("[Graphics] WARNING: Out of memory for back buffer, falling back to direct video memory\n");
         back_buffer = video_memory;
     }
     if (!video_memory) video_memory = back_buffer;
