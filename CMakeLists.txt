@@ -19,7 +19,7 @@ project(FalkonOS LANGUAGES C CXX ASM_NASM)
 # Compiler Flags: Freestanding 64-bit Kernel (-mcmodel=small for host GCC compatibility)
 set(CMAKE_C_FLAGS
     "-ffreestanding -m64 -mcmodel=small"
-    "-Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-shadow -Wno-format-security"
+    "-Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-shadow -Wno-format-security -Wno-misleading-indentation"
     "-mno-red-zone -mno-mmx -mno-sse -mno-sse2"
     "-fno-pic -fno-pie -fno-stack-protector"
     "-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables"
@@ -70,13 +70,13 @@ if(WIN32)
         "ld.lld -m elf_x86_64 -nostdlib -static -T ${LINKER_SCRIPT} <OBJECTS> -o <TARGET>"
     )
 else()
-    set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -nostartfiles -static -Wl,-T,${LINKER_SCRIPT}")
+    set(CMAKE_EXE_LINKER_FLAGS "-nostdlib -nostartfiles -static -no-pie -Wl,-T,${LINKER_SCRIPT}")
 endif()
 
 # C++ flags: same as C but with -fno-rtti (no RTTI in freestanding kernel)
 set(CMAKE_CXX_FLAGS
     "-ffreestanding -m64 -mcmodel=small"
-    "-Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-shadow -Wno-format-security"
+    "-Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-shadow -Wno-format-security -Wno-misleading-indentation"
     "-mno-red-zone -mno-mmx -mno-sse -mno-sse2"
     "-fno-pic -fno-pie -fno-stack-protector"
     "-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables"

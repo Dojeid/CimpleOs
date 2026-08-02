@@ -265,7 +265,8 @@ void draw_window_shadow(int x, int y, int w, int h) {
 
 // ─── Box Blur ────────────────────────────────────────────────
 void draw_box_blur(int x, int y, int w, int h, int radius) {
-    if (x < 0) x = 0; if (y < 0) y = 0;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
     if (x+w > screen_w) w = screen_w-x;
     if (y+h > screen_h) h = screen_h-y;
     if (w <= 0 || h <= 0 || radius <= 0 || !back_buffer) return;
@@ -374,19 +375,21 @@ static uint32_t last_fps_ticks  = 0;
 static int      current_real_fps = 60;
 
 void swap_buffers(void) {
-    if (video_memory && back_buffer)
+    if (video_memory && back_buffer && video_memory != back_buffer) {
         memcpy(video_memory, back_buffer, screen_w * screen_h * 4);
+    }
     extern volatile uint32_t timer_ticks;
     frame_count_sec++;
-    if (timer_ticks - last_fps_ticks >= 100) {
-        current_real_fps = (int)frame_count_sec;
-        frame_count_sec  = 0;
-        last_fps_ticks   = timer_ticks;
+    uint32_t delta = timer_ticks - last_fps_ticks;
+    if (delta >= 50) {
+        current_real_fps = (int)((frame_count_sec * 100) / delta);
+        frame_count_sec = 0;
+        last_fps_ticks  = timer_ticks;
     }
 }
 
 int graphics_get_real_fps(void) {
-    return current_real_fps > 0 ? current_real_fps : 60;
+    return (current_real_fps > 0 && current_real_fps <= 120) ? current_real_fps : 60;
 }
 
 void clear_screen(uint32_t color) {

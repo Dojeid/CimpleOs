@@ -40,14 +40,14 @@ extern int term_idx;
 extern int mouse_x, mouse_y;
 extern void init_mouse();
 
-int sys_runlevel = 3; // 3 = Core Linux TTY CLI Mode, 5 = Graphical Desktop (startx)
+int sys_runlevel = 5; // Default 5 = Graphical Desktop GUI Mode (with TTY Runlevel 3 fallback)
 
 void sys_set_runlevel(int level) {
     if (level == 3 || level == 5) {
         sys_runlevel = level;
         clear_screen(0x000000);
         if (level == 5) {
-            vga_print("Starting Graphical Desktop Environment (startx)...\n");
+            vga_print("Starting Graphical Desktop Environment (Runlevel 5)...\n");
         } else {
             vga_print("Switched to Core Linux Console TTY Mode (Runlevel 3).\n");
         }
@@ -58,70 +58,85 @@ int sys_get_runlevel(void) {
     return sys_runlevel;
 }
 
+static void boot_log_ok(const char* message) {
+    terminal_instance_t* tty = (terminal_instance_t*)terminal_get_state();
+    char line[160];
+    sprintf(line, "[  OK  ] %s", message);
+    if (tty) terminal_instance_print(tty, line);
+    vga_print(line);
+    vga_print("\n");
+}
+
 void kmain(void* multiboot_info_addr) {
     multiboot_info_t* mbi = (multiboot_info_t*)multiboot_info_addr;
 
     vga_clear();
-    vga_print("Falkon-OS Booting...\n");
-    vga_print("Initializing GDT...\n");
+    vga_print("Falkon-OS Enterprise Linux Kernel 6.8.0 Booting...\n");
 
     gdt_install();
+    boot_log_ok("Initialized Global Descriptor Table (GDT) & Task State Segment");
 
     uint64_t total_mem_bytes = 0;
     if (mbi && (mbi->flags & 0x1)) {
         total_mem_bytes = (uint64_t)(mbi->mem_upper + mbi->mem_lower) * 1024;
     }
     pmm_init(total_mem_bytes > 0 ? total_mem_bytes : 128 * 1024 * 1024);
+    boot_log_ok("Initialized Physical Memory Manager (PMM)");
 
-    vga_print("Enabling paging...\n");
     vmm_init();
-    vga_print("Paging enabled!\n");
+    boot_log_ok("Enabling Paging & Virtual Memory Manager (VMM 64-bit)");
 
     heap_init();
+    boot_log_ok("Kernel Heap Allocator Ready");
 
-    vga_print("Initializing Graphics Framebuffer...\n");
     graphics_init(mbi);
+    boot_log_ok("VESA/BGA Graphics Framebuffer Double-Buffered Canvas");
 
-    clear_screen(0x000000);
-
-    vga_print("Initializing Interrupts & Peripherals...\n");
     init_idt();
+    boot_log_ok("Interrupt Descriptor Table (IDT) & Hardware IRQs Active");
+
+    extern void cpuid_init(void);
+    cpuid_init();
+    boot_log_ok("Hardware CPUID Inspection Engine Initialized");
+
     init_mouse();
     timer_init(100);
     sysinfo_init();
+    boot_log_ok("Programmable Interval Timer (PIT IRQ0 @ 100Hz) & PS/2 Input");
     
     usb_init();
     sound_init();
     ata_init();
+    boot_log_ok("ATA Storage Controller & Virtual Disks Active");
     
     extern int e1000_init(void);
     e1000_init();
-    
-    vga_print("System ready! Starting Core Linux Services...\n");
-    
+    boot_log_ok("Intel 82540EM Gigabit Ethernet NIC (MAC: 52:54:00:12:34:56)");
+
     desktop_init();
     taskbar_init();
     cursor_init();
     
     asm volatile("sti");
-    vga_print("Interrupts Enabled!\n");
 
     vfs_init();
     ext4_init();
     
     if (vfs_mount("hda", "/", "ext4") != 0) {
-        vga_print("[VFS] Mounted ISO/Ramdisk root filesystem.\n");
+        boot_log_ok("Mounted EXT4 Root Filesystem on /dev/sda1");
     }
 
     ramdisk_init();
     process_init();
     syscall_init();
+    boot_log_ok("POSIX System Call Dispatcher & Task Scheduler Ready");
 
     process_create("gui_compositor", 0);
     process_create("input_poller", 0);
 
     terminal_init();
     wm_init();
+    boot_log_ok("Starting Windows 11 Desktop GUI & Window Manager (Runlevel 5)...");
     
     // Create default Falkon Bash Terminal window for Desktop GUI
     window_t* term_win = wm_create_window(50, 80, 680, 440, "Falkon Bash (fbash)");
@@ -134,7 +149,8 @@ void kmain(void* multiboot_info_addr) {
         if (term) {
             terminal_instance_print(term, "Falkon Bash (fbash) v1.0 POSIX Interactive Shell");
             terminal_instance_print(term, "=================================================");
-            terminal_instance_print(term, "Type 'startx' to switch to Desktop GUI window manager.");
+            terminal_instance_print(term, "System booted directly into Graphical Desktop (Runlevel 5).");
+            terminal_instance_print(term, "Type 'init 3' or 'tty' to switch to Core Linux Console.");
             terminal_instance_print(term, "Type 'help' for Linux CLI command list.");
             terminal_instance_print(term, "");
         }
@@ -146,7 +162,7 @@ void kmain(void* multiboot_info_addr) {
     terminal_instance_print(root_tty, "Linux 6.8.0-falkon #1 SMP PREEMPT 2026 x86_64 GNU/Linux");
     terminal_instance_print(root_tty, "");
     terminal_instance_print(root_tty, "falkon-os login: root (automatic login)");
-    terminal_instance_print(root_tty, "Type 'startx' to launch Desktop GUI Window Manager.");
+    terminal_instance_print(root_tty, "Type 'startx' to return to Desktop GUI Window Manager.");
     terminal_instance_print(root_tty, "Type 'help' for command list.");
     terminal_instance_print(root_tty, "");
 

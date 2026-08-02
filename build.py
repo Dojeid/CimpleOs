@@ -415,7 +415,7 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
         log_error(f"Compilation failed. See {LOGS_DIR / 'compiler.log'}")
         err_msg = res.stderr or res.stdout
         if err_msg:
-            print(f"\n--- Compiler Error Log ---\n{err_msg[:2000]}\n--------------------------")
+            print(f"\n--- Compiler Error Log ---\n{err_msg[-4000:]}\n--------------------------")
         sys.exit(1)
     t_cmp = time.time() - t0
 
