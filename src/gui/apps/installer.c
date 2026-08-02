@@ -133,9 +133,9 @@ static void installer_handle_click(window_t* win, int rel_x, int rel_y) {
             vfs_node_t* boot   = vfs_mkdir(root, "boot");
             vfs_node_t* home   = vfs_mkdir(root, "home");
             vfs_node_t* docs   = vfs_mkdir(root, "docs");
-            vfs_node_t* sys    = vfs_mkdir(root, "sys");
-            vfs_node_t* bin    = vfs_mkdir(root, "bin");
-            vfs_node_t* videos = vfs_mkdir(root, "videos");
+            vfs_mkdir(root, "sys");
+            vfs_mkdir(root, "bin");
+            vfs_mkdir(root, "videos");
 
             const char* install_readme = "Falkon-OS Native Disk Installation Complete!\nTarget Storage: /dev/sda1 (EXT4 Partition)\n";
             if (boot) vfs_create_file(boot, "kernel.bin", (const uint8_t*)"FALKON_KERNEL_64BIT_BINARY", 26);

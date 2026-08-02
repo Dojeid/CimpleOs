@@ -12,6 +12,8 @@ if(WIN32)
     set(CMAKE_CXX_COMPILER_TARGET "x86_64-elf")
 endif()
 
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
 project(FalkonOS LANGUAGES C CXX ASM_NASM)
 
 # Compiler Flags: Freestanding 64-bit Kernel (-mcmodel=small for host GCC compatibility)
@@ -104,7 +106,9 @@ set_target_properties(FalkonOS.bin PROPERTIES
     ENABLE_EXPORTS FALSE
 )
 
+find_program(OBJCOPY_BIN NAMES objcopy llvm-objcopy REQUIRED)
+
 add_custom_command(TARGET FalkonOS.bin POST_BUILD
-    COMMAND objcopy -O binary --set-section-flags .bss=alloc,load,contents $<TARGET_FILE:FalkonOS.bin> ${CMAKE_BINARY_DIR}/FalkonOS_flat.bin
+    COMMAND ${OBJCOPY_BIN} -O binary --set-section-flags .bss=alloc,load,contents $<TARGET_FILE:FalkonOS.bin> ${CMAKE_BINARY_DIR}/FalkonOS_flat.bin
     COMMENT "[FalkonOS] Generated flat raw kernel binary (FalkonOS_flat.bin) including zero-filled .bss"
 )

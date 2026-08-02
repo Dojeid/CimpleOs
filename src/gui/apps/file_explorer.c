@@ -139,8 +139,6 @@ static void file_explorer_handle_click(window_t* win, int rel_x, int rel_y) {
     if (!win || !win->user_data) return;
     explorer_state_t* state = (explorer_state_t*)win->user_data;
 
-    int w = win->width - 16;
-
     // 1. Back Button Click
     if (rel_y >= 30 && rel_y <= 58) {
         if (rel_x >= 12 && rel_x <= 72) {

@@ -13,6 +13,7 @@ static char page_content[2048] = "";
 static void browser_load_page(const char* url) {
     if (!url || !url[0]) return;
     strncpy(current_url, url, sizeof(current_url) - 1);
+    sprintf(page_title, "Falkon Surf: %s", current_url);
 
     if (strncmp(current_url, "file://", 7) == 0) {
         const char* path = current_url + 7;
@@ -74,7 +75,7 @@ static void browser_redraw(window_t* win) {
     draw_rect(vp_x, vp_y, vp_w, vp_h, 0x0B0F19);
 
     // Render HTML Text Content
-    draw_string(vp_x + 12, vp_y + 12, 0x4ADE80, "[HTML DOM Viewport - Falkon Surf Renderer]");
+    draw_string(vp_x + 12, vp_y + 12, 0x4ADE80, page_title);
     draw_rect(vp_x + 12, vp_y + 26, vp_w - 24, 1, 0x334155);
 
     draw_string(vp_x + 12, vp_y + 36, 0xF1F5F9, page_content);

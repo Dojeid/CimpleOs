@@ -284,10 +284,41 @@ def ensure_iso_builder():
 
     comp_name, comp_ver, cc = detect_compiler()
     res = subprocess.run([cc, str(ISO_BUILDER_SRC), "-o", str(ISO_BUILDER_EXE)], capture_output=True, text=True)
-    if res.returncode != 0:
-        log_error(f"Failed to compile iso_builder.c:\n{res.stderr}")
-        sys.exit(1)
-    return str(ISO_BUILDER_EXE)
+    if res.returncode == 0:
+        return str(ISO_BUILDER_EXE)
+
+    for alt_cc in ["gcc", "clang"]:
+        if shutil.which(alt_cc):
+            res2 = subprocess.run([alt_cc, str(ISO_BUILDER_SRC), "-o", str(ISO_BUILDER_EXE)], capture_output=True, text=True)
+            if res2.returncode == 0:
+                return str(ISO_BUILDER_EXE)
+
+    return None
+
+def build_iso_pycdlib(target_iso, boot_bin, kern_bin):
+    try:
+        import pycdlib
+    except ImportError:
+        subprocess.run([sys.executable, "-m", "pip", "install", "pycdlib"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        import pycdlib
+
+    iso = pycdlib.PyCdlib()
+    iso.new(interchange_level=3, joliet=3, rock_ridge='1.12')
+    iso.add_directory('/BOOT', rr_name='boot', joliet_path='/boot')
+    iso.add_directory('/BOOT/GRUB', rr_name='grub', joliet_path='/boot/grub')
+
+    grub_cfg = SRC_DIR / "arch" / "x86_64" / "boot" / "grub.cfg"
+    iso.add_file(str(kern_bin), '/BOOT/FALKONOS.BIN;1', rr_name='FalkonOS.bin', joliet_path='/boot/FalkonOS.bin')
+    if grub_cfg.exists():
+        iso.add_file(str(grub_cfg), '/BOOT/GRUB/GRUB.CFG;1', rr_name='grub.cfg', joliet_path='/boot/grub/grub.cfg')
+
+    if os.path.exists(boot_bin):
+        iso.add_file(str(boot_bin), '/BOOT/ELTORITO.IMG;1', rr_name='eltorito.img', joliet_path='/boot/eltorito.img')
+        iso.add_eltorito('/BOOT/ELTORITO.IMG;1', bootcatfile='/BOOT/BOOT.CAT;1', rr_bootcatname='boot.cat', joliet_bootcatfile='/boot/boot.cat', boot_load_size=4, boot_info_table=True)
+
+    iso.write(str(target_iso))
+    iso.close()
+    return target_iso.exists()
 
 def get_cached_cmake_generator():
     cache_file = BUILD_DIR / "CMakeCache.txt"
@@ -388,10 +419,21 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
     kern_raw = BUILD_DIR / "FalkonOS_flat.bin"
     kern_bin = kern_raw if kern_raw.exists() else (BUILD_DIR / "FalkonOS.bin")
     boot_bin = BUILD_DIR / "bootsector.bin"
+    def _find_nasm():
+        p = shutil.which("nasm") or shutil.which("nasm.exe")
+        if p: return p
+        for c in [
+            r"C:\Program Files\NASM\nasm.exe",
+            r"C:\Program Files (x86)\NASM\nasm.exe",
+            str(Path.home() / "AppData" / "Local" / "bin" / "NASM" / "nasm.exe"),
+            str(Path.home() / "AppData" / "Local" / "Programs" / "NASM" / "nasm.exe"),
+        ]:
+            if os.path.exists(c): return c
+        return None
 
-    nasm_bin = shutil.which("nasm") or r"C:\Program Files\NASM\nasm.exe"
+    nasm_bin = _find_nasm()
     boot_asm = SRC_DIR / "arch" / "x86_64" / "boot" / "bootsector.asm"
-    if os.path.exists(nasm_bin) and boot_asm.exists():
+    if nasm_bin and os.path.exists(nasm_bin) and boot_asm.exists():
         res = subprocess.run([nasm_bin, "-f", "bin", str(boot_asm), "-o", str(boot_bin)], capture_output=True, text=True)
         if res.returncode != 0:
             log_error(f"NASM failed for {boot_asm}:\n{res.stderr}")
@@ -405,7 +447,12 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
     builder_exe = ensure_iso_builder()
     target_iso = BUILD_DIR / "FalkonOS.iso"
     target_img = OUT_DIR / "FalkonOS.img"
-    res = subprocess.run([builder_exe, str(target_iso), str(boot_bin), str(kern_bin), str(target_img)], capture_output=True, text=True)
+    if builder_exe:
+        res = subprocess.run([builder_exe, str(target_iso), str(boot_bin), str(kern_bin), str(target_img)], capture_output=True, text=True)
+        if res.returncode != 0 or not target_iso.exists():
+            build_iso_pycdlib(target_iso, boot_bin, kern_bin)
+    else:
+        build_iso_pycdlib(target_iso, boot_bin, kern_bin)
     t_iso = time.time() - t0
 
     shutil.copy2(target_iso, PRIMARY_ISO)
