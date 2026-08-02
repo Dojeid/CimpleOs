@@ -99,6 +99,7 @@ void desktop_render_background() {
 
 void desktop_render_topbar() {
     extern int screen_w;
+    extern int installer_is_system_installed(void);
     
     // Topbar background
     draw_rect(0, 0, screen_w, DESKTOP_TOPBAR_HEIGHT, desktop.topbar_color);
@@ -107,6 +108,13 @@ void desktop_render_topbar() {
     // Falkon-OS Enterprise Badge
     draw_rect(6, 4, 135, 17, 0x0F172A);
     draw_string(12, 7, 0x38BDF8, "Falkon-OS v1.0");
+
+    // Mode Status Pill (Live ISO Preview vs Native Installed Disk)
+    int is_installed = installer_is_system_installed();
+    uint32_t pill_bg = is_installed ? 0x059669 : 0xF59E0B;
+    draw_rect(150, 4, is_installed ? 250 : 275, 17, pill_bg);
+    draw_string(156, 7, is_installed ? 0xFFFFFF : 0x000000, 
+                is_installed ? "[ INSTALLED NATIVE DISK: /dev/sda1 ]" : "[ LIVE USB PREVIEW - Double Click 'Install OS' ]");
     
     // Live Timer Telemetry
     extern volatile uint32_t timer_ticks;
