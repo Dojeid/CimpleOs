@@ -114,10 +114,13 @@ void init_idt(void) {
 #define IRQ_STACK_VECTOR_IDX  19
 #define IRQ_STACK_ERRCODE_IDX 20
 
+#include "lib/printf.h"
+
 // ISR handler - called from assembly
 void isr_handler(void* stack_ptr) {
     uint64_t* stack = (uint64_t*)stack_ptr;
     uint8_t vector = (uint8_t)(stack[IRQ_STACK_VECTOR_IDX] & 0xFF);
+    uint64_t err_code = stack[IRQ_STACK_ERRCODE_IDX];
 
     const char* names[] = {
         "Division by Zero", "Debug", "NMI", "Breakpoint", "Overflow",
@@ -127,9 +130,29 @@ void isr_handler(void* stack_ptr) {
         "Alignment Check", "Machine Check"
     };
     const char* name = (vector < 19) ? names[vector] : "Unknown Exception";
-    vga_print("EXCEPTION: ");
+    vga_print("KERNEL EXCEPTION [Vector ");
+    char vec_str[16];
+    sprintf(vec_str, "%u]: ", vector);
+    vga_print(vec_str);
     vga_print(name);
     vga_print("\n");
+
+    if (vector == 14) { // Page Fault
+        uint64_t cr2;
+        asm volatile("mov %%cr2, %0" : "=r"(cr2));
+        char cr2_str[80];
+        sprintf(cr2_str, "  Fault Address (CR2): 0x%016llX | ErrCode: 0x%llX\n", cr2, err_code);
+        vga_print(cr2_str);
+    }
+
+    uint64_t cr3;
+    asm volatile("mov %%cr3, %0" : "=r"(cr3));
+    char reg_dump[256];
+    sprintf(reg_dump, "  RAX: 0x%016llX | RBX: 0x%016llX | RCX: 0x%016llX\n"
+                      "  RDX: 0x%016llX | RSI: 0x%016llX | RDI: 0x%016llX\n"
+                      "  CR3: 0x%016llX | ERR: 0x%016llX\n",
+                      stack[18], stack[15], stack[17], stack[16], stack[14], stack[13], cr3, err_code);
+    vga_print(reg_dump);
     for (;;) {
         asm volatile("cli; hlt");
     }

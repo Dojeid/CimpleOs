@@ -89,6 +89,8 @@ void graphics_set_mode(int width, int height, int bpp) {
     taskbar_init();
     extern void cursor_set_screen_bounds(int w, int h);
     cursor_set_screen_bounds(screen_w, screen_h);
+    extern void wm_clamp_all_windows(void);
+    wm_clamp_all_windows();
 }
 
 // ─── Core Pixel ─────────────────────────────────────────────
@@ -116,6 +118,8 @@ void draw_rect(int x, int y, int w, int h, uint32_t color) {
     if (y  < 0) y  = 0;
     if (x2 > screen_w) x2 = screen_w;
     if (y2 > screen_h) y2 = screen_h;
+    if (x >= x2 || y >= y2) return;
+
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8)  & 0xFF;
     uint8_t b =  color        & 0xFF;
@@ -125,33 +129,47 @@ void draw_rect(int x, int y, int w, int h, uint32_t color) {
         b = (b * brightness_level) / 100;
     }
     uint32_t packed = (r << 16) | (g << 8) | b;
+    uint64_t packed64 = ((uint64_t)packed << 32) | (uint64_t)packed;
+    int rect_w = x2 - x;
+
     for (int i = y; i < y2; i++) {
-        uint32_t* row = back_buffer + i * screen_w;
-        for (int j = x; j < x2; j++) row[j] = packed;
+        uint32_t* row = back_buffer + i * screen_w + x;
+        int j = 0;
+        for (; j <= rect_w - 2; j += 2) {
+            *(uint64_t*)(row + j) = packed64;
+        }
+        if (j < rect_w) {
+            row[j] = packed;
+        }
     }
 }
 
 void draw_rect_alpha(int x, int y, int w, int h, uint32_t color, uint8_t alpha) {
     if (alpha == 255) { draw_rect(x, y, w, h, color); return; }
     if (alpha == 0)   return;
-    uint8_t sr = (color >> 16) & 0xFF;
-    uint8_t sg = (color >> 8)  & 0xFF;
-    uint8_t sb =  color        & 0xFF;
-    uint16_t inv = 255 - alpha;
-    for (int i = 0; i < h; i++) {
-        int py = y + i;
-        if (py < 0 || py >= screen_h) continue;
-        for (int j = 0; j < w; j++) {
-            int px = x + j;
-            if (px < 0 || px >= screen_w) continue;
-            uint32_t dst = back_buffer[py * screen_w + px];
-            uint8_t dr = (dst >> 16) & 0xFF;
-            uint8_t dg = (dst >> 8)  & 0xFF;
-            uint8_t db =  dst        & 0xFF;
-            uint8_t r = (sr * alpha + dr * inv) >> 8;
-            uint8_t g = (sg * alpha + dg * inv) >> 8;
-            uint8_t b = (sb * alpha + db * inv) >> 8;
-            back_buffer[py * screen_w + px] = (r << 16) | (g << 8) | b;
+
+    int x1 = (x < 0) ? 0 : x;
+    int y1 = (y < 0) ? 0 : y;
+    int x2 = (x + w > screen_w) ? screen_w : x + w;
+    int y2 = (y + h > screen_h) ? screen_h : y + h;
+    if (x1 >= x2 || y1 >= y2) return;
+
+    uint32_t sr = ((color >> 16) & 0xFF) * alpha;
+    uint32_t sg = ((color >> 8)  & 0xFF) * alpha;
+    uint32_t sb = ( color        & 0xFF) * alpha;
+    uint32_t inv = 255 - alpha;
+
+    for (int i = y1; i < y2; i++) {
+        uint32_t* row = back_buffer + i * screen_w;
+        for (int j = x1; j < x2; j++) {
+            uint32_t dst = row[j];
+            uint32_t dr = (dst >> 16) & 0xFF;
+            uint32_t dg = (dst >> 8)  & 0xFF;
+            uint32_t db =  dst        & 0xFF;
+            uint32_t r = (sr + dr * inv) >> 8;
+            uint32_t g = (sg + dg * inv) >> 8;
+            uint32_t b = (sb + db * inv) >> 8;
+            row[j] = (r << 16) | (g << 8) | b;
         }
     }
 }
@@ -302,11 +320,43 @@ void draw_box_blur(int x, int y, int w, int h, int radius) {
 void draw_char(int x, int y, char c, uint32_t color) {
     uint8_t uc = (uint8_t)c;
     if (uc > 127) return;
+    if (x < 0 || y < 0 || x + 8 > screen_w || y + 8 > screen_h) {
+        const uint8_t* glyph = font8x8_basic[(int)c];
+        for (int cy = 0; cy < 8; cy++)
+            for (int cx = 0; cx < 8; cx++)
+                if (glyph[cy] & (1 << (7-cx)))
+                    put_pixel(x+cx, y+cy, color);
+        return;
+    }
+
+    uint8_t r = (color >> 16) & 0xFF;
+    uint8_t g = (color >> 8)  & 0xFF;
+    uint8_t b =  color        & 0xFF;
+    if (brightness_level < 100) {
+        r = (r * brightness_level) / 100;
+        g = (g * brightness_level) / 100;
+        b = (b * brightness_level) / 100;
+    }
+    if (night_light_active) {
+        r = (r * 110 > 255) ? 255 : (r * 110 / 100);
+        b = (b * 65) / 100;
+    }
+    uint32_t final_color = (r << 16) | (g << 8) | b;
+
     const uint8_t* glyph = font8x8_basic[(int)c];
-    for (int cy = 0; cy < 8; cy++)
-        for (int cx = 0; cx < 8; cx++)
-            if (glyph[cy] & (1 << (7-cx)))
-                put_pixel(x+cx, y+cy, color);
+    for (int cy = 0; cy < 8; cy++) {
+        uint8_t row_bits = glyph[cy];
+        if (!row_bits) continue;
+        uint32_t* row = back_buffer + (y + cy) * screen_w + x;
+        if (row_bits & 0x80) row[0] = final_color;
+        if (row_bits & 0x40) row[1] = final_color;
+        if (row_bits & 0x20) row[2] = final_color;
+        if (row_bits & 0x10) row[3] = final_color;
+        if (row_bits & 0x08) row[4] = final_color;
+        if (row_bits & 0x04) row[5] = final_color;
+        if (row_bits & 0x02) row[6] = final_color;
+        if (row_bits & 0x01) row[7] = final_color;
+    }
 }
 
 void draw_string(int x, int y, uint32_t color, const char* str) {
@@ -384,7 +434,12 @@ static int      current_real_fps = 60;
 
 void swap_buffers(void) {
     if (video_memory && back_buffer && video_memory != back_buffer) {
-        memcpy(video_memory, back_buffer, screen_w * screen_h * 4);
+        uint64_t* dst64 = (uint64_t*)video_memory;
+        uint64_t* src64 = (uint64_t*)back_buffer;
+        size_t count64 = ((size_t)screen_w * screen_h * 4) / 8;
+        for (size_t i = 0; i < count64; i++) {
+            dst64[i] = src64[i];
+        }
     }
     extern volatile uint32_t timer_ticks;
     frame_count_sec++;
@@ -401,7 +456,13 @@ int graphics_get_real_fps(void) {
 }
 
 void clear_screen(uint32_t color) {
-    for (int i = 0; i < screen_w * screen_h; i++) back_buffer[i] = color;
+    if (!back_buffer) return;
+    uint64_t color64 = ((uint64_t)color << 32) | (uint64_t)color;
+    uint64_t* buf64 = (uint64_t*)back_buffer;
+    size_t count64 = ((size_t)screen_w * screen_h) / 2;
+    for (size_t i = 0; i < count64; i++) {
+        buf64[i] = color64;
+    }
 }
 
 // ─── Theme / Brightness / Night Light ───────────────────────

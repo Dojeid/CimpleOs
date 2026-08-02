@@ -26,8 +26,13 @@
 #define SYS_SOCKET  20
 #define SYS_BIND    21
 #define SYS_CONNECT 22
-#define SYS_SENDTO  23
+#define SYS_SENDTO   23
 #define SYS_RECVFROM 24
+#define SYS_PIPE     25
+#define SYS_DUP2     26
+#define SYS_STAT     27
+#define SYS_LSEEK    28
+#define SYS_IOCTL    29
 
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);

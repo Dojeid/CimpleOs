@@ -131,6 +131,79 @@ int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t
             }
         case SYS_RECVFROM:
             return 0;
+        case SYS_DUP2:
+            {
+                int oldfd = (int)arg1;
+                int newfd = (int)arg2;
+                process_t* curr = process_get_current();
+                if (oldfd < 0 || oldfd >= MAX_PROCESS_FDS || !curr->fd_table[oldfd]) return -1;
+                if (newfd < 0 || newfd >= MAX_PROCESS_FDS) return -1;
+                if (oldfd == newfd) return newfd;
+                if (curr->fd_table[newfd]) {
+                    vfs_close(curr->fd_table[newfd]);
+                }
+                curr->fd_table[newfd] = curr->fd_table[oldfd];
+                return newfd;
+            }
+        case SYS_LSEEK:
+            {
+                int fd = (int)arg1;
+                int32_t offset = (int32_t)arg2;
+                int whence = (int)arg3;
+                process_t* curr = process_get_current();
+                if (fd < 0 || fd >= MAX_PROCESS_FDS || !curr->fd_table[fd]) return -1;
+                file_t* f = curr->fd_table[fd];
+                uint32_t fsize = f->f_dentry ? f->f_dentry->size : (f->f_inode ? f->f_inode->i_size : 0);
+                if (whence == 0) { // SEEK_SET
+                    f->f_pos = (offset < 0) ? 0 : (uint32_t)offset;
+                } else if (whence == 1) { // SEEK_CUR
+                    int32_t new_pos = (int32_t)f->f_pos + offset;
+                    f->f_pos = (new_pos < 0) ? 0 : (uint32_t)new_pos;
+                } else if (whence == 2) { // SEEK_END
+                    int32_t new_pos = (int32_t)fsize + offset;
+                    f->f_pos = (new_pos < 0) ? 0 : (uint32_t)new_pos;
+                }
+                return f->f_pos;
+            }
+        case SYS_STAT:
+            {
+                const char* path = (const char*)arg1;
+                uint32_t* stat_buf = (uint32_t*)arg2;
+                if (!path || !stat_buf) return -1;
+                dentry_t* node = vfs_lookup(path);
+                if (!node) return -1;
+                stat_buf[0] = node->type;
+                stat_buf[1] = node->size;
+                return 0;
+            }
+        case SYS_PIPE:
+            {
+                int* pipefds = (int*)arg1;
+                if (!pipefds) return -1;
+                process_t* curr = process_get_current();
+                file_t* f1 = (file_t*)kmalloc(sizeof(file_t));
+                file_t* f2 = (file_t*)kmalloc(sizeof(file_t));
+                if (!f1 || !f2) return -1;
+                memset(f1, 0, sizeof(file_t));
+                memset(f2, 0, sizeof(file_t));
+                
+                int slot1 = -1, slot2 = -1;
+                for (int i = 0; i < MAX_PROCESS_FDS; i++) {
+                    if (!curr->fd_table[i] && slot1 == -1) slot1 = i;
+                    else if (!curr->fd_table[i] && slot1 != -1 && slot2 == -1) { slot2 = i; break; }
+                }
+                if (slot1 == -1 || slot2 == -1) {
+                    kfree(f1); kfree(f2);
+                    return -1;
+                }
+                curr->fd_table[slot1] = f1;
+                curr->fd_table[slot2] = f2;
+                pipefds[0] = slot1;
+                pipefds[1] = slot2;
+                return 0;
+            }
+        case SYS_IOCTL:
+            return 0;
         default:
             return -1;
     }

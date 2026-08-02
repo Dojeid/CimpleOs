@@ -232,6 +232,7 @@ void vmm_switch_pagetable(uint64_t pml4_pa) {
 
 // Get current active page table physical address
 uint64_t vmm_get_active_pagetable(void) {
+    if (!current_pagetable) return 0;
     return current_pagetable->physical_base;
 }
 

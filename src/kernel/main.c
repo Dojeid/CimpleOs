@@ -13,6 +13,7 @@
 #include "mm/pmm.h"
 #include "mm/vmm.h"
 #include "mm/heap.h"
+#include "mm/slab.h"
 #include "lib/io.h"
 #include "lib/string.h"
 #include "kernel/gdt.h"
@@ -106,7 +107,8 @@ void kmain(void* multiboot_info_addr) {
     boot_log_ok("Enabling Paging & Virtual Memory Manager (VMM 64-bit)");
 
     heap_init();
-    boot_log_ok("Kernel Heap Allocator Ready");
+    slab_init();
+    boot_log_ok("Kernel Heap Allocator & Slab Cache Ready");
 
     graphics_init(mbi);
     boot_log_ok("VESA/BGA Graphics Framebuffer Double-Buffered Canvas");
@@ -132,9 +134,14 @@ void kmain(void* multiboot_info_addr) {
     e1000_init();
     boot_log_ok("Intel 82540EM Gigabit Ethernet NIC (MAC: 52:54:00:12:34:56)");
 
+#include "gui/notify.h"
+
     desktop_init();
     taskbar_init();
     cursor_init();
+    notify_init();
+    notify_push("Falkon-OS Ready", "Windows 11 Desktop GUI Loaded (60 FPS)", 0x38BDF8);
+    notify_push("Guest Integration", "VirtualBox Host Mouse Integration Active", 0x4ADE80);
     
     asm volatile("sti");
 
@@ -249,6 +256,7 @@ void kmain(void* multiboot_info_addr) {
             }
             
             taskbar_render();
+            notify_render();
             cursor_render();
             swap_buffers();
             timer_wait(1); // 60 FPS Frame Limiter

@@ -253,6 +253,20 @@ void wm_resize_window(int window_id, int new_width, int new_height) {
     win->height = new_height;
 }
 
+void wm_clamp_all_windows(void) {
+    extern int screen_w, screen_h;
+    for (int i = 0; i < MAX_WINDOWS; i++) {
+        if (wm.windows[i].id == -1) continue;
+        window_t* win = &wm.windows[i];
+        if (win->x + win->width > screen_w) {
+            win->x = (screen_w - win->width > 0) ? (screen_w - win->width) : 0;
+        }
+        if (win->y + TITLEBAR_HEIGHT + win->height > screen_h - 30) {
+            win->y = (screen_h - 30 - TITLEBAR_HEIGHT - win->height > 25) ? (screen_h - 30 - TITLEBAR_HEIGHT - win->height) : 25;
+        }
+    }
+}
+
 int wm_get_window_at(int x, int y) {
     // Check from front to back (focused window first)
     if (wm.focused_window_id != -1) {
@@ -474,12 +488,27 @@ void wm_handle_mouse_down(int x, int y) {
         return;
     }
     
-    // Start dragging if in title bar
-    if (wm_is_point_in_titlebar(win, x, y) && !(win->flags & WIN_FLAG_MAXIMIZED)) {
-        win->flags |= WIN_FLAG_DRAGGING;
-        win->drag_offset_x = x - win->x;
-        win->drag_offset_y = y - win->y;
-        return;
+    // Start dragging / double-click titlebar to maximize
+    if (wm_is_point_in_titlebar(win, x, y)) {
+        static uint32_t last_titlebar_click_time = 0;
+        static int last_titlebar_window_id = -1;
+        extern volatile uint32_t timer_ticks;
+
+        if (last_titlebar_window_id == window_id && (timer_ticks - last_titlebar_click_time <= 40)) {
+            wm_maximize_window(window_id);
+            last_titlebar_click_time = 0;
+            last_titlebar_window_id = -1;
+            return;
+        }
+        last_titlebar_click_time = timer_ticks;
+        last_titlebar_window_id = window_id;
+
+        if (!(win->flags & WIN_FLAG_MAXIMIZED)) {
+            win->flags |= WIN_FLAG_DRAGGING;
+            win->drag_offset_x = x - win->x;
+            win->drag_offset_y = y - win->y;
+            return;
+        }
     }
     
     // Content area click dispatch

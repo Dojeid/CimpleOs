@@ -65,6 +65,7 @@ void wm_maximize_window(int window_id);
 void wm_restore_window(int window_id);
 void wm_move_window(int window_id, int new_x, int new_y);
 void wm_resize_window(int window_id, int new_width, int new_height);
+void wm_clamp_all_windows(void);
 
 // Window queries
 int wm_get_window_at(int x, int y);

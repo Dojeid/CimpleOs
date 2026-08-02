@@ -148,6 +148,7 @@ process_t* process_create(const char* name, void (*entry_point)(void)) {
         return 0;
     }
     memset(stack, 0, PROCESS_KERNEL_STACK_SIZE);
+    *(uint64_t*)stack = 0xDEADC0FFEEULL; // Write stack canary at bottom of kernel stack
 
     process_t* proc = &processes[slot];
     memset(proc, 0, sizeof(process_t));
@@ -197,6 +198,14 @@ uint64_t schedule(uint64_t current_rsp) {
     process_t* current = &processes[current_pid];
     current->stack_top = current_rsp;
     current->saved_rsp = current_rsp;
+
+    // Stack canary verification (detect kernel stack overflow)
+    if (current->pid != 0 && current->kernel_stack_base && *(uint64_t*)current->kernel_stack_base != 0xDEADC0FFEEULL) {
+        vga_print("[Scheduler] FATAL: Stack canary corrupted in process '");
+        vga_print(current->name);
+        vga_print("'! Kernel stack overflow.\n");
+        for (;;) { asm volatile("cli; hlt"); }
+    }
 
     if (current->state == PROCESS_STATE_RUNNING) {
         current->state = PROCESS_STATE_READY;

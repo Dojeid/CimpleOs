@@ -52,9 +52,14 @@ void pmm_init(uint64_t mem_size) {
     }
 }
 
+#include "drivers/video/vga.h"
+
 void* pmm_alloc_frame(void) {
     int64_t frame = mmap_first_free();
-    if (frame == -1) return NULL;
+    if (frame == -1) {
+        vga_print("[PMM] CRITICAL: Physical memory exhausted! Frame allocation failed.\n");
+        return NULL;
+    }
     
     mmap_set((uint64_t)frame);
     used_frames++;

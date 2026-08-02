@@ -170,8 +170,8 @@ static void settings_redraw(window_t* win) {
 static void settings_handle_click(window_t* win, int rel_x, int rel_y) {
     if (!win) return;
 
-    // Header Tabs Clicks
-    if (rel_y >= 32 && rel_y <= 58) {
+    // Header Tabs Clicks (rel_y between 8 and 34)
+    if (rel_y >= 6 && rel_y <= 34) {
         if (rel_x >= 8 && rel_x <= 128) active_tab = 1;
         else if (rel_x >= 133 && rel_x <= 248) active_tab = 2;
         else if (rel_x >= 253 && rel_x <= 363) active_tab = 3;
@@ -180,38 +180,37 @@ static void settings_handle_click(window_t* win, int rel_x, int rel_y) {
         return;
     }
 
-    int content_y = rel_y - 68;
     if (active_tab == 1) {
-        // Resolution Buttons Click
-        if (content_y >= 18 && content_y <= 42) {
+        // Resolution Buttons Click (rel_y between 58 and 88)
+        if (rel_y >= 56 && rel_y <= 88) {
             if (rel_x >= 18 && rel_x <= 118) {
                 active_res = 1;
                 graphics_set_mode(1024, 768, 32);
-                strcpy(settings_msg, "Display set to 1024x768 @ 32bpp BGA LFB.");
+                strcpy(settings_msg, "Display resolution set to 1024x768 @ 32bpp.");
             } else if (rel_x >= 123 && rel_x <= 223) {
                 active_res = 2;
                 graphics_set_mode(1280, 720, 32);
-                strcpy(settings_msg, "Display set to 1280x720 @ 32bpp BGA LFB.");
+                strcpy(settings_msg, "Display resolution set to 1280x720 @ 32bpp.");
             } else if (rel_x >= 228 && rel_x <= 328) {
                 active_res = 3;
                 graphics_set_mode(800, 600, 32);
-                strcpy(settings_msg, "Display set to 800x600 @ 32bpp BGA LFB.");
+                strcpy(settings_msg, "Display resolution set to 800x600 @ 32bpp.");
             } else if (rel_x >= 333 && rel_x <= 433) {
                 active_res = 4;
                 graphics_set_mode(1920, 1080, 32);
-                strcpy(settings_msg, "Display set to 1920x1080 @ 32bpp BGA LFB.");
+                strcpy(settings_msg, "Display resolution set to 1920x1080 @ 32bpp.");
             }
             settings_redraw(win);
         }
-        // Night Light Toggle Click
-        else if (content_y >= 70 && content_y <= 94 && rel_x >= 18 && rel_x <= 108) {
+        // Night Light Toggle Click (rel_y between 108 and 138)
+        else if (rel_y >= 108 && rel_y <= 138 && rel_x >= 18 && rel_x <= 108) {
             night_light_on = !night_light_on;
             graphics_set_night_light(night_light_on);
             strcpy(settings_msg, night_light_on ? "Night Light Filter ENABLED." : "Night Light Filter DISABLED.");
             settings_redraw(win);
         }
-        // Brightness Controls Click
-        else if (content_y >= 70 && content_y <= 94) {
+        // Brightness Controls Click (rel_y between 108 and 138)
+        else if (rel_y >= 108 && rel_y <= 138) {
             if (rel_x >= 138 && rel_x <= 218) {
                 brightness_level = 100;
                 graphics_set_brightness(100);
@@ -226,8 +225,8 @@ static void settings_handle_click(window_t* win, int rel_x, int rel_y) {
         }
     }
     else if (active_tab == 2) {
-        // Theme Selection Click
-        if (content_y >= 18 && content_y <= 42) {
+        // Theme Selection Click (rel_y between 56 and 88)
+        if (rel_y >= 56 && rel_y <= 88) {
             if (rel_x >= 18 && rel_x <= 113) { active_theme = 1; desktop_set_theme(1); }
             else if (rel_x >= 118 && rel_x <= 213) { active_theme = 2; desktop_set_theme(2); }
             else if (rel_x >= 218 && rel_x <= 313) { active_theme = 3; desktop_set_theme(3); }

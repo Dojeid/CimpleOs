@@ -134,3 +134,25 @@ void free(void* ptr) {
     }
     irq_restore(flags);
 }
+
+void heap_get_stats(size_t* out_used, size_t* out_free, size_t* out_largest_free) {
+    uint64_t flags = irq_save();
+    size_t used_bytes = 0;
+    size_t free_bytes = 0;
+    size_t max_free = 0;
+    if (head) {
+        for (block_t* b = head; b; b = b->next) {
+            if (b->magic != BLOCK_MAGIC) break;
+            if (b->used) {
+                used_bytes += HEADER_SIZE + b->size;
+            } else {
+                free_bytes += HEADER_SIZE + b->size;
+                if (b->size > max_free) max_free = b->size;
+            }
+        }
+    }
+    if (out_used) *out_used = used_bytes;
+    if (out_free) *out_free = free_bytes;
+    if (out_largest_free) *out_largest_free = max_free;
+    irq_restore(flags);
+}
