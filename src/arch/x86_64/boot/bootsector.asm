@@ -12,10 +12,10 @@
 [ORG 0x7C00]
 [BITS 16]
 
-; --- Kernel payload size limits (dynamically scales with iso_builder.c) ---
-KERNEL_BYTES        equ 64 * 1024 * 1024    ; Dynamic kernel capacity scaling (up to 64MB)
-KERNEL_SECTORS      equ KERNEL_BYTES / 512      ; 131072 sectors (512B units)
-ISO_KERNEL_SECTORS  equ KERNEL_BYTES / 2048     ; 32768 sectors (2048B ISO units)
+; --- Kernel payload size limits (matches iso_builder.c) ---
+KERNEL_BYTES        equ 1 * 1024 * 1024     ; 1MB Kernel capacity (512 ISO 2KB sectors)
+KERNEL_SECTORS      equ KERNEL_BYTES / 512      ; 2048 sectors (512B units)
+ISO_KERNEL_SECTORS  equ KERNEL_BYTES / 2048     ; 512 sectors (2048B ISO units)
 PARA_PER_SECTOR_512 equ 32              ; paragraphs per 512-byte sector
 PARA_PER_SECTOR_2K  equ 128             ; paragraphs per 2048-byte sector
 MAX_CHUNK_512       equ 127             ; INT13 DAP count cap (512B drives)
