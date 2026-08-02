@@ -21,6 +21,7 @@ set(CMAKE_C_FLAGS
     "-mno-red-zone -mno-mmx -mno-sse -mno-sse2"
     "-fno-pic -fno-pie -fno-stack-protector"
     "-fno-asynchronous-unwind-tables -fno-exceptions -fno-unwind-tables"
+    "-Werror -Wshadow -Wformat=2 -Wformat-security"
     "-I${CMAKE_SOURCE_DIR}/src"
     "-I${CMAKE_SOURCE_DIR}/src/include"
 )
@@ -37,6 +38,22 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG -DRELEASE_MODE")
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
+endif()
+
+# Sanitizer profiles
+if(DEFINED ENV{ASAN})
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address")
+endif()
+
+if(DEFINED ENV{UBSAN})
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=undefined")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=undefined")
+endif()
+
+if(DEFINED ENV{TSAN})
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=thread")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=thread")
 endif()
 
 # Linker script & bare-metal flags

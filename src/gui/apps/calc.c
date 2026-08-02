@@ -75,7 +75,7 @@ static void calc_handle_click(window_t* win, int rel_x, int rel_y) {
             state->display[0] = key[0];
             state->display[1] = '\0';
             state->clear_on_next = 0;
-        } else if (strlen(state->display) < 14) {
+        } else if (strlen(state->display) < sizeof(state->display) - 1) {
             int len = strlen(state->display);
             state->display[len] = key[0];
             state->display[len + 1] = '\0';
@@ -91,7 +91,9 @@ static void calc_handle_click(window_t* win, int rel_x, int rel_y) {
     else if (key[0] == '+' || key[0] == '-' || key[0] == '*' || key[0] == '/') {
         state->val1 = 0;
         for (int i = 0; state->display[i]; i++) {
-            state->val1 = state->val1 * 10 + (state->display[i] - '0');
+            if (state->display[i] >= '0' && state->display[i] <= '9') {
+                state->val1 = state->val1 * 10 + (state->display[i] - '0');
+            }
         }
         state->op = key[0];
         state->clear_on_next = 1;
@@ -100,13 +102,20 @@ static void calc_handle_click(window_t* win, int rel_x, int rel_y) {
         if (state->op) {
             state->val2 = 0;
             for (int i = 0; state->display[i]; i++) {
-                state->val2 = state->val2 * 10 + (state->display[i] - '0');
+                if (state->display[i] >= '0' && state->display[i] <= '9') {
+                    state->val2 = state->val2 * 10 + (state->display[i] - '0');
+                }
             }
             long res = 0;
-            if (state->op == '+') res = state->val1 + state->val2;
-            else if (state->op == '-') res = state->val1 - state->val2;
-            else if (state->op == '*') res = state->val1 * state->val2;
-            else if (state->op == '/') res = (state->val2 != 0) ? (state->val1 / state->val2) : 0;
+            if (state->op == '+') {
+                res = state->val1 + state->val2;
+            } else if (state->op == '-') {
+                res = state->val1 - state->val2;
+            } else if (state->op == '*') {
+                res = state->val1 * state->val2;
+            } else if (state->op == '/') {
+                res = (state->val2 != 0) ? (state->val1 / state->val2) : 0;
+            }
 
             sprintf(state->display, "%ld", res);
             state->op = 0;

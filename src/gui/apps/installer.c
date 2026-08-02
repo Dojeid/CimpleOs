@@ -31,7 +31,7 @@ static void installer_redraw(window_t* win) {
     draw_rect(x, y + 16, win->width - 24, 2, 0x334155);
 
     ata_drive_t* drive = ata_get_drive(0);
-    uint32_t drive_size_mb = drive->present ? (drive->total_sectors * 512) / (1024 * 1024) : 2048;
+    uint32_t drive_size_mb = drive && drive->present ? (drive->total_sectors * 512) / (1024 * 1024) : 2048;
 
     if (install_step == 1) {
         draw_string(x, y + 24, 0xF1F5F9, "Target ATA Hard Drive Installation Selection:");
@@ -41,7 +41,7 @@ static void installer_redraw(window_t* win) {
         draw_rect(x, y + 42, win->width - 24, 1, 0x38BDF8);
 
         char dev_info[128];
-        sprintf(dev_info, "Target Disk: /dev/sda (%s - %u MB)", drive->present ? drive->model : "Primary Master Storage Disk", drive_size_mb);
+        sprintf(dev_info, "Target Disk: /dev/sda (%s - %u MB)", drive && drive->present ? drive->model : "Primary Master Storage Disk", drive_size_mb);
         draw_string(x + 12, y + 50, 0x4ADE80, dev_info);
         draw_string(x + 12, y + 66, 0x94A3B8, "Filesystem: Native Linux EXT4 Volume (Superblock 0xEF53)");
         draw_string(x + 12, y + 78, 0x38BDF8, "Bootloader: Falkon 64-bit Master Boot Record (Sector 0)");

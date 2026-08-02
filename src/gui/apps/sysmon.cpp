@@ -61,18 +61,28 @@ static void sysmon_redraw(window_t* win) {
         draw_rect(x + 2 + i, py, 4, 3, 0xFF007F);
     }
 
-    // 3. Disk
-    draw_string(x, y + 172, 0x38BDF8, "Disk Storage & EXT4 Volume Status:");
+// 3. Disk
+draw_string(x, y + 172, 0x38BDF8, "Disk Storage & EXT4 Volume Status:");
     ata_drive_t* drv = ata_get_drive(0);
     char ata_info[128];
-    sprintf(ata_info, "ATA Disk: %s (%u MB)",
-            drv->present ? drv->model : "Virtual Storage",
-            (drv->total_sectors * 512) / (1024*1024));
-    draw_string(x + 10, y + 190, 0x4ADE80, ata_info);
+    if (drv && drv->present) {
+        sprintf(ata_info, "ATA Disk: %s (%u MB)",
+                drv->model,
+                (drv->total_sectors * 512) / (1024*1024));
+        draw_string(x + 10, y + 190, 0x4ADE80, ata_info);
+    } else {
+        strcpy(ata_info, "ATA Disk: Virtual Storage (0 MB)");
+        draw_string(x + 10, y + 190, 0xFF0000, ata_info);
+    }
 
     char ext4_info[128];
-    sprintf(ext4_info, "Mount: / (EXT4 Superblock 0x%X)", ext4_is_mounted() ? 0xEF53 : 0x0000);
-    draw_string(x + 10, y + 206, 0x94A3B8, ext4_info);
+    if (ext4_is_mounted()) {
+        sprintf(ext4_info, "Mount: / (EXT4 Mounted, Magic: 0xEF53)");
+        draw_string(x + 10, y + 206, 0x4ADE80, ext4_info);
+    } else {
+        sprintf(ext4_info, "Mount: / (EXT4 Not Mounted)");
+        draw_string(x + 10, y + 206, 0xFF0000, ext4_info);
+    }
 }
 
 extern "C" void sysmon_open(void) {
