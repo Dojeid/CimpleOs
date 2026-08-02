@@ -5,7 +5,6 @@
 #define HEAP_SIZE 0x4000000 // 64 MB Kernel Heap
 
 // Block header: 32 bytes (two pointers + size + magic/used flags).
-// 16-byte aligned so payloads are always 16-byte aligned for 64-bit.
 #define HEADER_SIZE 32
 #define BLOCK_MAGIC 0xF41C0DE5u
 
@@ -23,6 +22,18 @@ static uintptr_t heap_start = HEAP_START;
 static uintptr_t heap_end = HEAP_START + HEAP_SIZE;
 static block_t* head = NULL;
 
+static uint64_t irq_save(void) {
+    uint64_t flags;
+    asm volatile("pushfq; pop %0; cli" : "=r"(flags) :: "memory");
+    return flags;
+}
+
+static void irq_restore(uint64_t flags) {
+    if (flags & 0x200) {
+        asm volatile("sti" ::: "memory");
+    }
+}
+
 void heap_init(void) {
     heap_start = HEAP_START;
     heap_end = HEAP_START + HEAP_SIZE;
@@ -35,6 +46,7 @@ void heap_init(void) {
 }
 
 void* malloc(size_t size) {
+    uint64_t flags = irq_save();
     if (!head) heap_init();
 
     size_t need = ALIGN16(size);
@@ -43,7 +55,7 @@ void* malloc(size_t size) {
     for (block_t* b = head; b; b = b->next) {
         if (b->used || b->size < need) continue;
 
-        // Split when the leftover can host a new block
+        // Split when leftover can host a new block
         if (b->size >= need + HEADER_SIZE + 16) {
             block_t* nb = (block_t*)((char*)b + HEADER_SIZE + need);
             nb->next = b->next;
@@ -56,12 +68,15 @@ void* malloc(size_t size) {
             b->size = need;
         }
         b->used = 1;
+        irq_restore(flags);
         return (void*)((char*)b + HEADER_SIZE);
     }
+    irq_restore(flags);
     return NULL;
 }
 
 void* calloc(size_t num, size_t size) {
+    if (size != 0 && num > 0xFFFFFFFFu / size) return NULL;
     size_t total = num * size;
     void* ptr = malloc(total);
     if (ptr) {
@@ -78,7 +93,7 @@ void* realloc(void* ptr, size_t size) {
     block_t* b = (block_t*)((char*)ptr - HEADER_SIZE);
     if (b->magic != BLOCK_MAGIC) return NULL;
     
-    if (b->size >= size) return ptr;
+    if (b->size >= ALIGN16(size)) return ptr;
     
     void* new_ptr = malloc(size);
     if (new_ptr) {
@@ -93,13 +108,16 @@ void free(void* ptr) {
     if (!ptr) return;
     if (!head) return;
 
+    uint64_t flags = irq_save();
     block_t* b = (block_t*)((char*)ptr - HEADER_SIZE);
-    if (b->magic != BLOCK_MAGIC) return;
+    if (b->magic != BLOCK_MAGIC) {
+        irq_restore(flags);
+        return;
+    }
 
     b->used = 0;
 
-    // BUG FIX #4: Coalesce with next free block first
-    // We MUST check b->next exists BEFORE accessing it
+    // Coalesce next free block
     while (b->next && !b->next->used &&
            (char*)b + HEADER_SIZE + b->size == (char*)b->next) {
         b->size += HEADER_SIZE + b->next->size;
@@ -107,12 +125,12 @@ void free(void* ptr) {
         if (b->next) b->next->prev = b;
     }
 
-    // BUG FIX #4: Coalesce with previous free block
-    // We MUST check b->prev exists BEFORE accessing it
+    // Coalesce previous free block
     if (b->prev && !b->prev->used &&
         (char*)b->prev + HEADER_SIZE + b->prev->size == (char*)b) {
         b->prev->size += HEADER_SIZE + b->size;
         b->prev->next = b->next;
         if (b->next) b->next->prev = b->prev;
     }
+    irq_restore(flags);
 }

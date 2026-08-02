@@ -86,21 +86,57 @@ void cursor_render() {
             break;
             
         case CURSOR_HAND:
-            // Simple hand cursor (just a filled square for now)
-            draw_rect(cursor.x, cursor.y, 12, 12, 0xFFFF00);
+            // Pointing hand cursor
+            {
+                static const uint8_t cursor_hand_map[16][16] = {
+                    {0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0},
+                    {0,0,0,1,2,2,1,0,0,0,0,0,0,0,0,0},
+                    {0,0,0,1,2,2,1,0,0,0,0,0,0,0,0,0},
+                    {0,0,0,1,2,2,1,0,0,0,0,0,0,0,0,0},
+                    {0,0,0,1,2,2,1,1,1,0,0,0,0,0,0,0},
+                    {0,0,0,1,2,2,1,2,2,1,1,1,0,0,0,0},
+                    {0,1,1,1,2,2,1,2,2,1,2,2,1,0,0,0},
+                    {1,2,2,1,2,2,1,2,2,1,2,2,1,1,0,0},
+                    {1,2,2,2,2,2,2,2,2,2,2,2,2,1,0,0},
+                    {1,2,2,2,2,2,2,2,2,2,2,2,2,1,0,0},
+                    {0,1,2,2,2,2,2,2,2,2,2,2,2,1,0,0},
+                    {0,0,1,2,2,2,2,2,2,2,2,2,1,0,0,0},
+                    {0,0,1,2,2,2,2,2,2,2,2,2,1,0,0,0},
+                    {0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0},
+                    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
+                    {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+                };
+                for (int py = 0; py < 16; py++) {
+                    for (int px = 0; px < 16; px++) {
+                        uint8_t pixel = cursor_hand_map[py][px];
+                        if (pixel == 0) continue;
+                        int screen_x = cursor.x + px;
+                        int screen_y = cursor.y + py;
+                        put_pixel(screen_x, screen_y, (pixel == 1) ? 0x000000 : 0xFFFFFF);
+                    }
+                }
+            }
             break;
             
         case CURSOR_RESIZE:
-            // Resize cursor (cross)
-            draw_rect(cursor.x, cursor.y - 5, 1, 11, 0xFFFFFF);
-            draw_rect(cursor.x - 5, cursor.y, 11, 1, 0xFFFFFF);
+            // Resize cursor (cross) with bounds check
+            {
+                int rx = (cursor.x - 5 < 0) ? 0 : cursor.x - 5;
+                int ry = (cursor.y - 5 < 0) ? 0 : cursor.y - 5;
+                draw_rect(cursor.x, ry, 1, 11, 0xFFFFFF);
+                draw_rect(rx, cursor.y, 11, 1, 0xFFFFFF);
+            }
             break;
             
         case CURSOR_TEXT:
-            // I-beam cursor
-            draw_rect(cursor.x, cursor.y, 1, 14, 0xFFFFFF);
-            draw_rect(cursor.x - 2, cursor.y, 5, 1, 0xFFFFFF);
-            draw_rect(cursor.x - 2, cursor.y + 13, 5, 1, 0xFFFFFF);
+            // I-beam cursor with bounds check
+            {
+                int tx = (cursor.x - 2 < 0) ? 0 : cursor.x - 2;
+                int ty = (cursor.y < 0) ? 0 : cursor.y;
+                draw_rect(cursor.x, ty, 1, 14, 0xFFFFFF);
+                draw_rect(tx, ty, 5, 1, 0xFFFFFF);
+                draw_rect(tx, ty + 13, 5, 1, 0xFFFFFF);
+            }
             break;
     }
 }

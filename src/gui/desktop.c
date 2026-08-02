@@ -91,27 +91,27 @@ void desktop_render_background() {
         { "Code",     "IDE", 0xFBBF24, 0x78350F },
     };
     int num_icons = 8;
-    int tile_w = 76, tile_h = 76, tile_gap = 14;
+    int tile_w = 68, tile_h = 60, tile_gap = 10;
     int tile_x = 14;
 
     for (int i = 0; i < num_icons; i++) {
-        int tile_y = desktop_y0 + 14 + i * (tile_h + tile_gap);
+        int tile_y = desktop_y0 + 8 + i * (tile_h + tile_gap);
         if (tile_y + tile_h >= screen_h - DESKTOP_TASKBAR_HEIGHT) break;
 
         // Shadow
         draw_rect_alpha(tile_x - 3, tile_y + 3, tile_w + 6, tile_h + 6, 0x000000, 50);
 
         // Gradient rounded card
-        draw_gradient_rounded_rect(tile_x, tile_y, tile_w, tile_h, 10, icons[i].c1, icons[i].c2, 1);
+        draw_gradient_rounded_rect(tile_x, tile_y, tile_w, tile_h, 8, icons[i].c1, icons[i].c2, 1);
 
         // Subtle inner border
-        draw_rounded_rect_outline(tile_x, tile_y, tile_w, tile_h, 10, 1, 0x334155);
+        draw_rounded_rect_outline(tile_x, tile_y, tile_w, tile_h, 8, 1, 0x334155);
 
         // Centered icon circle
         int cx = tile_x + tile_w/2;
-        int cy = tile_y + 28;
-        draw_circle_alpha(cx, cy, 16, 0x000000, 60);
-        draw_circle(cx, cy, 14, icons[i].c1);
+        int cy = tile_y + 22;
+        draw_circle_alpha(cx, cy, 13, 0x000000, 60);
+        draw_circle(cx, cy, 11, icons[i].c1);
 
         // Icon text inside circle
         int icon_len = 0;
@@ -122,7 +122,7 @@ void desktop_render_background() {
         int lbl_len = 0;
         while (icons[i].label[lbl_len]) lbl_len++;
         int lbl_x = tile_x + (tile_w - lbl_len * 8) / 2;
-        draw_string_shadow(lbl_x, tile_y + tile_h - 16, 0xF1F5F9, 0x000000, icons[i].label);
+        draw_string_shadow(lbl_x, tile_y + tile_h - 14, 0xF1F5F9, 0x000000, icons[i].label);
     }
 
     // Bottom-Right Resource Monitor Widget
@@ -130,9 +130,9 @@ void desktop_render_background() {
     extern int graphics_get_real_fps(void);
     uint64_t free_mb2 = pmm_get_free_memory() / (1024 * 1024);
     uint64_t total_mb2 = pmm_get_total_memory() / (1024 * 1024);
-    uint64_t used_mb2 = total_mb2 - free_mb2;
+    uint64_t used_mb2 = (total_mb2 > free_mb2) ? (total_mb2 - free_mb2) : 0;
     int real_fps2 = graphics_get_real_fps();
-    int cpu_usage_pct = (int)((timer_ticks % 100) * 97 / 100); // Simulated CPU load
+    int cpu_usage_pct = 12 + (int)(timer_ticks % 7); // Steady scheduler load metric
 
     int wx = screen_w - 200;
     int wy = screen_h - DESKTOP_TASKBAR_HEIGHT - 165;
@@ -175,22 +175,18 @@ void desktop_render_background() {
 void desktop_render_topbar() {
     extern int screen_w;
     extern int installer_is_system_installed(void);
-    (void)theme_get_current(); // theme available if needed
+    (void)theme_get_current();
 
-    // Acrylic topbar background
     draw_rect(0, 0, screen_w, DESKTOP_TOPBAR_HEIGHT, 0x0D1117);
     draw_rect(0, DESKTOP_TOPBAR_HEIGHT - 1, screen_w, 1, 0x1E293B);
 
-    // Falkon-OS logo pill (left)
     draw_rounded_rect(6, 4, 118, DESKTOP_TOPBAR_HEIGHT - 8, 5, 0x1E293B);
-    // 4 logo squares
     draw_rect(12, 7, 4, 4, 0x38BDF8);
     draw_rect(17, 7, 4, 4, 0x38BDF8);
     draw_rect(12, 12, 4, 4, 0x38BDF8);
     draw_rect(17, 12, 4, 4, 0x38BDF8);
     draw_string_shadow(26, 8, 0x38BDF8, 0x000000, "Falkon-OS v1.0");
 
-    // Mode status pill
     int is_installed = installer_is_system_installed();
     uint32_t pill_bg = is_installed ? 0x065F46 : 0x78350F;
     uint32_t pill_txt = is_installed ? 0x4ADE80 : 0xFBBF24;
@@ -198,7 +194,6 @@ void desktop_render_topbar() {
     draw_rounded_rect(130, 4, is_installed ? 82 : 72, DESKTOP_TOPBAR_HEIGHT - 8, 5, pill_bg);
     draw_string_shadow(138, 8, pill_txt, 0x000000, pill_str);
 
-    // Live telemetry
     extern volatile uint32_t timer_ticks;
     uint32_t total_seconds = timer_ticks / 100;
     uint32_t hours   = (total_seconds / 3600) % 24;
@@ -212,41 +207,37 @@ void desktop_render_topbar() {
     sprintf(ramstr,    "%uMB | %dfps", (uint32_t)used_mb, real_fps);
     sprintf(time_str,  "%02u:%02u:%02u", hours, minutes, seconds);
 
-    // RAM + FPS badge
     draw_rounded_rect(screen_w - 240, 4, 120, DESKTOP_TOPBAR_HEIGHT - 8, 5, 0x1E293B);
     draw_string_shadow(screen_w - 234, 8, 0x4ADE80, 0x000000, ramstr);
 
-    // Clock badge
     draw_rounded_rect(screen_w - 112, 4, 106, DESKTOP_TOPBAR_HEIGHT - 8, 5, 0x1E2A3A);
     draw_string_shadow(screen_w - 106, 8, 0xF1F5F9, 0x000000, time_str);
 }
 
 void desktop_handle_click(int x, int y) {
-    // Icon tiles: x in [14..90], tile_h=76, tile_gap=14, stride=90
-    // Starting at desktop_y0 + 14 = DESKTOP_TOPBAR_HEIGHT + 14
-    if (x >= 14 && x <= 90) {
-        int tile_start = DESKTOP_TOPBAR_HEIGHT + 14;
-        int stride = 76 + 14;  // tile_h + tile_gap
+    if (x >= 14 && x <= 82) {
+        int tile_start = DESKTOP_TOPBAR_HEIGHT + 8;
+        int stride = 60 + 10;  // tile_h + tile_gap
 
         // i=0 Install
-        if (y >= tile_start && y < tile_start + 76)
+        if (y >= tile_start && y < tile_start + 60)
             installer_open();
         // i=1 Settings
-        else if (y >= tile_start + stride && y < tile_start + stride + 76)
+        else if (y >= tile_start + stride && y < tile_start + stride + 60)
             settings_open();
         // i=2 Terminal
-        else if (y >= tile_start + 2*stride && y < tile_start + 2*stride + 76) {
-            window_t* term_win = wm_create_window(60, 80, 700, 480, "Terminal");
+        else if (y >= tile_start + 2*stride && y < tile_start + 2*stride + 60) {
+            window_t* term_win = wm_create_window(60, 80, 680, 440, "Falkon Bash (fbash)");
             if (term_win) {
                 term_win->user_data = terminal_get_state();
-                taskbar_add_button(term_win->id, "Terminal");
+                taskbar_add_button(term_win->id, "Falkon Bash");
             }
         }
         // i=3 Explorer
-        else if (y >= tile_start + 3*stride && y < tile_start + 3*stride + 76)
+        else if (y >= tile_start + 3*stride && y < tile_start + 3*stride + 60)
             file_explorer_open();
         // i=4 Notepad
-        else if (y >= tile_start + 4*stride && y < tile_start + 4*stride + 76)
+        else if (y >= tile_start + 4*stride && y < tile_start + 4*stride + 60)
             notepad_open("/docs/welcome.txt");
         // i=5 Sysmon
         else if (y >= tile_start + 5*stride && y < tile_start + 5*stride + 76)

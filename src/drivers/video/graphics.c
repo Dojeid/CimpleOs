@@ -31,7 +31,8 @@ static uint16_t bga_read(uint16_t index) {
 void graphics_init(struct multiboot_info* mb) {
     screen_w = 1024; screen_h = 768; video_memory = NULL;
 
-    if (mb && (mb->flags & 0x10000000) && mb->framebuffer_addr != 0) {
+    // BUG FIX #26: Bit 12 (0x1000) indicates Multiboot framebuffer info present
+    if (mb && (mb->flags & 0x1000) && mb->framebuffer_addr != 0) {
         video_memory = (uint32_t*)(uintptr_t)mb->framebuffer_addr;
         screen_w = (int)mb->framebuffer_width;
         screen_h = (int)mb->framebuffer_height;
@@ -49,19 +50,18 @@ void graphics_init(struct multiboot_info* mb) {
                 video_memory = (uint32_t*)(uintptr_t)pci_vga.bar0;
         }
         if (!video_memory) {
-            uint32_t* candidates[] = {
-                (uint32_t*)0xFD000000, (uint32_t*)0xE0000000,
-                (uint32_t*)0xC0000000, (uint32_t*)0xF0000000
-            };
+            uint32_t candidates[] = { 0xFD000000, 0xE0000000, 0xC0000000, 0xF0000000 };
             for (size_t i = 0; i < sizeof(candidates)/sizeof(candidates[0]); i++) {
-                if (candidates[i]) { video_memory = candidates[i]; break; }
+                if (candidates[i] != 0) { video_memory = (uint32_t*)(uintptr_t)candidates[i]; break; }
             }
         }
     }
 
     uint32_t buffer_size = screen_w * screen_h * sizeof(uint32_t);
     back_buffer = (uint32_t*)malloc(buffer_size);
-    if (!back_buffer) back_buffer = video_memory;
+    if (!back_buffer) {
+        back_buffer = video_memory;
+    }
     if (!video_memory) video_memory = back_buffer;
 }
 
@@ -242,16 +242,16 @@ void draw_gradient_rounded_rect(int x, int y, int w, int h, int r, uint32_t c1, 
     }
     // Erase corners — overwrite with a transparent clear (leave pixel from desktop wallpaper by not writing)
     // Instead, mask corners from back_buffer context color
+    // Mask corners with active theme background color instead of hardcoded 0x0D1117
+    uint32_t bg_col = (current_theme == THEME_DARK) ? 0x0D1117 : 0xF3F4F6;
     for (int cy2 = 0; cy2 < r && r > 0; cy2++) {
         for (int cx2 = 0; cx2 < r; cx2++) {
             int dx = r - 1 - cx2, dy = r - 1 - cy2;
             if (dx*dx + dy*dy > r*r) {
-                // These pixels should be transparent — restore from desktop bg
-                // We blank them to 0x0D1117 (desktop base)
-                put_pixel(x+cx2,       y+cy2,       0x0D1117);
-                put_pixel(x+w-1-cx2,   y+cy2,       0x0D1117);
-                put_pixel(x+cx2,       y+h-1-cy2,   0x0D1117);
-                put_pixel(x+w-1-cx2,   y+h-1-cy2,   0x0D1117);
+                put_pixel(x+cx2,       y+cy2,       bg_col);
+                put_pixel(x+w-1-cx2,   y+cy2,       bg_col);
+                put_pixel(x+cx2,       y+h-1-cy2,   bg_col);
+                put_pixel(x+w-1-cx2,   y+h-1-cy2,   bg_col);
             }
         }
     }

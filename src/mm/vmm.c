@@ -82,6 +82,8 @@ static uint64_t* vmm_get_or_create_pte(uint64_t* pml4, uint64_t virt) {
     uint64_t* pdpt = NULL;
     uint64_t pdpt_phys = 0;
     uint64_t pdpt_idx = PML4_INDEX(virt);
+    bool new_pdpt_alloc = false;
+    bool new_pd_alloc = false;
     
     // Get or create PML4 entry
     if (PTE_IS_PRESENT(pml4[pdpt_idx])) {
@@ -89,6 +91,7 @@ static uint64_t* vmm_get_or_create_pte(uint64_t* pml4, uint64_t virt) {
     } else {
         pdpt = vmm_alloc_pagetable_page();
         if (!pdpt) return NULL;
+        new_pdpt_alloc = true;
         pdpt_phys = (uint64_t)pdpt;
         pml4[pdpt_idx] = pdpt_phys | (PTE_FLAG_PRESENT | PTE_FLAG_WRITE);
     }
@@ -103,9 +106,13 @@ static uint64_t* vmm_get_or_create_pte(uint64_t* pml4, uint64_t virt) {
     } else {
         pd = vmm_alloc_pagetable_page();
         if (!pd) {
-            vmm_free_pagetable_page(pdpt);
+            if (new_pdpt_alloc) {
+                vmm_free_pagetable_page(pdpt);
+                pml4[pdpt_idx] = 0;
+            }
             return NULL;
         }
+        new_pd_alloc = true;
         pd_phys = (uint64_t)pd;
         pdpt[pdpt_idx_virt] = pd_phys | (PTE_FLAG_PRESENT | PTE_FLAG_WRITE);
     }
@@ -120,8 +127,14 @@ static uint64_t* vmm_get_or_create_pte(uint64_t* pml4, uint64_t virt) {
     } else {
         pt = vmm_alloc_pagetable_page();
         if (!pt) {
-            vmm_free_pagetable_page(pd);
-            vmm_free_pagetable_page(pdpt);
+            if (new_pd_alloc) {
+                vmm_free_pagetable_page(pd);
+                pdpt[pdpt_idx_virt] = 0;
+            }
+            if (new_pdpt_alloc) {
+                vmm_free_pagetable_page(pdpt);
+                pml4[pdpt_idx] = 0;
+            }
             return NULL;
         }
         pt_phys = (uint64_t)pt;
@@ -133,7 +146,8 @@ static uint64_t* vmm_get_or_create_pte(uint64_t* pml4, uint64_t virt) {
 
 // Map a single 4KB page
 void vmm_map_page(uint64_t virt, uint64_t phys, uint32_t flags) {
-    uint64_t* pml4 = current_pagetable->pml4;
+    uint64_t* pml4 = current_pagetable ? current_pagetable->pml4 : NULL;
+    if (!pml4) return;
     uint64_t* pte = vmm_get_or_create_pte(pml4, virt);
     if (!pte) return;
     
@@ -147,7 +161,8 @@ void vmm_map_page(uint64_t virt, uint64_t phys, uint32_t flags) {
 
 // Unmap a single page
 void vmm_unmap_page(uint64_t virt) {
-    uint64_t* pml4 = current_pagetable->pml4;
+    uint64_t* pml4 = current_pagetable ? current_pagetable->pml4 : NULL;
+    if (!pml4) return;
     uint64_t* pte = vmm_get_pte(pml4, virt);
     
     if (pte && PTE_IS_PRESENT(*pte)) {
@@ -161,7 +176,7 @@ void vmm_unmap_page(uint64_t virt) {
 
 // Translate virtual address to physical
 uint64_t vmm_translate(uint64_t virt) {
-    uint64_t* pml4 = current_pagetable->pml4;
+    uint64_t* pml4 = current_pagetable ? current_pagetable->pml4 : NULL;
     if (!pml4) return 0;
     
     uint64_t pml4e = pml4[PML4_INDEX(virt)];
@@ -209,9 +224,9 @@ uint64_t vmm_create_pagetable(void) {
 
 // Switch to a new page table
 void vmm_switch_pagetable(uint64_t pml4_pa) {
-    current_pagetable->physical_base = pml4_pa;
-    
-    // Load CR3 with new page table base
+    if (current_pagetable) {
+        current_pagetable->physical_base = pml4_pa;
+    }
     asm volatile("mov %0, %%cr3" :: "r"(pml4_pa) : "memory");
 }
 

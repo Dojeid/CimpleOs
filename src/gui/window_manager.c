@@ -71,7 +71,9 @@ window_t* wm_create_window(int x, int y, int width, int height, const char* titl
     if (x < 0) x = 0;
     if (y < 25) y = 25;
     if (x + width > screen_w) x = screen_w - width;
-    if (y + height > screen_h - 30) y = screen_h - 30 - height;
+    if (y + TITLEBAR_HEIGHT + height > screen_h - 30) y = screen_h - 30 - TITLEBAR_HEIGHT - height;
+    if (x < 0) x = 0;
+    if (y < 25) y = 25;
     
     win->x = x;
     win->y = y;
@@ -292,7 +294,7 @@ int wm_is_point_in_close_button(window_t* win, int x, int y) {
     int cx = win->x + win->width - 18;
     int cy = win->y + TITLEBAR_HEIGHT / 2;
     int dx = x - cx, dy = y - cy;
-    return (dx*dx + dy*dy <= 8*8);
+    return (dx*dx + dy*dy <= 6*6);
 }
 
 int wm_is_point_in_minimize_button(window_t* win, int x, int y) {
@@ -300,7 +302,7 @@ int wm_is_point_in_minimize_button(window_t* win, int x, int y) {
     int cx = win->x + win->width - 54;
     int cy = win->y + TITLEBAR_HEIGHT / 2;
     int dx = x - cx, dy = y - cy;
-    return (dx*dx + dy*dy <= 8*8);
+    return (dx*dx + dy*dy <= 6*6);
 }
 
 int wm_is_point_in_maximize_button(window_t* win, int x, int y) {
@@ -308,7 +310,7 @@ int wm_is_point_in_maximize_button(window_t* win, int x, int y) {
     int cx = win->x + win->width - 36;
     int cy = win->y + TITLEBAR_HEIGHT / 2;
     int dx = x - cx, dy = y - cy;
-    return (dx*dx + dy*dy <= 8*8);
+    return (dx*dx + dy*dy <= 6*6);
 }
 
 void wm_render_window(window_t* win) {
@@ -559,6 +561,8 @@ void wm_handle_mouse_move(int x, int y) {
         // Simple right/bottom bounds (window width/height already set by create/resize)
         int max_x = screen_w - win->width;
         int max_y = screen_h - 30 - TITLEBAR_HEIGHT - win->height;
+        if (max_x < 0) max_x = 0;
+        if (max_y < 25) max_y = 25;
         
         if (new_x > max_x) new_x = max_x;
         if (new_y > max_y) new_y = max_y;

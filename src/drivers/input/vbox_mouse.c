@@ -1,5 +1,6 @@
 #include "vbox_mouse.h"
 #include "drivers/bus/pci.h"
+#include "mm/vmm.h"
 #include "lib/io.h"
 #include "lib/string.h"
 #include "drivers/video/vga.h"
@@ -12,9 +13,6 @@
 #define VMMDEVREQ_GET_MOUSE_STATUS 102
 
 // VirtualBox VMMDev Mouse Feature Flags:
-// (1 << 0) = VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE
-// (1 << 1) = VMMDEV_MOUSE_GUEST_IS_VISIBLE (Enables Seamless Auto-Release!)
-// (1 << 4) = VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR
 #define VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE     (1 << 0)
 #define VMMDEV_MOUSE_GUEST_IS_VISIBLE        (1 << 1)
 #define VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR (1 << 4)
@@ -39,6 +37,11 @@ static uint16_t vbox_io_port = 0;
 static int vbox_active = 0;
 static volatile vbox_mouse_req_t mouse_req;
 
+static uint32_t get_phys_req_addr(void) {
+    uint64_t phys = vmm_translate((uint64_t)&mouse_req);
+    return (uint32_t)(phys ? phys : (uintptr_t)&mouse_req);
+}
+
 int vbox_mouse_init(void) {
     struct pci_device dev;
     if (!pci_find_by_id(VBOX_VENDOR_ID, VBOX_DEVICE_ID, &dev)) {
@@ -49,7 +52,7 @@ int vbox_mouse_init(void) {
 
     vbox_io_port = (uint16_t)(dev.bar0 & 0xFFFC);
     if (vbox_io_port == 0) {
-        vbox_io_port = 0x5040; // Default VirtualBox VMMDev port fallback
+        vbox_io_port = 0x5044; // Standard VirtualBox VMMDev I/O port fallback
     }
 
     // Enable Seamless Guest Absolute Pointer & Host Auto-Release
@@ -61,9 +64,9 @@ int vbox_mouse_init(void) {
                          VMMDEV_MOUSE_GUEST_IS_VISIBLE | 
                          VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR;
 
-    // Send request to VirtualBox VMMDev port
+    // Send request to VirtualBox VMMDev port using physical address
     asm volatile("": : :"memory"); // memory barrier
-    outl(vbox_io_port, (uint32_t)(uintptr_t)&mouse_req);
+    outl(vbox_io_port, get_phys_req_addr());
     asm volatile("": : :"memory");
 
     vbox_active = 1;
@@ -82,8 +85,8 @@ int vbox_mouse_poll(int* out_x, int* out_y, uint8_t* out_buttons) {
     mouse_req.y = -1;
 
     asm volatile("": : :"memory"); // Ensure struct is written before outl
-    outl(vbox_io_port, (uint32_t)(uintptr_t)&mouse_req);
-    asm volatile("": : :"memory"); // Ensure struct is re-read from memory after outl
+    outl(vbox_io_port, get_phys_req_addr());
+    asm volatile("": : :"memory"); // Ensure struct is re-read from memory after outl // Ensure struct is re-read from memory after outl
 
     // Translate VirtualBox absolute coordinates (0 .. 65535)
     if (mouse_req.x >= 0 && mouse_req.y >= 0 && mouse_req.x <= 65535 && mouse_req.y <= 65535) {

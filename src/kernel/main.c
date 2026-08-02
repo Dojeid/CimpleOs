@@ -83,6 +83,9 @@ static void boot_log_ok(const char* message) {
     vga_print("\n");
 }
 
+static void gui_compositor_task(void) { while(1) { asm volatile("pause"); } }
+static void input_poller_task(void) { while(1) { asm volatile("pause"); } }
+
 void kmain(void* multiboot_info_addr) {
     multiboot_info_t* mbi = (multiboot_info_t*)multiboot_info_addr;
 
@@ -147,8 +150,8 @@ void kmain(void* multiboot_info_addr) {
     syscall_init();
     boot_log_ok("POSIX System Call Dispatcher & Task Scheduler Ready");
 
-    process_create("gui_compositor", 0);
-    process_create("input_poller", 0);
+    process_create("gui_compositor", gui_compositor_task);
+    process_create("input_poller", input_poller_task);
 
     terminal_init();
     wm_init();
@@ -185,17 +188,22 @@ void kmain(void* multiboot_info_addr) {
     int last_mouse_btn = 0;
 
     while (1) {
-        // Poll VirtualBox absolute mouse integration
-        mouse_update_vbox();
-
         if (sys_runlevel == 5) {
             // === RUNLEVEL 5: GRAPHICAL DESKTOP GUI MODE ===
             int mouse_btn = mouse_button_left();
+            int mouse_pressed = mouse_button_pressed();
             
-            if (mouse_btn && !last_mouse_btn) {
+            if (mouse_pressed) {
                 taskbar_t* tb = taskbar_get_state();
-                int menu_y = screen_h - 30 - 240;
-                if (mouse_y >= screen_h - 30 || (tb->start_menu_open && mouse_y >= menu_y && mouse_x <= 200)) {
+                int menu_w = 360, menu_h = 370;
+                int menu_x = (screen_w / 2) - (menu_w / 2);
+                int menu_y = tb->y_position - menu_h - 12;
+                
+                int in_taskbar = (mouse_y >= tb->y_position) ||
+                                 (tb->start_menu_open && 
+                                  mouse_x >= menu_x && mouse_x < menu_x + menu_w && 
+                                  mouse_y >= menu_y && mouse_y < menu_y + menu_h);
+                if (in_taskbar) {
                     taskbar_handle_click(mouse_x, mouse_y);
                 } else {
                     int clicked_win = wm_get_window_at(mouse_x, mouse_y);

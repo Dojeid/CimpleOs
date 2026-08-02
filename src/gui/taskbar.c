@@ -395,7 +395,7 @@ void taskbar_handle_click(int x, int y) {
     // Window button click
     for (int i = 0; i < taskbar.button_count; i++) {
         taskbar_button_t* btn = &taskbar.buttons[i];
-        if (x >= btn->x && x < btn->x + btn->width) {
+        if (y >= taskbar.y_position && x >= btn->x && x < btn->x + btn->width) {
             window_t* win = wm_get_window(btn->window_id);
             if (!win) continue;
             
