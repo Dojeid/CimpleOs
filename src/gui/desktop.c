@@ -123,21 +123,24 @@ void desktop_render_topbar() {
     uint32_t minutes = (total_seconds % 3600) / 60;
     uint32_t seconds = total_seconds % 60;
     
-    char timestr[32];
-    sprintf(timestr, "%02u:%02u:%02u", hours, minutes, seconds);
+    extern int graphics_get_real_fps(void);
+    int real_fps = graphics_get_real_fps();
+    
+    char time_str[64];
+    sprintf(time_str, "%02u:%02u:%02u", (uint32_t)hours, (uint32_t)minutes, (uint32_t)seconds);
     
     // Physical RAM Telemetry
     uint64_t free_mb = pmm_get_free_memory() / (1024 * 1024);
     uint64_t total_mb = pmm_get_total_memory() / (1024 * 1024);
     char ramstr[32];
-    sprintf(ramstr, "RAM: %uMB / %uMB", (uint32_t)(total_mb - free_mb), (uint32_t)total_mb);
+    sprintf(ramstr, "RAM:%uM FPS:%d", (uint32_t)(total_mb - free_mb), real_fps);
     
     // Status Badges
     draw_rect(screen_w - 230, 4, 135, 17, 0x0F172A);
     draw_string(screen_w - 224, 7, 0x4ADE80, ramstr);
     
     draw_rect(screen_w - 85, 4, 78, 17, 0x0F172A);
-    draw_string(screen_w - 79, 7, 0xF1F5F9, timestr);
+    draw_string(screen_w - 79, 7, 0xF1F5F9, time_str);
 }
 
 void desktop_handle_click(int x, int y) {

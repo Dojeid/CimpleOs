@@ -150,6 +150,18 @@ void cmd_process(const char* cmd) {
         cmd_print("  exec [file] - Run user-mode Ring 3 binary");
         cmd_print("");
     }
+    else if (strcmp(cmd, "startx") == 0 || strcmp(cmd, "gui") == 0 || strcmp(cmd, "init 5") == 0) {
+        extern void sys_set_runlevel(int level);
+        sys_set_runlevel(5);
+        cmd_print("Launching Falkon Graphical Desktop Environment (startx)...");
+        cmd_print("");
+    }
+    else if (strcmp(cmd, "exit") == 0 || strcmp(cmd, "init 3") == 0 || strcmp(cmd, "tty") == 0) {
+        extern void sys_set_runlevel(int level);
+        sys_set_runlevel(3);
+        cmd_print("Switched to Core Linux TTY CLI Console (Runlevel 3).");
+        cmd_print("");
+    }
     else if (strcmp(cmd, "bash") == 0) {
         cmd_print("GNU bash, version 5.2.21-release (x86_64-falkon-elf)");
         cmd_print("Copyright (C) 2026 Free Software Foundation, Inc.");

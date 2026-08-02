@@ -12,7 +12,6 @@
 static int active_tab = 1; // 1=Display, 2=Personalize, 3=Input, 4=Storage/EXT4
 static int active_theme = 1;
 static int active_res = 1;  // 1=1024x768, 2=1280x720, 3=800x600, 4=1920x1080
-static int active_fps = 2;  // 1=30, 2=60, 3=Uncapped
 static int brightness_level = 100; // 100%, 75%, 50%
 static int night_light_on = 0;
 static char settings_msg[128] = "System settings active.";
@@ -144,10 +143,81 @@ static void settings_redraw(window_t* win) {
     }
 }
 
+static void settings_handle_click(window_t* win, int rel_x, int rel_y) {
+    if (!win) return;
+
+    // Header Tabs Clicks
+    if (rel_y >= 32 && rel_y <= 58) {
+        if (rel_x >= 8 && rel_x <= 118) active_tab = 1;
+        else if (rel_x >= 123 && rel_x <= 238) active_tab = 2;
+        else if (rel_x >= 243 && rel_x <= 343) active_tab = 3;
+        else if (rel_x >= 348 && rel_x <= 488) active_tab = 4;
+        settings_redraw(win);
+        return;
+    }
+
+    int content_y = rel_y - 68;
+    if (active_tab == 1) {
+        // Resolution Buttons Click
+        if (content_y >= 18 && content_y <= 42) {
+            if (rel_x >= 18 && rel_x <= 118) {
+                active_res = 1;
+                graphics_set_mode(1024, 768, 32);
+                strcpy(settings_msg, "Display set to 1024x768 @ 32bpp BGA LFB.");
+            } else if (rel_x >= 123 && rel_x <= 223) {
+                active_res = 2;
+                graphics_set_mode(1280, 720, 32);
+                strcpy(settings_msg, "Display set to 1280x720 @ 32bpp BGA LFB.");
+            } else if (rel_x >= 228 && rel_x <= 328) {
+                active_res = 3;
+                graphics_set_mode(800, 600, 32);
+                strcpy(settings_msg, "Display set to 800x600 @ 32bpp BGA LFB.");
+            } else if (rel_x >= 333 && rel_x <= 433) {
+                active_res = 4;
+                graphics_set_mode(1920, 1080, 32);
+                strcpy(settings_msg, "Display set to 1920x1080 @ 32bpp BGA LFB.");
+            }
+            settings_redraw(win);
+        }
+        // Night Light Toggle Click
+        else if (content_y >= 72 && content_y <= 96 && rel_x >= 18 && rel_x <= 108) {
+            night_light_on = !night_light_on;
+            graphics_set_night_light(night_light_on);
+            strcpy(settings_msg, night_light_on ? "Night Light Filter ENABLED." : "Night Light Filter DISABLED.");
+            settings_redraw(win);
+        }
+        // Brightness Controls Click
+        else if (content_y >= 72 && content_y <= 96) {
+            if (rel_x >= 138 && rel_x <= 218) {
+                brightness_level = 100;
+                graphics_set_brightness(100);
+            } else if (rel_x >= 223 && rel_x <= 303) {
+                brightness_level = 75;
+                graphics_set_brightness(75);
+            } else if (rel_x >= 308 && rel_x <= 388) {
+                brightness_level = 50;
+                graphics_set_brightness(50);
+            }
+            settings_redraw(win);
+        }
+    }
+    else if (active_tab == 2) {
+        // Theme Selection Click
+        if (content_y >= 18 && content_y <= 42) {
+            if (rel_x >= 18 && rel_x <= 113) { active_theme = 1; desktop_set_theme(1); }
+            else if (rel_x >= 118 && rel_x <= 213) { active_theme = 2; desktop_set_theme(2); }
+            else if (rel_x >= 218 && rel_x <= 313) { active_theme = 3; desktop_set_theme(3); }
+            else if (rel_x >= 318 && rel_x <= 413) { active_theme = 4; desktop_set_theme(4); }
+            settings_redraw(win);
+        }
+    }
+}
+
 void settings_open(void) {
     window_t* win = wm_create_window(110, 75, 490, 280, "Settings Control Center");
     if (win) {
         win->render_content = settings_redraw;
+        win->on_click = settings_handle_click;
         taskbar_add_button(win->id, "Settings");
         settings_redraw(win);
     }

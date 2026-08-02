@@ -253,8 +253,27 @@ void draw_string(int x, int y, uint32_t color, const char *str) {
     }
 }
 
+static uint32_t frame_count_sec = 0;
+static uint32_t last_fps_ticks = 0;
+static int current_real_fps = 60;
+
 void swap_buffers(void) {
-    memcpy(video_memory, back_buffer, screen_w * screen_h * 4);
+    if (video_memory && back_buffer) {
+        memcpy(video_memory, back_buffer, screen_w * screen_h * 4);
+    }
+    
+    // Real Empirical Frame Rate Pacing Calculation
+    extern volatile uint32_t timer_ticks;
+    frame_count_sec++;
+    if (timer_ticks - last_fps_ticks >= 100) {
+        current_real_fps = (int)frame_count_sec;
+        frame_count_sec = 0;
+        last_fps_ticks = timer_ticks;
+    }
+}
+
+int graphics_get_real_fps(void) {
+    return current_real_fps > 0 ? current_real_fps : 60;
 }
 
 void clear_screen(uint32_t color) {
