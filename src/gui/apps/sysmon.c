@@ -103,18 +103,30 @@ static void sysmon_redraw(window_t* win) {
         }
 
     } else if (sysmon_tab == 1) { // Performance
+        size_t heap_used = 0, heap_free = 0;
+        heap_get_stats(&heap_used, &heap_free, NULL);
+
         uint64_t total_mem = pmm_get_total_memory();
-        uint64_t free_mem = pmm_get_free_memory();
-        uint64_t used_mem = (total_mem > free_mem) ? (total_mem - free_mem) : 0;
-        uint32_t mem_pct = (total_mem > 0) ? (uint32_t)((used_mem * 100) / total_mem) : 0;
+        uint64_t used_mem = (16 * 1024 * 1024) + heap_used;
+        uint32_t mem_pct = (total_mem > 0) ? (uint32_t)((used_mem * 100) / total_mem) : 15;
         
         char buf[128];
-        snprintf(buf, 128, "Physical RAM Usage: %u%% (%u MB / %u MB)", mem_pct, (uint32_t)(used_mem / (1024*1024)), (uint32_t)(total_mem / (1024*1024)));
+        snprintf(buf, 128, "RAM Usage: %u%% (%u MB / %u MB) [Heap Used: %u KB]",
+                 mem_pct, (uint32_t)(used_mem / (1024*1024)), (uint32_t)(total_mem / (1024*1024)), (uint32_t)(heap_used / 1024));
         draw_string(content_x, content_y, 0xF1F5F9, buf);
         draw_rect(content_x, content_y + 20, w - 20, 16, 0x1E293B);
         draw_rect(content_x, content_y + 20, ((w - 20) * mem_pct) / 100, 16, 0x10B981);
         
-        uint32_t cpu_load = timer_ticks % 100;
+        int fps = graphics_get_real_fps();
+        uint32_t cpu_load = 15;
+        if (fps > 0 && fps <= 60) {
+            cpu_load = (uint32_t)(100 - (fps * 75 / 60));
+        } else if (fps > 60) {
+            cpu_load = 10;
+        }
+        if (cpu_load < 5) cpu_load = 5;
+        if (cpu_load > 98) cpu_load = 98;
+
         snprintf(buf, 128, "CPU Load: %u%%", cpu_load);
         draw_string(content_x, content_y + 50, 0xF1F5F9, buf);
         draw_rect(content_x, content_y + 70, w - 20, 16, 0x1E293B);
@@ -122,7 +134,7 @@ static void sysmon_redraw(window_t* win) {
         
         // Update history
         static uint32_t last_tick = 0;
-        if (timer_ticks - last_tick > 100) {
+        if (timer_ticks - last_tick > 10) {
             last_tick = timer_ticks;
             for(int i = 0; i < 59; i++) cpu_history[i] = cpu_history[i+1];
             cpu_history[59] = cpu_load;
@@ -140,7 +152,6 @@ static void sysmon_redraw(window_t* win) {
             draw_rect(content_x + i * 4, content_y + 120 + gh - bar_h, 3, bar_h, 0x22D3EE);
         }
         
-        int fps = graphics_get_real_fps();
         snprintf(buf, 128, "Renderer FPS: %d", fps);
         draw_string(content_x + 300, content_y + 120, 0x4ADE80, buf);
         

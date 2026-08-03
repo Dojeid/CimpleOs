@@ -242,10 +242,14 @@ void desktop_render_topbar() {
     uint32_t seconds =  total_seconds % 60;
     extern int graphics_get_real_fps(void);
     int real_fps = graphics_get_real_fps();
-    uint64_t used_mb = (pmm_get_total_memory() - pmm_get_free_memory()) / (1024*1024);
+
+    size_t heap_used = 0;
+    extern void heap_get_stats(size_t* out_used, size_t* out_free, size_t* out_largest_free);
+    heap_get_stats(&heap_used, NULL, NULL);
+    uint32_t real_used_mb = (uint32_t)((16 * 1024 * 1024 + heap_used) / (1024 * 1024));
 
     char ramstr[24], time_str[24];
-    sprintf(ramstr,    "%uMB | %dfps", (uint32_t)used_mb, real_fps);
+    sprintf(ramstr,    "%uMB | %dfps", real_used_mb, real_fps);
     sprintf(time_str,  "%02u:%02u:%02u", hours, minutes, seconds);
 
     draw_rounded_rect(screen_w - 240, 4, 120, DESKTOP_TOPBAR_HEIGHT - 8, 5, 0x1E293B);
