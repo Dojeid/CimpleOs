@@ -19,6 +19,64 @@ static int current_theme = THEME_DARK;
 static int brightness_level = 100;
 static int night_light_active = 0;
 
+// ─── Dirty Region Manager ───────────────────────────────────
+static int dirty_min_x = 0;
+static int dirty_min_y = 0;
+static int dirty_max_x = 0;
+static int dirty_max_y = 0;
+static int dirty_active = 1;
+
+void graphics_mark_dirty(int x, int y, int w, int h) {
+    if (w <= 0 || h <= 0) return;
+    int max_x = x + w;
+    int max_y = y + h;
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (max_x > screen_w) max_x = screen_w;
+    if (max_y > screen_h) max_y = screen_h;
+    if (x >= max_x || y >= max_y) return;
+
+    if (!dirty_active) {
+        dirty_min_x = x;
+        dirty_min_y = y;
+        dirty_max_x = max_x;
+        dirty_max_y = max_y;
+        dirty_active = 1;
+    } else {
+        if (x < dirty_min_x) dirty_min_x = x;
+        if (y < dirty_min_y) dirty_min_y = y;
+        if (max_x > dirty_max_x) dirty_max_x = max_x;
+        if (max_y > dirty_max_y) dirty_max_y = max_y;
+    }
+}
+
+void graphics_mark_all_dirty(void) {
+    dirty_min_x = 0;
+    dirty_min_y = 0;
+    dirty_max_x = screen_w;
+    dirty_max_y = screen_h;
+    dirty_active = 1;
+}
+
+void graphics_clear_dirty(void) {
+    dirty_active = 0;
+}
+
+int graphics_has_dirty(void) {
+    return dirty_active;
+}
+
+void graphics_get_dirty_bounds(int* x, int* y, int* w, int* h) {
+    if (!dirty_active) {
+        if (x) *x = 0; if (y) *y = 0; if (w) *w = 0; if (h) *h = 0;
+        return;
+    }
+    if (x) *x = dirty_min_x;
+    if (y) *y = dirty_min_y;
+    if (w) *w = dirty_max_x - dirty_min_x;
+    if (h) *h = dirty_max_y - dirty_min_y;
+}
+
 // ─── BGA I/O ────────────────────────────────────────────────
 static void bga_write(uint16_t index, uint16_t data) {
     outw(0x01CE, index); outw(0x01CF, data);
@@ -96,6 +154,7 @@ void graphics_set_mode(int width, int height, int bpp) {
 // ─── Core Pixel ─────────────────────────────────────────────
 void put_pixel(int x, int y, uint32_t color) {
     if (x < 0 || x >= screen_w || y < 0 || y >= screen_h) return;
+    graphics_mark_dirty(x, y, 1, 1);
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8)  & 0xFF;
     uint8_t b =  color        & 0xFF;
@@ -119,6 +178,8 @@ void draw_rect(int x, int y, int w, int h, uint32_t color) {
     if (x2 > screen_w) x2 = screen_w;
     if (y2 > screen_h) y2 = screen_h;
     if (x >= x2 || y >= y2) return;
+
+    graphics_mark_dirty(x, y, x2 - x, y2 - y);
 
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8)  & 0xFF;
@@ -434,11 +495,43 @@ static int      current_real_fps = 60;
 
 void swap_buffers(void) {
     if (video_memory && back_buffer && video_memory != back_buffer) {
-        uint64_t* dst64 = (uint64_t*)video_memory;
-        uint64_t* src64 = (uint64_t*)back_buffer;
-        size_t count64 = ((size_t)screen_w * screen_h * 4) / 8;
-        for (size_t i = 0; i < count64; i++) {
-            dst64[i] = src64[i];
+        if (dirty_active) {
+            int start_y = dirty_min_y;
+            int end_y = dirty_max_y;
+            int start_x = dirty_min_x;
+            int end_x = dirty_max_x;
+
+            if (start_y < 0) start_y = 0;
+            if (end_y > screen_h) end_y = screen_h;
+            if (start_x < 0) start_x = 0;
+            if (end_x > screen_w) end_x = screen_w;
+
+            int copy_w = end_x - start_x;
+            if (copy_w > 0 && end_y > start_y) {
+                if (start_x == 0 && end_x == screen_w) {
+                    uint64_t* dst64 = (uint64_t*)(video_memory + start_y * screen_w);
+                    uint64_t* src64 = (uint64_t*)(back_buffer + start_y * screen_w);
+                    size_t count64 = ((size_t)(end_y - start_y) * screen_w * 4) / 8;
+                    for (size_t i = 0; i < count64; i++) {
+                        dst64[i] = src64[i];
+                    }
+                } else {
+                    for (int y = start_y; y < end_y; y++) {
+                        uint32_t* dst = video_memory + y * screen_w + start_x;
+                        uint32_t* src = back_buffer + y * screen_w + start_x;
+                        uint64_t* dst64 = (uint64_t*)dst;
+                        uint64_t* src64 = (uint64_t*)src;
+                        size_t count64 = (copy_w * 4) / 8;
+                        for (size_t i = 0; i < count64; i++) {
+                            dst64[i] = src64[i];
+                        }
+                        if (copy_w & 1) {
+                            dst[copy_w - 1] = src[copy_w - 1];
+                        }
+                    }
+                }
+            }
+            dirty_active = 0;
         }
     }
     extern volatile uint32_t timer_ticks;

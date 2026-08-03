@@ -324,6 +324,25 @@ void vmm_unmap_region(uint64_t virt, uint64_t size) {
     }
 }
 
+static void vmm_setup_pat_msr(void) {
+    uint32_t low = 0, high = 0;
+    // Read MSR 0x277 (IA32_PAT)
+    asm volatile("rdmsr" : "=a"(low), "=d"(high) : "c"(0x277));
+    // Set PAT2 (bits 16-23) to 0x01 (Write Combining - WC)
+    low = (low & ~0x00FF0000) | (0x01 << 16);
+    // Write back MSR 0x277
+    asm volatile("wrmsr" :: "a"(low), "d"(high), "c"(0x277));
+}
+
+void vmm_map_vram_wc(uint64_t phys_addr, uint64_t size) {
+    if (!phys_addr || !size) return;
+    uint64_t pages = (size + PAGE_SIZE - 1) / PAGE_SIZE;
+    uint64_t flags = VMM_FLAG_PRESENT | VMM_FLAG_READWRITE | VMM_FLAG_WC;
+    for (uint64_t i = 0; i < pages; i++) {
+        vmm_map_page(phys_addr + i * PAGE_SIZE, phys_addr + i * PAGE_SIZE, flags);
+    }
+}
+
 // Initialize VMM
 void vmm_init(void) {
     // Initialize with kernel page table
@@ -331,4 +350,7 @@ void vmm_init(void) {
     
     // Load CR3 with kernel page table
     asm volatile("mov %0, %%cr3" :: "r"(kernel_pagetable.physical_base) : "memory");
+
+    // Enable CPU PAT Write-Combining for ultra-fast VRAM PCI bus writes
+    vmm_setup_pat_msr();
 }

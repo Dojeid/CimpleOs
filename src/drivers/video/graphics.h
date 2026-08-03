@@ -45,7 +45,13 @@ void draw_string_shadow(int x, int y, uint32_t color, uint32_t shadow_color, con
 void draw_window_shadow(int x, int y, int w, int h);
 void draw_box_blur(int x, int y, int w, int h, int radius);
 
-// Buffer
+// Buffer & Dirty Region Manager
+void graphics_mark_dirty(int x, int y, int w, int h);
+void graphics_mark_all_dirty(void);
+void graphics_clear_dirty(void);
+int  graphics_has_dirty(void);
+void graphics_get_dirty_bounds(int* x, int* y, int* w, int* h);
+
 void swap_buffers(void);
 void clear_screen(uint32_t color);
 

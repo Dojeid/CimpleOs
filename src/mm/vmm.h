@@ -22,6 +22,7 @@
 #define VMM_FLAG_READWRITE    PTE_FLAG_WRITE
 #define VMM_FLAG_USER         PTE_FLAG_USER
 #define VMM_FLAG_NX           PTE_FLAG_NOEXEC
+#define VMM_FLAG_WC           (PTE_FLAG_WRITE_THROUGH | PTE_FLAG_CACHE_DISABLE) // Maps to PAT2 (WC)
 
 // VMM page table structure
 typedef struct {
@@ -54,6 +55,7 @@ uint64_t vmm_get_active_pagetable(void);
 
 // Map a region of memory
 bool vmm_map_region(uint64_t virt, uint64_t phys, uint64_t size, uint32_t flags);
+void vmm_map_vram_wc(uint64_t phys_addr, uint64_t size);
 
 // Unmap a region of memory
 void vmm_unmap_region(uint64_t virt, uint64_t size);

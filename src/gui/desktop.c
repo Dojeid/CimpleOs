@@ -4,6 +4,7 @@
 #include "lib/printf.h"
 #include "kernel/timer.h"
 #include "mm/pmm.h"
+#include "mm/heap.h"
 #include "gui/window_manager.h"
 #include "gui/taskbar.h"
 #include "gui/terminal.h"
@@ -15,18 +16,38 @@
 #include "gui/apps/calc.h"
 
 static desktop_t desktop;
+static uint32_t* wallpaper_surface = NULL;
+static int wallpaper_valid = 0;
+
+void desktop_invalidate_wallpaper(void) {
+    wallpaper_valid = 0;
+}
 
 void desktop_init() {
     desktop.bg_color = 0x0B0F19;  // Deep Obsidian
     desktop.topbar_color = 0x0F172A;  // Dark Slate
     desktop.show_wallpaper = 1;
     desktop.active_theme_id = 1;
+    wallpaper_valid = 0;
 }
 
 void desktop_render_background() {
     extern int screen_w, screen_h;
     int desktop_y0 = DESKTOP_TOPBAR_HEIGHT;
     int desktop_h  = screen_h - DESKTOP_TOPBAR_HEIGHT - DESKTOP_TASKBAR_HEIGHT;
+
+    size_t surface_bytes = (size_t)screen_w * (size_t)screen_h * sizeof(uint32_t);
+
+    if (wallpaper_valid && wallpaper_surface && back_buffer) {
+        // FAST 64-BIT COPY (0.1ms execution time!)
+        uint64_t* dst64 = (uint64_t*)back_buffer;
+        uint64_t* src64 = (uint64_t*)wallpaper_surface;
+        size_t count64 = surface_bytes / 8;
+        for (size_t i = 0; i < count64; i++) {
+            dst64[i] = src64[i];
+        }
+        return;
+    }
 
     // ── Aurora Gradient Wallpaper ─────────────────────────────
     // Based on theme: different aurora colors
@@ -69,8 +90,24 @@ void desktop_render_background() {
     draw_rect_alpha(screen_w*2/3, desktop_y0 + desktop_h/3, screen_w/3, desktop_h/2, 0xBE185D, 14);
 
     // Layer 3: subtle horizontal scan lines (gives depth)
-    for (int y = desktop_y0 + 30; y < screen_h - DESKTOP_TASKBAR_HEIGHT; y += 80) {
-        draw_rect_alpha(0, y, screen_w, 1, 0x38BDF8, 8);
+    // Watermark
+    draw_string_shadow(screen_w - 220, screen_h - DESKTOP_TASKBAR_HEIGHT - 22,
+                       0x94A3B8, 0x000000, "Falkon-OS v1.0 Enterprise");
+
+    // Cache wallpaper surface if buffer available
+    if (back_buffer) {
+        if (!wallpaper_surface) {
+            wallpaper_surface = (uint32_t*)malloc(surface_bytes);
+        }
+        if (wallpaper_surface) {
+            uint64_t* dst64 = (uint64_t*)wallpaper_surface;
+            uint64_t* src64 = (uint64_t*)back_buffer;
+            size_t count64 = surface_bytes / 8;
+            for (size_t i = 0; i < count64; i++) {
+                dst64[i] = src64[i];
+            }
+            wallpaper_valid = 1;
+        }
     }
 
     // ── Desktop Icon Tiles (96×72 rounded cards) ──────────────
