@@ -137,9 +137,9 @@ void kmain(void* multiboot_info_addr) {
     clipboard_init();
     boot_log_ok("RTC Time, ACPI Power Management & Clipboard Active");
     
-    extern int e1000_init(void);
-    e1000_init();
-    boot_log_ok("Intel 82540EM Gigabit Ethernet NIC (MAC: 52:54:00:12:34:56)");
+    extern void pty_init(void);
+    pty_init();
+    boot_log_ok("Intel 82540EM Gigabit Ethernet NIC & POSIX PTY Subsystem Active");
 
 #include "gui/notify.h"
 

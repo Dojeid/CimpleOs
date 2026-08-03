@@ -204,6 +204,153 @@ int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t
             }
         case SYS_IOCTL:
             return 0;
+        case SYS_KILL:
+            {
+                extern void signal_send(uint32_t pid, int sig);
+                signal_send((uint32_t)arg1, (int)arg2);
+                return 0;
+            }
+        case SYS_SIGNAL:
+            {
+                extern void signal_set_handler(int sig, void (*handler)(int));
+                signal_set_handler((int)arg1, (void (*)(int))arg2);
+                return 0;
+            }
+        case SYS_GETPPID:
+            {
+                process_t* curr = process_get_current();
+                return curr ? curr->parent_pid : 1;
+            }
+        case SYS_UNAME:
+            {
+                char* buf = (char*)arg1;
+                if (!buf) return -1;
+                // POSIX struct utsname: sysname, nodename, release, version, machine
+                memset(buf, 0, 325);
+                strcpy(buf, "Falkon-OS");            // sysname (offset 0)
+                strcpy(buf + 65, "falkon-host");     // nodename (offset 65)
+                strcpy(buf + 130, "6.8.0-falkon");   // release (offset 130)
+                strcpy(buf + 195, "#1 SMP PREEMPT"); // version (offset 195)
+                strcpy(buf + 260, "x86_64");         // machine (offset 260)
+                return 0;
+            }
+        case SYS_GETTIMEOFDAY:
+        case SYS_CLOCK_GETTIME:
+            {
+                extern volatile uint32_t timer_ticks;
+                uint32_t* sec_ptr = (uint32_t*)arg1;
+                uint32_t* nsec_ptr = (uint32_t*)arg2;
+                uint32_t total_sec = 1700000000 + (timer_ticks / 100);
+                uint32_t nsec = (timer_ticks % 100) * 10000000;
+                if (sec_ptr) *sec_ptr = total_sec;
+                if (nsec_ptr) *nsec_ptr = nsec;
+                return 0;
+            }
+        case SYS_NANOSLEEP:
+            {
+                extern void timer_wait(uint32_t ticks);
+                uint32_t ms = (uint32_t)arg1;
+                uint32_t ticks = (ms / 10 > 0) ? (ms / 10) : 1;
+                timer_wait(ticks);
+                return 0;
+            }
+        case SYS_BRK:
+            {
+                size_t sz = (size_t)arg1;
+                if (sz == 0) return (int64_t)kmalloc(0);
+                return (int64_t)kmalloc(sz);
+            }
+        case SYS_FSTAT:
+            {
+                int fd = (int)arg1;
+                uint32_t* stat_buf = (uint32_t*)arg2;
+                process_t* curr = process_get_current();
+                if (fd < 0 || fd >= MAX_PROCESS_FDS || !curr->fd_table[fd] || !stat_buf) return -1;
+                file_t* f = curr->fd_table[fd];
+                uint32_t fsize = f->f_dentry ? f->f_dentry->size : (f->f_inode ? f->f_inode->i_size : 0);
+                stat_buf[0] = f->f_dentry ? f->f_dentry->type : 1;
+                stat_buf[1] = fsize;
+                return 0;
+            }
+        case SYS_POLL:
+        case SYS_SELECT:
+            return 0;
+        case SYS_PTHREAD_CREATE:
+            {
+                extern int pthread_create(uint32_t*, const void*, void* (*)(void*), void*);
+                return pthread_create((uint32_t*)arg1, (const void*)arg2, (void* (*)(void*))arg3, NULL);
+            }
+        case SYS_PTHREAD_JOIN:
+            {
+                extern int pthread_join(uint32_t, void**);
+                return pthread_join((uint32_t)arg1, (void**)arg2);
+            }
+        case SYS_PTHREAD_EXIT:
+            {
+                extern void pthread_exit(void*);
+                pthread_exit((void*)arg1);
+                return 0;
+            }
+        case SYS_MUTEX_LOCK:
+            {
+                extern int pthread_mutex_lock(void*);
+                return pthread_mutex_lock((void*)arg1);
+            }
+        case SYS_MUTEX_UNLOCK:
+            {
+                extern int pthread_mutex_unlock(void*);
+                return pthread_mutex_unlock((void*)arg1);
+            }
+        case SYS_OPENPT:
+            {
+                extern int posix_openpt(int);
+                return posix_openpt((int)arg1);
+            }
+        case SYS_PTSNAME:
+            {
+                extern char* ptsname_r(int, char*, size_t);
+                return (int64_t)ptsname_r((int)arg1, (char*)arg2, (size_t)arg3);
+            }
+        case SYS_SHM_OPEN:
+            {
+                extern int shm_open(const char*, int, uint32_t);
+                return shm_open((const char*)arg1, (int)arg2, (uint32_t)arg3);
+            }
+        case SYS_SHM_UNLINK:
+            {
+                extern int shm_unlink(const char*);
+                return shm_unlink((const char*)arg1);
+            }
+        case SYS_SEM_OPEN:
+            {
+                extern void* sem_open(const char*, int, uint32_t, uint32_t);
+                return (int64_t)sem_open((const char*)arg1, (int)arg2, 0, (uint32_t)arg3);
+            }
+        case SYS_SEM_WAIT:
+            {
+                extern int sem_wait(void*);
+                return sem_wait((void*)arg1);
+            }
+        case SYS_SEM_POST:
+            {
+                extern int sem_post(void*);
+                return sem_post((void*)arg1);
+            }
+        case SYS_GETUID:
+            {
+                extern uint32_t sys_getuid(void);
+                return sys_getuid();
+            }
+        case SYS_SETUID:
+            {
+                extern int sys_setuid(uint32_t);
+                return sys_setuid((uint32_t)arg1);
+            }
+        case SYS_GETGID:
+            {
+                extern uint32_t sys_getgid(void);
+                return sys_getgid();
+            }
         default:
             return -1;
     }

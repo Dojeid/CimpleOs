@@ -39,11 +39,26 @@
 #define SYS_UNAME    33
 #define SYS_GETTIMEOFDAY  34
 #define SYS_CLOCK_GETTIME 35
-#define SYS_NANOSLEEP36
+#define SYS_NANOSLEEP     36
 #define SYS_BRK      37
 #define SYS_FSTAT    38
 #define SYS_POLL     39
 #define SYS_SELECT   40
+#define SYS_PTHREAD_CREATE 41
+#define SYS_PTHREAD_JOIN   42
+#define SYS_PTHREAD_EXIT   43
+#define SYS_MUTEX_LOCK     44
+#define SYS_MUTEX_UNLOCK   45
+#define SYS_OPENPT         46
+#define SYS_PTSNAME        47
+#define SYS_SHM_OPEN       48
+#define SYS_SHM_UNLINK     49
+#define SYS_SEM_OPEN       50
+#define SYS_SEM_WAIT       51
+#define SYS_SEM_POST       52
+#define SYS_GETUID         53
+#define SYS_SETUID         54
+#define SYS_GETGID         55
 
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);

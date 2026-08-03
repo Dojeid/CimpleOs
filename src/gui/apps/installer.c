@@ -118,9 +118,11 @@ static void installer_handle_click(window_t* win, int rel_x, int rel_y) {
             ata_write_sectors(0, 1, mbr);
             install_progress = 40;
 
-            // Step 2: Write Kernel Payload from RAM 0x100000 to LBA 1..1200
+            // Step 2: Write Kernel Payload from RAM 0x100000 to LBA 1..1200 (in 200-sector ATA chunks)
             const uint8_t* kern_ram = (const uint8_t*)(uintptr_t)0x100000;
-            ata_write_sectors(1, 1200, kern_ram);
+            for (uint32_t s = 0; s < 1200; s += 200) {
+                ata_write_sectors(1 + s, 200, kern_ram + (s * 512));
+            }
             install_progress = 70;
 
             // Step 3: Format EXT4 Superblock & VFS structure
