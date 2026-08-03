@@ -13,7 +13,7 @@
 
 static int active_tab = 1; // 1=Display & Video, 2=Personalize & Themes, 3=Hardware Specs, 4=Storage & Input
 static int active_theme = 1;
-static int active_res = 1;  // 1=1024x768, 2=1280x720, 3=800x600, 4=1920x1080
+static int active_res = 1;  // 1=1024x768, 2=1280x720, 3=800x600, 4=1280x1024, 5=640x480
 static int brightness_level = 100; // 100%, 75%, 50%
 static int night_light_on = 0;
 static char settings_msg[128] = "System Display & Hardware Control Center Active.";
@@ -22,6 +22,9 @@ static void settings_redraw(window_t* win) {
     if (!win) return;
     int x = win->x + 8;
     int y = win->y + 32;
+
+    extern int screen_w, screen_h;
+    extern uint32_t* video_memory;
 
     // Dark glassmorphic container
     draw_rect(win->x + 2, win->y + 24, win->width - 4, win->height - 26, 0x0F172A);
@@ -50,39 +53,72 @@ static void settings_redraw(window_t* win) {
 
     if (active_tab == 1) {
         // Tab 1: Display, Video & Acceleration
-        draw_string(x, content_y, 0xF1F5F9, "Screen Resolution & Framebuffer Mode:");
-        draw_rect(x + 10, content_y + 18, 100, 24, (active_res == 1) ? 0x38BDF8 : 0x1E293B);
-        draw_string(x + 14, content_y + 23, (active_res == 1) ? 0x000000 : 0xFFFFFF, "1024x768");
+        draw_string(x, content_y, 0xF1F5F9, "Screen Resolution:");
 
-        draw_rect(x + 115, content_y + 18, 100, 24, (active_res == 2) ? 0x38BDF8 : 0x1E293B);
-        draw_string(x + 119, content_y + 23, (active_res == 2) ? 0x000000 : 0xFFFFFF, "1280x720");
+        // Row 1 of resolution buttons
+        int res_y = content_y + 14;
+        draw_rect(x + 10,  res_y, 88, 22, (active_res == 1) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 16,  res_y + 6, (active_res == 1) ? 0xFFFFFF : 0x94A3B8, "1024x768");
 
-        draw_rect(x + 220, content_y + 18, 100, 24, (active_res == 3) ? 0x38BDF8 : 0x1E293B);
-        draw_string(x + 224, content_y + 23, (active_res == 3) ? 0x000000 : 0xFFFFFF, "800x600");
+        draw_rect(x + 104, res_y, 88, 22, (active_res == 2) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 110, res_y + 6, (active_res == 2) ? 0xFFFFFF : 0x94A3B8, "1280x720");
 
-        draw_rect(x + 325, content_y + 18, 100, 24, (active_res == 4) ? 0x38BDF8 : 0x1E293B);
-        draw_string(x + 329, content_y + 23, (active_res == 4) ? 0x000000 : 0xFFFFFF, "1920x1080");
+        draw_rect(x + 198, res_y, 88, 22, (active_res == 3) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 204, res_y + 6, (active_res == 3) ? 0xFFFFFF : 0x94A3B8, "800x600");
 
-        draw_string(x, content_y + 52, 0xF1F5F9, "Night Light (Blue Light Filter):");
-        draw_rect(x + 10, content_y + 70, 90, 24, night_light_on ? 0xF59E0B : 0x1E293B);
-        draw_string(x + 20, content_y + 75, night_light_on ? 0x000000 : 0xFFFFFF, night_light_on ? "ON [Warm]" : "OFF");
+        draw_rect(x + 292, res_y, 98, 22, (active_res == 4) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 298, res_y + 6, (active_res == 4) ? 0xFFFFFF : 0x94A3B8, "1280x1024");
 
-        draw_string(x + 130, content_y + 52, 0xF1F5F9, "Screen Brightness Level:");
-        draw_rect(x + 130, content_y + 70, 80, 24, (brightness_level == 100) ? 0x10B981 : 0x1E293B);
-        draw_string(x + 138, content_y + 75, (brightness_level == 100) ? 0x000000 : 0xFFFFFF, "100% Max");
+        draw_rect(x + 396, res_y, 80, 22, (active_res == 5) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 402, res_y + 6, (active_res == 5) ? 0xFFFFFF : 0x94A3B8, "640x480");
 
-        draw_rect(x + 215, content_y + 70, 80, 24, (brightness_level == 75) ? 0x10B981 : 0x1E293B);
-        draw_string(x + 223, content_y + 75, (brightness_level == 75) ? 0x000000 : 0xFFFFFF, "75% Soft");
+        // Night light + brightness row
+        int nl_y = content_y + 48;
+        draw_string(x, nl_y, 0xF1F5F9, "Night Light:");
+        draw_rect(x + 80,  nl_y - 2, 60, 20, night_light_on ? 0xF59E0B : 0x1E293B);
+        draw_string(x + 88, nl_y + 3, night_light_on ? 0x000000 : 0xFFFFFF, night_light_on ? "ON" : "OFF");
 
-        draw_rect(x + 300, content_y + 70, 80, 24, (brightness_level == 50) ? 0x10B981 : 0x1E293B);
-        draw_string(x + 308, content_y + 75, (brightness_level == 50) ? 0x000000 : 0xFFFFFF, "50% Dim");
+        draw_string(x + 155, nl_y, 0xF1F5F9, "Brightness:");
+        draw_rect(x + 238, nl_y - 2, 55, 20, (brightness_level == 100) ? 0x059669 : 0x1E293B);
+        draw_string(x + 244, nl_y + 3, 0xFFFFFF, "100%");
+        draw_rect(x + 298, nl_y - 2, 50, 20, (brightness_level == 75) ? 0x059669 : 0x1E293B);
+        draw_string(x + 304, nl_y + 3, 0xFFFFFF, "75%");
+        draw_rect(x + 353, nl_y - 2, 50, 20, (brightness_level == 50) ? 0x059669 : 0x1E293B);
+        draw_string(x + 359, nl_y + 3, 0xFFFFFF, "50%");
 
-        draw_string(x, content_y + 106, 0xF1F5F9, "Compositor Performance & Refresh Rate Telemetry:");
+        // Separator
+        draw_rect(x, content_y + 76, win->width - 16, 1, 0x1E293B);
+
+        // Live display info panel
         extern int graphics_get_real_fps(void);
-        char fps_str[128];
-        sprintf(fps_str, "Live Render Rate: %d FPS (VESA BGA Double-Buffered LFB @ 60Hz Sync)", graphics_get_real_fps());
-        draw_string(x + 10, content_y + 124, 0x4ADE80, fps_str);
-        draw_string(x + 10, content_y + 140, 0x38BDF8, settings_msg);
+        int live_fps = graphics_get_real_fps();
+        char fps_str[64], res_str[64], fb_str[80];
+        sprintf(fps_str, "Render: %d FPS", live_fps);
+        sprintf(res_str, "Framebuffer: %dx%d @ 32bpp", screen_w, screen_h);
+
+        // Detect framebuffer type from video_memory address
+        uintptr_t fb_addr = (uintptr_t)video_memory;
+        const char* fb_type =
+            (fb_addr == 0)            ? "None (headless)" :
+            (fb_addr == 0xFD000000)   ? "BGA/QEMU LFB" :
+            (fb_addr == 0xE0000000)   ? "VirtualBox VRAM" :
+            (fb_addr >= 0xC0000000)   ? "VESA LFB" :
+                                        "Multiboot LFB";
+        sprintf(fb_str, "Driver: %s  |  VRAM @ 0x%08X", fb_type, (uint32_t)fb_addr);
+
+        draw_string(x + 10, content_y + 84,  0x4ADE80, fps_str);
+
+        // FPS bar (target 60)
+        int fps_bar_w = (live_fps * 120) / 60;
+        if (fps_bar_w > 120) fps_bar_w = 120;
+        draw_rect(x + 100, content_y + 84, 120, 10, 0x1E293B);
+        uint32_t fps_col = (live_fps >= 55) ? 0x22C55E : (live_fps >= 30) ? 0xF59E0B : 0xEF4444;
+        draw_rect(x + 100, content_y + 84, fps_bar_w, 10, fps_col);
+        draw_string(x + 228, content_y + 84, 0x94A3B8, "/ 60 hz target");
+
+        draw_string(x + 10, content_y + 100, 0x38BDF8, res_str);
+        draw_string(x + 10, content_y + 116, 0x94A3B8, fb_str);
+        draw_string(x + 10, content_y + 132, 0xF59E0B, settings_msg);
     }
     else if (active_tab == 2) {
         // Tab 2: Personalization & Themes
@@ -181,46 +217,27 @@ static void settings_handle_click(window_t* win, int rel_x, int rel_y) {
     }
 
     if (active_tab == 1) {
-        // Resolution Buttons Click (rel_y between 58 and 88)
-        if (rel_y >= 56 && rel_y <= 88) {
-            if (rel_x >= 18 && rel_x <= 118) {
-                active_res = 1;
-                graphics_set_mode(1024, 768, 32);
-                strcpy(settings_msg, "Display resolution set to 1024x768 @ 32bpp.");
-            } else if (rel_x >= 123 && rel_x <= 223) {
-                active_res = 2;
-                graphics_set_mode(1280, 720, 32);
-                strcpy(settings_msg, "Display resolution set to 1280x720 @ 32bpp.");
-            } else if (rel_x >= 228 && rel_x <= 328) {
-                active_res = 3;
-                graphics_set_mode(800, 600, 32);
-                strcpy(settings_msg, "Display resolution set to 800x600 @ 32bpp.");
-            } else if (rel_x >= 333 && rel_x <= 433) {
-                active_res = 4;
-                graphics_set_mode(1920, 1080, 32);
-                strcpy(settings_msg, "Display resolution set to 1920x1080 @ 32bpp.");
-            }
+        // Resolution row click: buttons drawn at y+68+14 = y+82 (window relative ~50)
+        if (rel_y >= 50 && rel_y <= 72) {
+            if      (rel_x >= 18  && rel_x <= 106)  { active_res = 1; graphics_set_mode(1024, 768,  32); strcpy(settings_msg, "1024x768 active."); }
+            else if (rel_x >= 112 && rel_x <= 200)  { active_res = 2; graphics_set_mode(1280, 720,  32); strcpy(settings_msg, "1280x720 active."); }
+            else if (rel_x >= 206 && rel_x <= 294)  { active_res = 3; graphics_set_mode(800,  600,  32); strcpy(settings_msg, "800x600 active.");  }
+            else if (rel_x >= 300 && rel_x <= 406)  { active_res = 4; graphics_set_mode(1280, 1024, 32); strcpy(settings_msg, "1280x1024 active."); }
+            else if (rel_x >= 404 && rel_x <= 484)  { active_res = 5; graphics_set_mode(640,  480,  32); strcpy(settings_msg, "640x480 active.");  }
             settings_redraw(win);
         }
-        // Night Light Toggle Click (rel_y between 108 and 138)
-        else if (rel_y >= 108 && rel_y <= 138 && rel_x >= 18 && rel_x <= 108) {
+        // Night light: drawn at nl_y (content_y+48) → rel_y ~ 84
+        else if (rel_y >= 82 && rel_y <= 104 && rel_x >= 88 && rel_x <= 148) {
             night_light_on = !night_light_on;
             graphics_set_night_light(night_light_on);
-            strcpy(settings_msg, night_light_on ? "Night Light Filter ENABLED." : "Night Light Filter DISABLED.");
+            strcpy(settings_msg, night_light_on ? "Night Light ON." : "Night Light OFF.");
             settings_redraw(win);
         }
-        // Brightness Controls Click (rel_y between 108 and 138)
-        else if (rel_y >= 108 && rel_y <= 138) {
-            if (rel_x >= 138 && rel_x <= 218) {
-                brightness_level = 100;
-                graphics_set_brightness(100);
-            } else if (rel_x >= 223 && rel_x <= 303) {
-                brightness_level = 75;
-                graphics_set_brightness(75);
-            } else if (rel_x >= 308 && rel_x <= 388) {
-                brightness_level = 50;
-                graphics_set_brightness(50);
-            }
+        // Brightness buttons: same nl_y row, further right
+        else if (rel_y >= 82 && rel_y <= 104) {
+            if      (rel_x >= 246 && rel_x <= 301) { brightness_level = 100; graphics_set_brightness(100); strcpy(settings_msg, "Brightness 100%."); }
+            else if (rel_x >= 306 && rel_x <= 356) { brightness_level = 75;  graphics_set_brightness(75);  strcpy(settings_msg, "Brightness 75%.");  }
+            else if (rel_x >= 361 && rel_x <= 411) { brightness_level = 50;  graphics_set_brightness(50);  strcpy(settings_msg, "Brightness 50%.");  }
             settings_redraw(win);
         }
     }

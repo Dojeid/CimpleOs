@@ -24,3 +24,21 @@ const char* clipboard_get(void) {
 size_t clipboard_get_length(void) {
     return clipboard_length;
 }
+
+void clipboard_set_text(const char* text) {
+    if (!text) return;
+    clipboard_set(text, strlen(text));
+}
+
+const char* clipboard_get_text(void) {
+    return clipboard_buffer;
+}
+
+void clipboard_clear(void) {
+    clipboard_init();
+}
+
+int clipboard_has_content(void) {
+    return (clipboard_length > 0);
+}
+

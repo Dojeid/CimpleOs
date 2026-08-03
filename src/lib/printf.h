@@ -2,10 +2,12 @@
 #define PRINTF_H
 
 #include <stdarg.h>
+#include <stddef.h>
 
 // Formatted printing to screen
 void printf(const char* fmt, ...);
 void sprintf(char* buf, const char* fmt, ...);
+int  snprintf(char* buf, size_t size, const char* fmt, ...);
 void vsprintf(char* buf, const char* fmt, va_list args);  // Added for debug.c
 
 // Logging levels

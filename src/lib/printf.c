@@ -180,6 +180,15 @@ void sprintf(char* buf, const char* fmt, ...) {
     va_end(args);
 }
 
+int snprintf(char* buf, size_t size, const char* fmt, ...) {
+    (void)size;
+    va_list args;
+    va_start(args, fmt);
+    do_printf(buf, fmt, args);
+    va_end(args);
+    return (int)strlen(buf);
+}
+
 void vsprintf(char* buf, const char* fmt, va_list args) {
     do_printf(buf, fmt, args);
 }

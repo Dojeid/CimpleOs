@@ -407,6 +407,12 @@ process_t* process_get_current(void) {
     return &processes[current_pid];
 }
 
+process_t* process_get_by_index(int index) {
+    if (index < 0 || index >= MAX_PROCESSES) return NULL;
+    if (processes[index].state == PROCESS_STATE_UNUSED) return NULL;
+    return &processes[index];
+}
+
 void process_list(char* buffer, uint32_t max_len) {
     if (!buffer || max_len == 0) return;
     buffer[0] = 0;

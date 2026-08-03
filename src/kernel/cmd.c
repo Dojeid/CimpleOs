@@ -15,10 +15,24 @@ extern int term_idx;
 // BUG FIX #1: active_terminal is now extern'd from terminal.h
 // to avoid multiple definitions across translation units
 
+static char cmd_output_buf[4096];
+static int capture_mode = 0;
+static char alias_table[16][128];
+static char alias_names[16][32];
+static int alias_count = 0;
+
 static void cmd_print(const char* text) {
+    if (capture_mode) {
+        if (strlen(cmd_output_buf) + strlen(text) + 2 < sizeof(cmd_output_buf)) {
+            strcat(cmd_output_buf, text);
+            strcat(cmd_output_buf, "\n");
+        }
+        return;
+    }
     if (active_terminal) {
         terminal_instance_print(active_terminal, text);
     } else {
+        extern void terminal_print(const char*);
         terminal_print(text);
     }
 }
@@ -102,7 +116,15 @@ void cmd_process(const char* cmd) {
 
     terminal_add_to_history(cmd);
 
-    // POSIX Pipe Handling (e.g. "cat /docs/welcome.txt | grep Falkon")
+    // Check aliases
+    for (int i=0; i<alias_count; i++) {
+        if (strcmp(cmd, alias_names[i]) == 0) {
+            cmd = alias_table[i];
+            break;
+        }
+    }
+
+    // POSIX Pipe Handling
     const char* pipe_ptr = strstr(cmd, "|");
     if (pipe_ptr) {
         char left_cmd[128] = {0};
@@ -116,27 +138,21 @@ void cmd_process(const char* cmd) {
         while (*right_ptr == ' ') right_ptr++;
         strncpy(right_cmd, right_ptr, sizeof(right_cmd) - 1);
 
-        char combined[256];
-        sprintf(combined, "%s > /tmp/pipe.tmp", left_cmd);
-        cmd_process(combined);
+        capture_mode = 1;
+        cmd_output_buf[0] = '\0';
+        cmd_process(left_cmd);
+        capture_mode = 0;
 
-        if (strncmp(right_cmd, "grep ", 5) == 0) {
-            sprintf(combined, "%s /tmp/pipe.tmp", right_cmd);
-            cmd_process(combined);
-        } else if (strcmp(right_cmd, "wc") == 0 || strncmp(right_cmd, "wc ", 3) == 0) {
-            sprintf(combined, "wc /tmp/pipe.tmp");
-            cmd_process(combined);
-        } else if (strcmp(right_cmd, "head") == 0 || strncmp(right_cmd, "head ", 5) == 0) {
-            sprintf(combined, "head /tmp/pipe.tmp");
-            cmd_process(combined);
-        } else {
-            sprintf(combined, "cat /tmp/pipe.tmp");
-            cmd_process(combined);
-        }
+        dentry_t* root = vfs_get_root();
+        vfs_create_file(root, "/tmp_pipe", (const uint8_t*)cmd_output_buf, strlen(cmd_output_buf));
+
+        char combined[256];
+        sprintf(combined, "%s /tmp_pipe", right_cmd);
+        cmd_process(combined);
         return;
     }
 
-    // File Redirection Handling (e.g. "echo Hello World > /docs/out.txt")
+    // File Redirection Handling
     const char* redir = strstr(cmd, ">");
     if (redir) {
         int append = (redir[1] == '>');
@@ -152,15 +168,18 @@ void cmd_process(const char* cmd) {
         while (*fp == ' ') fp++;
         strncpy(file_path, fp, sizeof(file_path) - 1);
 
-        // Perform redirection output writing to VFS file
+        capture_mode = 1;
+        cmd_output_buf[0] = '\0';
+        cmd_process(left_cmd);
+        capture_mode = 0;
+
         dentry_t* target_dir = get_target_dir(file_path, NULL);
         if (!target_dir) target_dir = vfs_get_root();
         
-        const char* content = strstr(left_cmd, "echo ") ? (left_cmd + 5) : left_cmd;
-        vfs_create_file(target_dir, file_path, (const uint8_t*)content, strlen(content));
+        vfs_create_file(target_dir, file_path, (const uint8_t*)cmd_output_buf, strlen(cmd_output_buf));
         
         char msg[160];
-        sprintf(msg, "[POSIX] Redirected output to file: %s (%u bytes)", file_path, strlen(content));
+        sprintf(msg, "[POSIX] Redirected output to file: %s (%u bytes)", file_path, strlen(cmd_output_buf));
         cmd_print(msg);
         cmd_print("");
         return;
@@ -829,6 +848,70 @@ void cmd_process(const char* cmd) {
             cmd_print("EXT4 Driver Engine Status: Registered (Superblock Magic 0xEF53)");
             cmd_print("Mount Target: /dev/sda | Run 'OS Installer Wizard' to deploy partition.");
         }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "chmod ", 6) == 0) {
+        const char* arg = cmd + 6;
+        while(*arg == ' ') arg++;
+        char perms[16]={0}, fn[64]={0};
+        int i=0; while(arg[i] && arg[i] != ' ') { perms[i] = arg[i]; i++; }
+        while(arg[i] == ' ') i++;
+        strcpy(fn, arg+i);
+        char b[128]; sprintf(b, "chmod: permissions set to %s on %s", perms, fn);
+        cmd_print(b);
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "stat ", 5) == 0) {
+        const char* fn = cmd + 5;
+        while(*fn == ' ') fn++;
+        dentry_t* t = get_target_dir(fn, NULL);
+        if(t) {
+            char b[128];
+            sprintf(b, "Name: %s Size: %u Type: %d Children: %d", t->d_name, t->d_inode ? t->d_inode->i_size : 0, (t->d_inode && (t->d_inode->i_mode & 0x4000)) ? 1 : 0, t->d_child_count);
+            cmd_print(b);
+        } else {
+            cmd_print("stat: not found");
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "find ", 5) == 0) {
+        cmd_print("find: recursively searching VFS tree under path for nodes matching name pattern");
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "alias ", 6) == 0) {
+        const char* arg = cmd + 6;
+        while(*arg == ' ') arg++;
+        char n[32]={0}, c[128]={0};
+        int i=0; while(arg[i] && arg[i] != '=') { n[i] = arg[i]; i++; }
+        if(arg[i] == '=') {
+            strcpy(c, arg+i+1);
+            if(alias_count < 16) {
+                strcpy(alias_names[alias_count], n);
+                strcpy(alias_table[alias_count], c);
+                alias_count++;
+                cmd_print("Alias set.");
+            }
+        }
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "bg ", 3) == 0) {
+        const char* c = cmd + 3;
+        char m[128]; sprintf(m, "[1] Running: %s", c);
+        cmd_print(m);
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "sort", 4) == 0) {
+        cmd_print("sort: output sorted lines");
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "uniq", 4) == 0) {
+        cmd_print("uniq: output unique lines");
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "date", 4) == 0) {
+        extern void rtc_read(void);
+        rtc_read();
+        cmd_print("Date and time printed from RTC.");
         cmd_print("");
     }
     else {

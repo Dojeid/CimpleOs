@@ -94,8 +94,7 @@ void desktop_render_background() {
     draw_string_shadow(screen_w - 220, screen_h - DESKTOP_TASKBAR_HEIGHT - 22,
                        0x94A3B8, 0x000000, "Falkon-OS v1.0 Enterprise");
 
-    // ── Desktop Icon Tiles (96×72 rounded cards) ──────────────
-    // Layout: single left column, 12px from left edge
+    // ── Desktop Icon Tiles (68×60 rounded cards in 2 columns) ──────────────
     struct {
         const char* label;
         const char* icon;  // 3-char icon text
@@ -108,15 +107,20 @@ void desktop_render_background() {
         { "Explorer", "VFS", 0x38BDF8, 0x075985 },
         { "Notepad",  "TXT", 0xA855F7, 0x581C87 },
         { "Sysmon",   "CPU", 0xF43F5E, 0x881337 },
+        { "Clock",    "CLK", 0x34D399, 0x065F46 },
+        { "Paint",    "PNT", 0xEC4899, 0x9D174D },
+        { "Calendar", "CAL", 0x4ADE80, 0x14532D },
         { "Surf",     "WWW", 0x06B6D4, 0x164E63 },
         { "Code",     "IDE", 0xFBBF24, 0x78350F },
     };
-    int num_icons = 8;
+    int num_icons = 11;
     int tile_w = 68, tile_h = 60, tile_gap = 10;
-    int tile_x = 14;
 
     for (int i = 0; i < num_icons; i++) {
-        int tile_y = desktop_y0 + 8 + i * (tile_h + tile_gap);
+        int col = i / 6;
+        int row = i % 6;
+        int tile_x = 14 + col * (tile_w + 12);
+        int tile_y = desktop_y0 + 8 + row * (tile_h + tile_gap);
         if (tile_y + tile_h >= screen_h - DESKTOP_TASKBAR_HEIGHT) break;
 
         // Shadow
@@ -252,42 +256,46 @@ void desktop_render_topbar() {
 }
 
 void desktop_handle_click(int x, int y) {
-    if (x >= 14 && x <= 82) {
-        int tile_start = DESKTOP_TOPBAR_HEIGHT + 8;
-        int stride = 60 + 10;  // tile_h + tile_gap
+    int tile_w = 68, tile_h = 60, tile_gap = 10;
+    int tile_start_y = DESKTOP_TOPBAR_HEIGHT + 8;
+    int stride_y = tile_h + tile_gap;
 
-        // i=0 Install
-        if (y >= tile_start && y < tile_start + 60)
-            installer_open();
-        // i=1 Settings
-        else if (y >= tile_start + stride && y < tile_start + stride + 60)
-            settings_open();
-        // i=2 Terminal
-        else if (y >= tile_start + 2*stride && y < tile_start + 2*stride + 60) {
-            window_t* term_win = wm_create_window(60, 80, 680, 440, "Falkon Bash (fbash)");
-            if (term_win) {
-                term_win->user_data = terminal_get_state();
-                taskbar_add_button(term_win->id, "Falkon Bash");
+    for (int i = 0; i < 11; i++) {
+        int col = i / 6;
+        int row = i % 6;
+        int tx = 14 + col * (tile_w + 12);
+        int ty = tile_start_y + row * stride_y;
+
+        if (x >= tx && x < tx + tile_w && y >= ty && y < ty + tile_h) {
+            switch (i) {
+                case 0: installer_open(); break;
+                case 1: settings_open(); break;
+                case 2: {
+                    window_t* term_win = wm_create_window(60, 80, 680, 440, "Falkon Bash (fbash)");
+                    if (term_win) {
+                        term_win->user_data = terminal_get_state();
+                        taskbar_add_button(term_win->id, "Falkon Bash");
+                    }
+                    break;
+                }
+                case 3: file_explorer_open(); break;
+                case 4: notepad_open("/docs/welcome.txt"); break;
+                case 5: sysmon_open(); break;
+                case 6: { extern void clock_app_open(void); clock_app_open(); break; }
+                case 7: { extern void paint_app_open(void); paint_app_open(); break; }
+                case 8: { extern void calendar_open(void); calendar_open(); break; }
+                case 9: {
+                    extern void browser_open(const char* url);
+                    browser_open("falkon://home");
+                    break;
+                }
+                case 10: {
+                    extern void code_editor_open(const char* file_path);
+                    code_editor_open("/untitled.c");
+                    break;
+                }
             }
-        }
-        // i=3 Explorer
-        else if (y >= tile_start + 3*stride && y < tile_start + 3*stride + 60)
-            file_explorer_open();
-        // i=4 Notepad
-        else if (y >= tile_start + 4*stride && y < tile_start + 4*stride + 60)
-            notepad_open("/docs/welcome.txt");
-        // i=5 Sysmon
-        else if (y >= tile_start + 5*stride && y < tile_start + 5*stride + 60)
-            sysmon_open();
-        // i=6 falkon-surf
-        else if (y >= tile_start + 6*stride && y < tile_start + 6*stride + 60) {
-            extern void browser_open(const char* url);
-            browser_open("falkon://home");
-        }
-        // i=7 falkon-code
-        else if (y >= tile_start + 7*stride && y < tile_start + 7*stride + 60) {
-            extern void code_editor_open(const char* file_path);
-            code_editor_open("/untitled.c");
+            break;
         }
     }
 }

@@ -90,6 +90,15 @@ int atoi(const char* str) {
     return res * sign;
 }
 
+int memcmp(const void* s1, const void* s2, size_t n) {
+    const unsigned char *p1 = (const unsigned char*)s1;
+    const unsigned char *p2 = (const unsigned char*)s2;
+    for (size_t i = 0; i < n; i++) {
+        if (p1[i] != p2[i]) return p1[i] - p2[i];
+    }
+    return 0;
+}
+
 void* memset(void* dest, int val, size_t count) {
     uint8_t v8 = (uint8_t)val;
     uint64_t v64 = ((uint64_t)v8 << 56) | ((uint64_t)v8 << 48) |

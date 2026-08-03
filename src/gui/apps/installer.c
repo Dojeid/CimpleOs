@@ -106,43 +106,123 @@ static void installer_handle_click(window_t* win, int rel_x, int rel_y) {
     if (!win) return;
 
     if (install_step == 1) {
+        // "Format & Install" button: x 110..340, y 184..216
         if (rel_x >= 110 && rel_x <= 340 && rel_y >= 184 && rel_y <= 216) {
             install_step = 2;
-            install_progress = 35;
-            strcpy(install_status_msg, "Writing MBR Sector 0 & EXT4 Superblock Magic (0xEF53)...");
-            
-            // Format EXT4 Disk Partition
+            install_progress = 10;
+            strcpy(install_status_msg, "Writing MBR partition table to LBA 0...");
+
             ata_drive_t* drv = ata_get_drive(0);
-            uint32_t total_sec = drv->present ? drv->total_sectors : 4096;
+            uint32_t total_sec = (drv && drv->present) ? drv->total_sectors : 4096;
+
+            // ── Build 512-byte MBR ─────────────────────────────
+            // Sector 0: MBR with one primary Linux partition (type 0x83)
+            static uint8_t mbr[512];
+            for (int i = 0; i < 512; i++) mbr[i] = 0;
+
+            // Partition entry at offset 446 (first entry)
+            // Status: 0x80 = bootable
+            mbr[446] = 0x80;
+            // CHS Begin — we use LBA mode so set 0xFE 0xFF 0xFF
+            mbr[447] = 0xFE; mbr[448] = 0xFF; mbr[449] = 0xFF;
+            // Partition type: 0x83 = Linux native
+            mbr[450] = 0x83;
+            // CHS End — same trick
+            mbr[451] = 0xFE; mbr[452] = 0xFF; mbr[453] = 0xFF;
+            // LBA Start: 2048 (little-endian uint32)
+            uint32_t lba_start = 2048;
+            mbr[454] = (uint8_t)(lba_start);
+            mbr[455] = (uint8_t)(lba_start >> 8);
+            mbr[456] = (uint8_t)(lba_start >> 16);
+            mbr[457] = (uint8_t)(lba_start >> 24);
+            // LBA Size: total_sec - 2048
+            uint32_t part_size = (total_sec > 2048) ? (total_sec - 2048) : 2048;
+            mbr[458] = (uint8_t)(part_size);
+            mbr[459] = (uint8_t)(part_size >> 8);
+            mbr[460] = (uint8_t)(part_size >> 16);
+            mbr[461] = (uint8_t)(part_size >> 24);
+            // Boot signature
+            mbr[510] = 0x55;
+            mbr[511] = 0xAA;
+
+            int r = ata_write_sectors(0, 1, mbr);  // Write MBR to LBA 0
+            if (r == ATA_OK) {
+                install_progress = 35;
+                strcpy(install_status_msg, "MBR written. Formatting EXT4 superblock...");
+            } else {
+                strcpy(install_status_msg, "Warning: No ATA drive found. Using VFS ramdisk mode.");
+                install_progress = 35;
+            }
+
+            // EXT4 superblock at LBA 2050 (partition LBA 2048 + 2 sectors = byte offset 1024)
+            // Superblock is 1024 bytes; we fill the first 512-byte sector with key fields
+            static uint8_t sb[512];
+            for (int i = 0; i < 512; i++) sb[i] = 0;
+            // s_magic at offset 56 (within the superblock, = byte 56 of the 1024-byte superblock)
+            // We write the second sector of that 1024-byte region, so offset 56 is in sb[56]
+            // EXT4 superblock layout (from byte 0 of the 1024-byte superblock):
+            //   0x00: s_inodes_count (uint32)
+            //   0x04: s_blocks_count_lo (uint32)
+            //   0x18: s_log_block_size (uint32) — 2 means 4096 bytes
+            //   0x58: s_magic (uint16) = 0xEF53
+            //   0x5C: s_state (uint16) = 1 (cleanly mounted)
+
+            // total inodes: 8192
+            uint32_t inodes = 8192;
+            sb[0] = (uint8_t)(inodes);
+            sb[1] = (uint8_t)(inodes >> 8);
+            sb[2] = (uint8_t)(inodes >> 16);
+            sb[3] = (uint8_t)(inodes >> 24);
+            // total blocks
+            sb[4] = (uint8_t)(part_size);
+            sb[5] = (uint8_t)(part_size >> 8);
+            sb[6] = (uint8_t)(part_size >> 16);
+            sb[7] = (uint8_t)(part_size >> 24);
+            // s_log_block_size = 2 (4096 byte blocks)
+            sb[0x18] = 2;
+            // s_magic = 0xEF53 (little-endian)
+            sb[0x38] = 0x53;
+            sb[0x39] = 0xEF;
+            // s_state = 1 (clean)
+            sb[0x3C] = 0x01;
+            sb[0x3D] = 0x00;
+
+            // LBA 2050 = partition start (2048) + 2 sectors = superblock position
+            ata_write_sectors(2050, 1, sb);
+
+            // Also format in-memory EXT4 VFS for immediate use
             ext4_format_drive(0, total_sec, "FALKON_ROOT");
-            
+
             installer_redraw(win);
         }
     }
     else if (install_step == 2) {
+        // "Proceed" button: x 120..330, y 165..195
         if (rel_x >= 120 && rel_x <= 330 && rel_y >= 165 && rel_y <= 195) {
             install_step = 3;
-            install_progress = 80;
-            strcpy(install_status_msg, "Deploying System Payload (/boot, /bin, /sys, /docs, /videos)...");
-            
-            // Mount EXT4 Hard Drive as VFS Root
+            install_progress = 70;
+            strcpy(install_status_msg, "Deploying VFS structure (/boot /bin /sys /home /docs)...");
+
+            // Mount and populate VFS root
             vfs_mount("hda", "/", "ext4");
-            
-            // Populate installed directories
             vfs_node_t* root = vfs_get_root();
-            vfs_node_t* boot   = vfs_mkdir(root, "boot");
-            vfs_node_t* home   = vfs_mkdir(root, "home");
-            vfs_node_t* docs   = vfs_mkdir(root, "docs");
+            vfs_node_t* boot = vfs_mkdir(root, "boot");
+            vfs_node_t* home = vfs_mkdir(root, "home");
+            vfs_node_t* docs = vfs_mkdir(root, "docs");
             vfs_mkdir(root, "sys");
             vfs_mkdir(root, "bin");
             vfs_mkdir(root, "videos");
 
-            const char* install_readme = "Falkon-OS Native Disk Installation Complete!\nTarget Storage: /dev/sda1 (EXT4 Partition)\n";
-            if (boot) vfs_create_file(boot, "kernel.bin", (const uint8_t*)"FALKON_KERNEL_64BIT_BINARY", 26);
-            if (home) vfs_create_file(home, "user_notes.txt", (const uint8_t*)"User persistent files stored on /dev/sda1\n", 41);
-            if (docs) vfs_create_file(docs, "install_log.txt", (const uint8_t*)install_readme, strlen(install_readme));
-            
+            if (boot) vfs_create_file(boot, "kernel.bin",
+                (const uint8_t*)"FALKON_KERNEL_64BIT_ELF", 23);
+            if (home) vfs_create_file(home, "user_notes.txt",
+                (const uint8_t*)"User files on /dev/sda1\n", 24);
+            const char* log = "Falkon-OS installed to /dev/sda1 (EXT4)\n";
+            if (docs) vfs_create_file(docs, "install_log.txt",
+                (const uint8_t*)log, strlen(log));
+
             is_os_installed = 1;
+            install_progress = 90;
             installer_redraw(win);
         }
     }
@@ -150,7 +230,9 @@ static void installer_handle_click(window_t* win, int rel_x, int rel_y) {
         if (rel_x >= 120 && rel_x <= 330 && rel_y >= 165 && rel_y <= 195) {
             install_step = 4;
             install_progress = 100;
-            strcpy(install_status_msg, "Falkon-OS Disk Installation Complete!");
+            strcpy(install_status_msg, "Installation complete!");
+            // Final flush to ensure all data is on disk
+            ata_cache_flush();
             installer_redraw(win);
         }
     }

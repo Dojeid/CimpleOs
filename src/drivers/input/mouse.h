@@ -9,6 +9,7 @@ extern int mouse_y;
 void init_mouse();
 void mouse_handler();
 int mouse_button_left();
+int mouse_button_right();
 int mouse_button_pressed();
 int mouse_button_released();
 void mouse_update_vbox();

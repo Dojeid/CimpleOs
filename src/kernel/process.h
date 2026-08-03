@@ -50,6 +50,7 @@ void process_yield(void);
 void process_exit(int code);
 void process_list(char* buffer, uint32_t max_len);
 process_t* process_get_current(void);
+process_t* process_get_by_index(int index);
 uint64_t schedule(uint64_t current_rsp);
 int64_t process_fork_from_frame(cpu_registers_t* frame);
 int64_t process_waitpid_from_frame(int32_t pid, cpu_registers_t* frame, uint64_t* next_rsp);

@@ -11,6 +11,7 @@ volatile int mouse_y = 300;
 volatile uint8_t mouse_cycle = 0;
 int8_t mouse_byte[3];
 volatile uint8_t mouse_left_btn = 0;
+volatile uint8_t mouse_right_btn = 0;
 volatile uint8_t mouse_click_latch = 0;
 volatile uint8_t mouse_release_latch = 0;
 
@@ -97,6 +98,7 @@ void mouse_handler() {
 
         // Button state updated cleanly at end of 3-byte cycle
         uint8_t new_btn = (flags & 0x01);
+        mouse_right_btn = (flags & 0x02) ? 1 : 0;
         if (new_btn && !mouse_left_btn) mouse_click_latch = 1;
         if (!new_btn && mouse_left_btn) mouse_release_latch = 1;
         mouse_left_btn = new_btn;
@@ -136,6 +138,10 @@ void mouse_handler() {
 
 int mouse_button_left() {
     return mouse_left_btn;
+}
+
+int mouse_button_right() {
+    return mouse_right_btn;
 }
 
 // Critical section with debounce

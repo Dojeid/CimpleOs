@@ -34,6 +34,10 @@
 #include "gui/apps/file_explorer.h"
 #include "gui/apps/notepad.h"
 #include "gui/apps/sysmon.h"
+#include "drivers/rtc.h"
+#include "kernel/acpi.h"
+#include "gui/context_menu.h"
+#include "gui/clipboard.h"
 #include "lib/printf.h"
 
 extern char terminal_buffer[];
@@ -128,7 +132,10 @@ void kmain(void* multiboot_info_addr) {
     usb_init();
     sound_init();
     ata_init();
-    boot_log_ok("ATA Storage Controller & Virtual Disks Active");
+    rtc_init();
+    acpi_init();
+    clipboard_init();
+    boot_log_ok("RTC Time, ACPI Power Management & Clipboard Active");
     
     extern int e1000_init(void);
     e1000_init();
@@ -201,23 +208,27 @@ void kmain(void* multiboot_info_addr) {
             int mouse_pressed = mouse_button_pressed();
             
             if (mouse_pressed) {
-                taskbar_t* tb = taskbar_get_state();
-                int menu_w = 360, menu_h = 370;
-                int menu_x = (screen_w / 2) - (menu_w / 2);
-                int menu_y = tb->y_position - menu_h - 12;
-                
-                int in_taskbar = (mouse_y >= tb->y_position) ||
-                                 (tb->start_menu_open && 
-                                  mouse_x >= menu_x && mouse_x < menu_x + menu_w && 
-                                  mouse_y >= menu_y && mouse_y < menu_y + menu_h);
-                if (in_taskbar) {
-                    taskbar_handle_click(mouse_x, mouse_y);
+                if (context_menu_is_visible() && context_menu_handle_click(mouse_x, mouse_y)) {
+                    // Click consumed by context menu
                 } else {
-                    int clicked_win = wm_get_window_at(mouse_x, mouse_y);
-                    if (clicked_win != -1) {
-                        wm_handle_mouse_down(mouse_x, mouse_y);
+                    taskbar_t* tb = taskbar_get_state();
+                    int menu_w = 360, menu_h = 370;
+                    int menu_x = (screen_w / 2) - (menu_w / 2);
+                    int menu_y = tb->y_position - menu_h - 12;
+                    
+                    int in_taskbar = (mouse_y >= tb->y_position) ||
+                                     (tb->start_menu_open && 
+                                      mouse_x >= menu_x && mouse_x < menu_x + menu_w && 
+                                      mouse_y >= menu_y && mouse_y < menu_y + menu_h);
+                    if (in_taskbar) {
+                        taskbar_handle_click(mouse_x, mouse_y);
                     } else {
-                        desktop_handle_click(mouse_x, mouse_y);
+                        int clicked_win = wm_get_window_at(mouse_x, mouse_y);
+                        if (clicked_win != -1) {
+                            wm_handle_mouse_down(mouse_x, mouse_y);
+                        } else {
+                            desktop_handle_click(mouse_x, mouse_y);
+                        }
                     }
                 }
             }
@@ -255,8 +266,22 @@ void kmain(void* multiboot_info_addr) {
                 terminal_instance_render(term, win_content_x + 10, win_content_y + 10);
             }
             
+            int mouse_right = mouse_button_right();
+            if (mouse_right) {
+                int clicked_win = wm_get_window_at(mouse_x, mouse_y);
+                if (clicked_win != -1) {
+                    context_menu_setup_window(clicked_win);
+                } else {
+                    context_menu_setup_desktop();
+                }
+                context_menu_show(mouse_x, mouse_y);
+            }
+
             taskbar_render();
             notify_render();
+            if (context_menu_is_visible()) {
+                context_menu_render();
+            }
             cursor_render();
             swap_buffers();
             timer_wait(1); // 60 FPS Frame Limiter

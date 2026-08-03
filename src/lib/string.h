@@ -21,6 +21,7 @@ void itoa(int value, char* str, int base);
 int  atoi(const char* str);
 
 // Memory operations
+int   memcmp(const void* s1, const void* s2, size_t n);
 void* memset(void* dest, int val, size_t count);
 void* memcpy(void* dest, const void* src, size_t n);
 char* strchr(const char* s, int c);

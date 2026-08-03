@@ -16,7 +16,20 @@
 
 #define ATA_CMD_READ_SECTORS     0x20
 #define ATA_CMD_WRITE_SECTORS    0x30
+#define ATA_CMD_CACHE_FLUSH      0xE7   // Flush write cache — must call after write
 #define ATA_CMD_IDENTIFY         0xEC
+
+// Secondary (slave) channel ports
+#define ATA_SECONDARY_DATA       0x170
+#define ATA_SECONDARY_STATUS     0x177
+#define ATA_SECONDARY_COMMAND    0x177
+#define ATA_SECONDARY_DRIVE_HEAD 0x176
+
+// Return codes
+#define ATA_OK          0
+#define ATA_ERR_NODRIVE (-1)
+#define ATA_ERR_TIMEOUT (-2)
+#define ATA_ERR_STATUS  (-3)
 
 typedef struct {
     uint8_t present;
@@ -28,5 +41,6 @@ void ata_init(void);
 ata_drive_t* ata_get_drive(uint8_t drive_num);
 int ata_read_sectors(uint32_t lba, uint8_t count, uint8_t* buffer);
 int ata_write_sectors(uint32_t lba, uint8_t count, const uint8_t* buffer);
+int ata_cache_flush(void);   // Must call after write sequence to commit data
 
 #endif // ATA_H

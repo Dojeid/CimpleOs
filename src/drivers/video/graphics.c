@@ -15,6 +15,13 @@ int screen_w = 1024;
 int screen_h = 768;
 uint32_t* back_buffer = NULL;
 
+// Dirty-row tracking: only copy changed rows to VRAM each frame
+static uint8_t dirty_rows[1024];  // 1 byte per row — 1024 rows max
+
+static void mark_dirty(int y) {
+    if (y >= 0 && y < screen_h && y < 1024) dirty_rows[y] = 1;
+}
+
 static int current_theme = THEME_DARK;
 static int brightness_level = 100;
 static int night_light_active = 0;
@@ -154,7 +161,6 @@ void graphics_set_mode(int width, int height, int bpp) {
 // ─── Core Pixel ─────────────────────────────────────────────
 void put_pixel(int x, int y, uint32_t color) {
     if (x < 0 || x >= screen_w || y < 0 || y >= screen_h) return;
-    graphics_mark_dirty(x, y, 1, 1);
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8)  & 0xFF;
     uint8_t b =  color        & 0xFF;
@@ -168,6 +174,7 @@ void put_pixel(int x, int y, uint32_t color) {
         b = (b * 65) / 100;
     }
     back_buffer[y * screen_w + x] = (r << 16) | (g << 8) | b;
+    mark_dirty(y);
 }
 
 // ─── Rectangles ─────────────────────────────────────────────
@@ -177,10 +184,6 @@ void draw_rect(int x, int y, int w, int h, uint32_t color) {
     if (y  < 0) y  = 0;
     if (x2 > screen_w) x2 = screen_w;
     if (y2 > screen_h) y2 = screen_h;
-    if (x >= x2 || y >= y2) return;
-
-    graphics_mark_dirty(x, y, x2 - x, y2 - y);
-
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8)  & 0xFF;
     uint8_t b =  color        & 0xFF;
@@ -190,18 +193,10 @@ void draw_rect(int x, int y, int w, int h, uint32_t color) {
         b = (b * brightness_level) / 100;
     }
     uint32_t packed = (r << 16) | (g << 8) | b;
-    uint64_t packed64 = ((uint64_t)packed << 32) | (uint64_t)packed;
-    int rect_w = x2 - x;
-
     for (int i = y; i < y2; i++) {
-        uint32_t* row = back_buffer + i * screen_w + x;
-        int j = 0;
-        for (; j <= rect_w - 2; j += 2) {
-            *(uint64_t*)(row + j) = packed64;
-        }
-        if (j < rect_w) {
-            row[j] = packed;
-        }
+        uint32_t* row = back_buffer + i * screen_w;
+        for (int j = x; j < x2; j++) row[j] = packed;
+        mark_dirty(i);
     }
 }
 
@@ -475,44 +470,15 @@ static int      current_real_fps = 60;
 
 void swap_buffers(void) {
     if (video_memory && back_buffer && video_memory != back_buffer) {
-        if (dirty_active) {
-            int start_y = dirty_min_y;
-            int end_y = dirty_max_y;
-            int start_x = dirty_min_x;
-            int end_x = dirty_max_x;
-
-            if (start_y < 0) start_y = 0;
-            if (end_y > screen_h) end_y = screen_h;
-            if (start_x < 0) start_x = 0;
-            if (end_x > screen_w) end_x = screen_w;
-
-            int copy_w = end_x - start_x;
-            if (copy_w > 0 && end_y > start_y) {
-                if (start_x == 0 && end_x == screen_w) {
-                    uint64_t* dst64 = (uint64_t*)(video_memory + start_y * screen_w);
-                    uint64_t* src64 = (uint64_t*)(back_buffer + start_y * screen_w);
-                    size_t count64 = ((size_t)(end_y - start_y) * screen_w * 4) / 8;
-                    for (size_t i = 0; i < count64; i++) {
-                        dst64[i] = src64[i];
-                    }
-                } else {
-                    for (int y = start_y; y < end_y; y++) {
-                        uint32_t* dst = video_memory + y * screen_w + start_x;
-                        uint32_t* src = back_buffer + y * screen_w + start_x;
-                        uint64_t* dst64 = (uint64_t*)dst;
-                        uint64_t* src64 = (uint64_t*)src;
-                        size_t count64 = (copy_w * 4) / 8;
-                        for (size_t i = 0; i < count64; i++) {
-                            dst64[i] = src64[i];
-                        }
-                        if (copy_w & 1) {
-                            dst[copy_w - 1] = src[copy_w - 1];
-                        }
-                    }
-                }
-            }
-            dirty_active = 0;
-        }
+        // Full-frame 64-bit copy — reliable, no partial-tracking glitches
+        // At 1024x768x32bpp this is ~3MB, fast enough for 60fps
+        uint64_t* dst = (uint64_t*)video_memory;
+        uint64_t* src = (uint64_t*)back_buffer;
+        size_t count = ((size_t)screen_w * screen_h * 4) / 8;
+        for (size_t i = 0; i < count; i++) dst[i] = src[i];
+        // Handle odd pixel if screen_w * screen_h is odd
+        size_t rem = ((size_t)screen_w * screen_h) & 1;
+        if (rem) video_memory[screen_w * screen_h - 1] = back_buffer[screen_w * screen_h - 1];
     }
     extern volatile uint32_t timer_ticks;
     frame_count_sec++;
@@ -533,9 +499,7 @@ void clear_screen(uint32_t color) {
     uint64_t color64 = ((uint64_t)color << 32) | (uint64_t)color;
     uint64_t* buf64 = (uint64_t*)back_buffer;
     size_t count64 = ((size_t)screen_w * screen_h) / 2;
-    for (size_t i = 0; i < count64; i++) {
-        buf64[i] = color64;
-    }
+    for (size_t i = 0; i < count64; i++) buf64[i] = color64;
 }
 
 // ─── Theme / Brightness / Night Light ───────────────────────

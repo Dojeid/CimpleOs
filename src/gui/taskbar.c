@@ -210,36 +210,39 @@ void taskbar_render() {
 
         // App tile helper: 3 columns of tiles
         // Row 1
-        struct { const char* name; uint32_t color; } apps[9] = {
-            {"Term",   0x38BDF8},
-            {"Explr",  0xF59E0B},
-            {"Surf",   0x60A5FA},
-            {"Notepad",0xA78BFA},
-            {"Instlr", 0x34D399},
-            {"Code",   0xFBBF24},
-            {"Settings",0x38BDF8},
-            {"SysMon", 0xF87171},
-            {"Calc",   0x4ADE80},
+        // App tile helper: 3 columns of tiles x 4 rows
+        struct { const char* name; uint32_t color; } apps[12] = {
+            {"Term",     0x38BDF8},
+            {"Explr",    0xF59E0B},
+            {"Surf",     0x60A5FA},
+            {"Notepad",  0xA78BFA},
+            {"Clock",    0x34D399},
+            {"Paint",    0xEC4899},
+            {"Settings", 0x38BDF8},
+            {"SysMon",   0xF87171},
+            {"Calendar", 0x4ADE80},
+            {"Code",     0xFBBF24},
+            {"Instlr",   0x10B981},
+            {"Calc",     0x818CF8},
         };
 
         int col = 0, row = 0;
         int tile_area_x = menu_x + 14;
         int tile_area_y = menu_y + 70;
-        int mt_w = 100, mt_h = 52, mt_gap_x = 12, mt_gap_y = 10;
+        int mt_w = 100, mt_h = 44, mt_gap_x = 12, mt_gap_y = 6;
 
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 12; i++) {
             int tx = tile_area_x + col * (mt_w + mt_gap_x);
             int ty = tile_area_y + row * (mt_h + mt_gap_y);
             // Tile bg — gradient rounded rect
             draw_gradient_rounded_rect(tx, ty, mt_w, mt_h, 8, 0x1E293B, 0x0F172A, 1);
             draw_rounded_rect_outline(tx, ty, mt_w, mt_h, 8, 1, 0x334155);
             // Colored top accent
-            draw_rounded_rect(tx + 4, ty + 4, mt_w - 8, 3, 0, apps[i].color);
+            draw_rounded_rect(tx + 4, ty + 3, mt_w - 8, 2, 0, apps[i].color);
             // App icon circle
-            draw_circle(tx + mt_w/2, ty + 20, 8, apps[i].color);
-            // Label centered
-            int nl = 0; while(apps[i].name[nl]) nl++;
-            draw_string(tx + mt_w/2 - nl*4, ty + 33, 0xD1D5DB, apps[i].name);
+            draw_circle(tx + 16, ty + mt_h/2, 6, apps[i].color);
+            // Label
+            draw_string(tx + 28, ty + mt_h/2 - 4, 0xD1D5DB, apps[i].name);
             col++;
             if (col >= 3) { col = 0; row++; }
         }
@@ -328,12 +331,11 @@ void taskbar_handle_click(int x, int y) {
             return;
         }
 
-        // App Grid Item Clicks (Pinned Section)
         int tile_area_x = menu_x + 14;
         int tile_area_y = menu_y + 70;
-        int mt_w = 100, mt_h = 52, mt_gap_x = 12, mt_gap_y = 10;
+        int mt_w = 100, mt_h = 44, mt_gap_x = 12, mt_gap_y = 6;
 
-        for (int i = 0; i < 9; i++) {
+        for (int i = 0; i < 12; i++) {
             int col = i % 3;
             int row = i / 3;
             int tx = tile_area_x + col * (mt_w + mt_gap_x);
@@ -352,15 +354,18 @@ void taskbar_handle_click(int x, int y) {
                         break;
                     }
                     case 3: notepad_open("/docs/welcome.txt"); break; // Notepad
-                    case 4: installer_open(); break; // Instlr
-                    case 5: { // Code
+                    case 4: { extern void clock_app_open(void); clock_app_open(); break; } // Clock
+                    case 5: { extern void paint_app_open(void); paint_app_open(); break; } // Paint
+                    case 6: settings_open(); break; // Settings
+                    case 7: sysmon_open(); break;   // SysMon
+                    case 8: { extern void calendar_open(void); calendar_open(); break; } // Calendar
+                    case 9: { // Code
                         extern void code_editor_open(const char* file_path);
                         code_editor_open("/src/main.c");
                         break;
                     }
-                    case 6: settings_open(); break; // Settings
-                    case 7: sysmon_open(); break;   // SysMon
-                    case 8: { // Calc
+                    case 10: installer_open(); break; // Instlr
+                    case 11: { // Calc
                         extern void calc_open(void);
                         calc_open();
                         break;
