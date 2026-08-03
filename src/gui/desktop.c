@@ -94,22 +94,6 @@ void desktop_render_background() {
     draw_string_shadow(screen_w - 220, screen_h - DESKTOP_TASKBAR_HEIGHT - 22,
                        0x94A3B8, 0x000000, "Falkon-OS v1.0 Enterprise");
 
-    // Cache wallpaper surface if buffer available
-    if (back_buffer) {
-        if (!wallpaper_surface) {
-            wallpaper_surface = (uint32_t*)malloc(surface_bytes);
-        }
-        if (wallpaper_surface) {
-            uint64_t* dst64 = (uint64_t*)wallpaper_surface;
-            uint64_t* src64 = (uint64_t*)back_buffer;
-            size_t count64 = surface_bytes / 8;
-            for (size_t i = 0; i < count64; i++) {
-                dst64[i] = src64[i];
-            }
-            wallpaper_valid = 1;
-        }
-    }
-
     // ── Desktop Icon Tiles (96×72 rounded cards) ──────────────
     // Layout: single left column, 12px from left edge
     struct {
@@ -160,6 +144,22 @@ void desktop_render_background() {
         while (icons[i].label[lbl_len]) lbl_len++;
         int lbl_x = tile_x + (tile_w - lbl_len * 8) / 2;
         draw_string_shadow(lbl_x, tile_y + tile_h - 14, 0xF1F5F9, 0x000000, icons[i].label);
+    }
+
+    // Cache wallpaper + icons surface if buffer available
+    if (back_buffer && !wallpaper_valid) {
+        if (!wallpaper_surface) {
+            wallpaper_surface = (uint32_t*)malloc(surface_bytes);
+        }
+        if (wallpaper_surface) {
+            uint64_t* dst64 = (uint64_t*)wallpaper_surface;
+            uint64_t* src64 = (uint64_t*)back_buffer;
+            size_t count64 = surface_bytes / 8;
+            for (size_t i = 0; i < count64; i++) {
+                dst64[i] = src64[i];
+            }
+            wallpaper_valid = 1;
+        }
     }
 
     // Bottom-Right Resource Monitor Widget

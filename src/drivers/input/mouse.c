@@ -107,11 +107,11 @@ void mouse_handler() {
             mouse_x = vbox_x;
             mouse_y = vbox_y;
         } else {
-            // Standard PS/2 Relative Positioning
+            // Standard PS/2 Relative Positioning: prevent pushing beyond screen bounds
             if ((mouse_x <= 0 && x_rel < 0) || (mouse_x >= screen_w - 1 && x_rel > 0)) {
                 x_rel = 0;
             }
-            if ((mouse_y <= 0 && y_rel < 0) || (mouse_y >= screen_h - 1 && y_rel > 0)) {
+            if ((mouse_y <= 0 && y_rel > 0) || (mouse_y >= screen_h - 1 && y_rel < 0)) {
                 y_rel = 0;
             }
 
