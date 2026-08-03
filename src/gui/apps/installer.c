@@ -1,12 +1,14 @@
 #include "gui/apps/installer.h"
 #include "gui/window_manager.h"
 #include "gui/taskbar.h"
+#include "gui/apps/file_explorer.h"
 #include "drivers/video/graphics.h"
 #include "drivers/storage/ata.h"
 #include "fs/ext4.h"
 #include "fs/vfs.h"
-#include "lib/string.h"
+#include "include/bootsector_bin.h"
 #include "lib/printf.h"
+#include "lib/string.h"
 #include "gui/apps/file_explorer.h"
 
 static int install_step = 1; // 1=Welcome/Partition, 2=Formatting EXT4, 3=Deploying System Payload, 4=Complete
@@ -115,40 +117,52 @@ static void installer_handle_click(window_t* win, int rel_x, int rel_y) {
             ata_drive_t* drv = ata_get_drive(0);
             uint32_t total_sec = (drv && drv->present) ? drv->total_sectors : 4096;
 
-            // ── Build 512-byte MBR ─────────────────────────────
-            // Sector 0: MBR with one primary Linux partition (type 0x83)
+            // ── Build 512-byte Bootable MBR ─────────────────────────
+            // Sector 0: Real 16-bit Boot Code from bootsector_bin.h + Partition Table (type 0x83)
             static uint8_t mbr[512];
-            for (int i = 0; i < 512; i++) mbr[i] = 0;
+            // Copy 16-bit bootloader machine code into code area (bytes 0..445)
+            for (int i = 0; i < 446; i++) {
+                mbr[i] = bootsector_code[i];
+            }
+            // Clear remaining partition table area
+            for (int i = 446; i < 512; i++) mbr[i] = 0;
 
-            // Partition entry at offset 446 (first entry)
-            // Status: 0x80 = bootable
-            mbr[446] = 0x80;
-            // CHS Begin — we use LBA mode so set 0xFE 0xFF 0xFF
-            mbr[447] = 0xFE; mbr[448] = 0xFF; mbr[449] = 0xFF;
-            // Partition type: 0x83 = Linux native
-            mbr[450] = 0x83;
-            // CHS End — same trick
-            mbr[451] = 0xFE; mbr[452] = 0xFF; mbr[453] = 0xFF;
-            // LBA Start: 2048 (little-endian uint32)
+            // Partition entry 1 at offset 446
+            mbr[446] = 0x80; // Status: Bootable (Active)
+            mbr[447] = 0xFE; mbr[448] = 0xFF; mbr[449] = 0xFF; // CHS start
+            mbr[450] = 0x83; // Partition type: 0x83 Linux native
+            mbr[451] = 0xFE; mbr[452] = 0xFF; mbr[453] = 0xFF; // CHS end
+
+            // LBA Start: 2048 (1MB offset for alignment)
             uint32_t lba_start = 2048;
             mbr[454] = (uint8_t)(lba_start);
             mbr[455] = (uint8_t)(lba_start >> 8);
             mbr[456] = (uint8_t)(lba_start >> 16);
             mbr[457] = (uint8_t)(lba_start >> 24);
+
             // LBA Size: total_sec - 2048
             uint32_t part_size = (total_sec > 2048) ? (total_sec - 2048) : 2048;
             mbr[458] = (uint8_t)(part_size);
             mbr[459] = (uint8_t)(part_size >> 8);
             mbr[460] = (uint8_t)(part_size >> 16);
             mbr[461] = (uint8_t)(part_size >> 24);
+
             // Boot signature
             mbr[510] = 0x55;
             mbr[511] = 0xAA;
 
-            int r = ata_write_sectors(0, 1, mbr);  // Write MBR to LBA 0
+            int r = ata_write_sectors(0, 1, mbr);  // Write 16-bit MBR Bootloader to LBA 0
+
+            // ── Deploy Stage 2 / Kernel Payload (LBA 1 to LBA 1200) ──
+            // Kernel flat payload is residing in physical RAM at address 0x100000 (1MB)
+            const uint8_t* kern_ram = (const uint8_t*)(uintptr_t)0x100000;
+            // Write 1200 sectors (600 KB payload) from RAM to Hard Disk sectors 1..1200
+            uint32_t kern_sectors_count = 1200;
+            ata_write_sectors(1, kern_sectors_count, kern_ram);
+
             if (r == ATA_OK) {
                 install_progress = 35;
-                strcpy(install_status_msg, "MBR written. Formatting EXT4 superblock...");
+                strcpy(install_status_msg, "MBR & 64-bit Kernel Payload deployed to LBA 0-1200.");
             } else {
                 strcpy(install_status_msg, "Warning: No ATA drive found. Using VFS ramdisk mode.");
                 install_progress = 35;

@@ -441,6 +441,13 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
         if res.returncode != 0:
             log_error(f"NASM failed for {boot_asm}:\n{res.stderr}")
             sys.exit(1)
+        if boot_bin.exists():
+            with open(boot_bin, "rb") as _bf:
+                _bdata = _bf.read()
+            _hstr = "#ifndef BOOTSECTOR_BIN_H\n#define BOOTSECTOR_BIN_H\nstatic const unsigned char bootsector_code[512] = {\n" + ", ".join(f"0x{b:02X}" for b in _bdata) + "\n};\n#endif\n"
+            _hpath = SRC_DIR / "include" / "bootsector_bin.h"
+            with open(_hpath, "w") as _hf:
+                _hf.write(_hstr)
     elif not boot_bin.exists():
         log_error("NASM not found and no existing bootsector.bin to use")
         sys.exit(1)
