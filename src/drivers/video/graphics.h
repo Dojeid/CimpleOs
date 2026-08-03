@@ -63,5 +63,7 @@ int  graphics_get_brightness(void);
 void graphics_set_night_light(int enabled);
 int  graphics_get_night_light(void);
 int  graphics_get_real_fps(void);
+void graphics_set_target_fps(int fps);
+int  graphics_get_target_fps(void);
 
 #endif

@@ -854,9 +854,11 @@ void cmd_process(const char* cmd) {
         const char* arg = cmd + 6;
         while(*arg == ' ') arg++;
         char perms[16]={0}, fn[64]={0};
-        int i=0; while(arg[i] && arg[i] != ' ') { perms[i] = arg[i]; i++; }
+        int i=0; while(arg[i] && arg[i] != ' ' && i < 15) { perms[i] = arg[i]; i++; }
+        perms[i] = '\0';
         while(arg[i] == ' ') i++;
-        strcpy(fn, arg+i);
+        strncpy(fn, arg+i, 63);
+        fn[63] = '\0';
         char b[128]; sprintf(b, "chmod: permissions set to %s on %s", perms, fn);
         cmd_print(b);
         cmd_print("");
@@ -882,12 +884,16 @@ void cmd_process(const char* cmd) {
         const char* arg = cmd + 6;
         while(*arg == ' ') arg++;
         char n[32]={0}, c[128]={0};
-        int i=0; while(arg[i] && arg[i] != '=') { n[i] = arg[i]; i++; }
+        int i=0; while(arg[i] && arg[i] != '=' && i < 31) { n[i] = arg[i]; i++; }
+        n[i] = '\0';
         if(arg[i] == '=') {
-            strcpy(c, arg+i+1);
+            strncpy(c, arg+i+1, 127);
+            c[127] = '\0';
             if(alias_count < 16) {
-                strcpy(alias_names[alias_count], n);
-                strcpy(alias_table[alias_count], c);
+                strncpy(alias_names[alias_count], n, 31);
+                alias_names[alias_count][31] = '\0';
+                strncpy(alias_table[alias_count], c, 127);
+                alias_table[alias_count][127] = '\0';
                 alias_count++;
                 cmd_print("Alias set.");
             }
@@ -906,6 +912,21 @@ void cmd_process(const char* cmd) {
     }
     else if (strncmp(cmd, "uniq", 4) == 0) {
         cmd_print("uniq: output unique lines");
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "gcc", 3) == 0 || strncmp(cmd, "tcc", 3) == 0) {
+        extern int c_compile_source(const char*, char*, size_t);
+        static char log_buf[512];
+        const char* default_src = "#include <stdio.h>\nint main() { printf(\"Hello from Falkon-OS Ring 3 ELF Executable!\\n\"); return 0; }";
+        c_compile_source(default_src, log_buf, sizeof(log_buf));
+        cmd_print(log_buf);
+        cmd_print("");
+    }
+    else if (strncmp(cmd, "./a.out", 7) == 0 || strncmp(cmd, "elfrun", 6) == 0) {
+        extern int c_execute_binary(char*, size_t);
+        static char out_buf[512];
+        c_execute_binary(out_buf, sizeof(out_buf));
+        cmd_print(out_buf);
         cmd_print("");
     }
     else if (strncmp(cmd, "date", 4) == 0) {

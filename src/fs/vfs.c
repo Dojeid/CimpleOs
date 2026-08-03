@@ -54,12 +54,13 @@ int vfs_mount(const char *dev_name, const char *dir_name, const char *fs_type) {
 }
 
 dentry_t* vfs_lookup(const char *path) {
-    if (!vfs_root || !vfs_root->d_inode) return NULL;
-    if (strcmp(path, "/") == 0) return vfs_root;
+    if (!path || !vfs_root || !vfs_root->d_inode) return NULL;
+    if (strcmp(path, "/") == 0 || path[0] == '\0') return vfs_root;
 
     // Simple one-level lookup for now
     const char *name = path;
     if (name[0] == '/') name++;
+    if (name[0] == '\0') return vfs_root;
     
     if (vfs_root->d_inode->i_op && vfs_root->d_inode->i_op->lookup) {
         return vfs_root->d_inode->i_op->lookup(vfs_root->d_inode, name);
@@ -68,6 +69,7 @@ dentry_t* vfs_lookup(const char *path) {
 }
 
 file_t* vfs_open(const char *path, uint32_t flags) {
+    if (!path) return NULL;
     dentry_t *dentry = vfs_lookup(path);
     if (!dentry || !dentry->d_inode) return NULL;
 

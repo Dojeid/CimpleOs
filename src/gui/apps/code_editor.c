@@ -67,6 +67,45 @@ static void code_editor_redraw(window_t* win) {
     // Code Editor Text Area
     draw_rect(editor_x, editor_y, editor_w, editor_h, 0x0B0F19);
     draw_string(editor_x + 10, editor_y + 4, 0x38BDF8, editor_content);
+    // Bottom Console Log Output Panel
+    draw_rect(x, y + h - 60, w, 60, 0x090D16);
+    draw_rect(x, y + h - 60, w, 1, 0x334155);
+    draw_string(x + 10, y + h - 54, 0x10B981, "[falkon-code Output]");
+    
+    static char build_log[256] = "Ready to compile. Press BUILD or RUN.";
+    draw_string(x + 10, y + h - 36, 0x38BDF8, build_log);
+}
+
+static void code_editor_click(window_t* win, int rel_x, int rel_y) {
+    if (!win) return;
+    int w = win->width - 16;
+    
+    // Action Toolbar buttons row (rel_y <= 32)
+    if (rel_y <= 32) {
+        // [ BUILD ] button: rel_x in [w - 190 .. w - 132]
+        if (rel_x >= w - 190 && rel_x <= w - 132) {
+            extern int c_compile_source(const char*, char*, size_t);
+            static char log_buf[512];
+            c_compile_source(editor_content, log_buf, sizeof(log_buf));
+            code_editor_redraw(win);
+        }
+        // [ RUN ] button: rel_x in [w - 128 .. w - 70]
+        else if (rel_x >= w - 128 && rel_x <= w - 70) {
+            extern int c_compile_source(const char*, char*, size_t);
+            extern int c_execute_binary(char*, size_t);
+            extern void text_viewer_open(const char*, const char*);
+            static char log_buf[256];
+            static char out_buf[512];
+            c_compile_source(editor_content, log_buf, sizeof(log_buf));
+            c_execute_binary(out_buf, sizeof(out_buf));
+            text_viewer_open("a.out Program Output", out_buf);
+        }
+        // [ SAVE ] button: rel_x in [w - 66 .. w - 6]
+        else if (rel_x >= w - 66 && rel_x <= w - 6) {
+            vfs_node_t* root = vfs_get_root();
+            if (root) vfs_create_file(root, "main.c", (const uint8_t*)editor_content, strlen(editor_content));
+        }
+    }
 }
 
 void code_editor_open(const char* file_path) {
@@ -75,6 +114,7 @@ void code_editor_open(const char* file_path) {
     window_t* win = wm_create_window(95, 65, 660, 430, "falkon-code IDE");
     if (win) {
         win->render_content = code_editor_redraw;
+        win->on_click = code_editor_click;
         taskbar_add_button(win->id, "falkon-code");
         code_editor_redraw(win);
     }

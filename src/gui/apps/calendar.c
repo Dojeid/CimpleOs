@@ -68,14 +68,15 @@ static void cal_render(window_t* win) {
     int row = 0;
     int col = first_dow;
     
+    // Read RTC once per frame before grid loop
+    rtc_time_t curr_time;
+    rtc_read(&curr_time);
+
     for (int d = 1; d <= days; d++) {
         int x = start_x + col * cell_w;
         int y = start_y + 24 + row * 32;
         
         // Highlight current day if it's the current month/year
-        rtc_time_t curr_time;
-        rtc_read(&curr_time);
-        
         uint32_t text_color = 0x111827;
         if (cal_month == curr_time.month - 1 && cal_year == curr_time.year && d == curr_time.day) {
             draw_rounded_rect(x + 4, y - 4, 28, 28, 14, 0x3B82F6);

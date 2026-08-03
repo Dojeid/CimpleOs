@@ -112,8 +112,9 @@ void desktop_render_background() {
         { "Calendar", "CAL", 0x4ADE80, 0x14532D },
         { "Surf",     "WWW", 0x06B6D4, 0x164E63 },
         { "Code",     "IDE", 0xFBBF24, 0x78350F },
+        { "Store",    "PKG", 0x0284C7, 0x075985 },
     };
-    int num_icons = 11;
+    int num_icons = 12;
     int tile_w = 68, tile_h = 60, tile_gap = 10;
 
     for (int i = 0; i < num_icons; i++) {
@@ -264,7 +265,7 @@ void desktop_handle_click(int x, int y) {
     int tile_start_y = DESKTOP_TOPBAR_HEIGHT + 8;
     int stride_y = tile_h + tile_gap;
 
-    for (int i = 0; i < 11; i++) {
+    for (int i = 0; i < 12; i++) {
         int col = i / 6;
         int row = i % 6;
         int tx = 14 + col * (tile_w + 12);
@@ -296,6 +297,11 @@ void desktop_handle_click(int x, int y) {
                 case 10: {
                     extern void code_editor_open(const char* file_path);
                     code_editor_open("/untitled.c");
+                    break;
+                }
+                case 11: {
+                    extern void store_open(void);
+                    store_open();
                     break;
                 }
             }

@@ -284,7 +284,14 @@ void kmain(void* multiboot_info_addr) {
             }
             cursor_render();
             swap_buffers();
-            timer_wait(1); // 60 FPS Frame Limiter
+            int tfps = graphics_get_target_fps();
+            if (tfps <= 30) {
+                timer_wait(3);
+            } else if (tfps <= 60) {
+                timer_wait(1);
+            } else {
+                // 120 FPS / Uncapped mode: no artificial delay
+            }
         } else {
             // === RUNLEVEL 3: CORE LINUX CONSOLE TTY CLI MODE ===
             clear_screen(0x0A0E17);

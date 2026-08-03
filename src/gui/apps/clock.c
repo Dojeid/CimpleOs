@@ -79,9 +79,13 @@ static void clock_redraw(window_t* win) {
     draw_circle(win->x + cx, win->y + cy, 110, 0x1E293B);
     draw_circle(win->x + cx, win->y + cy, 110, 0x38BDF8); // outline
 
-    // Read RTC
-    rtc_time_t t;
-    rtc_read(&t);
+    // Read RTC once per second to avoid hardware I/O bus stalls
+    static rtc_time_t t;
+    static uint32_t last_rtc_tick = 0xFFFFFFFF;
+    if (timer_ticks - last_rtc_tick >= 100 || last_rtc_tick == 0xFFFFFFFF) {
+        rtc_read(&t);
+        last_rtc_tick = timer_ticks;
+    }
     
     int hours = t.hours;
     int minutes = t.minutes;

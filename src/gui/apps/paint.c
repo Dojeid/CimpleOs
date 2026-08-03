@@ -108,13 +108,27 @@ static void paint_redraw(window_t* win) {
         }
     }
     
-    // Blit canvas
+    // Fast clipped row blit of canvas pixels
+    extern uint32_t* back_buffer;
+    extern int screen_w, screen_h;
+
     int cw = g_paint_state->canvas_w;
     int ch = g_paint_state->canvas_h;
+    int base_x = win->x;
+    int base_y = win->y + 32;
+
     for (int y = 0; y < ch; y++) {
-        for (int x = 0; x < cw; x++) {
-            uint32_t c = g_paint_state->canvas[y * cw + x];
-            put_pixel(win->x + x, win->y + 32 + y, c);
+        int dst_y = base_y + y;
+        if (dst_y < 0 || dst_y >= screen_h) continue;
+
+        uint32_t* src_row = &g_paint_state->canvas[y * cw];
+        uint32_t* dst_row = &back_buffer[dst_y * screen_w];
+
+        int start_x = (base_x < 0) ? -base_x : 0;
+        int end_x = (base_x + cw > screen_w) ? (screen_w - base_x) : cw;
+
+        for (int x = start_x; x < end_x; x++) {
+            dst_row[base_x + x] = src_row[x];
         }
     }
 }

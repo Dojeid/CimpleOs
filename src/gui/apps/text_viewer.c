@@ -109,6 +109,11 @@ void text_viewer_open_file(const char* vfs_path) {
         return;
     }
     
+    if (!node->data || node->size == 0) {
+        text_viewer_open(node->d_name, "[Empty File]");
+        return;
+    }
+    
     char temp[8192];
     int size = node->size;
     if (size > 8191) size = 8191;

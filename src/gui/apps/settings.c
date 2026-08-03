@@ -86,17 +86,32 @@ static void settings_redraw(window_t* win) {
         draw_rect(x + 353, nl_y - 2, 50, 20, (brightness_level == 50) ? 0x059669 : 0x1E293B);
         draw_string(x + 359, nl_y + 3, 0xFFFFFF, "50%");
 
+        // Target FPS selector row
+        int fps_row_y = content_y + 76;
+        draw_string(x, fps_row_y, 0xF1F5F9, "Target FPS Limit:");
+        int tfps = graphics_get_target_fps();
+        draw_rect(x + 115, fps_row_y - 2, 60, 20, (tfps == 30) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 121, fps_row_y + 3, (tfps == 30) ? 0xFFFFFF : 0x94A3B8, "30 FPS");
+
+        draw_rect(x + 180, fps_row_y - 2, 70, 20, (tfps == 60) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 186, fps_row_y + 3, (tfps == 60) ? 0xFFFFFF : 0x94A3B8, "60 FPS");
+
+        draw_rect(x + 255, fps_row_y - 2, 70, 20, (tfps == 120) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 261, fps_row_y + 3, (tfps == 120) ? 0xFFFFFF : 0x94A3B8, "120 FPS");
+
+        draw_rect(x + 330, fps_row_y - 2, 110, 20, (tfps == 240) ? 0x0284C7 : 0x1E293B);
+        draw_string(x + 336, fps_row_y + 3, (tfps == 240) ? 0xFFFFFF : 0x94A3B8, "Uncapped MAX");
+
         // Separator
-        draw_rect(x, content_y + 76, win->width - 16, 1, 0x1E293B);
+        draw_rect(x, content_y + 104, win->width - 16, 1, 0x1E293B);
 
         // Live display info panel
         extern int graphics_get_real_fps(void);
         int live_fps = graphics_get_real_fps();
         char fps_str[64], res_str[64], fb_str[80];
-        sprintf(fps_str, "Render: %d FPS", live_fps);
+        sprintf(fps_str, "Render Rate: %d FPS (Limit: %d)", live_fps, tfps);
         sprintf(res_str, "Framebuffer: %dx%d @ 32bpp", screen_w, screen_h);
 
-        // Detect framebuffer type from video_memory address
         uintptr_t fb_addr = (uintptr_t)video_memory;
         const char* fb_type =
             (fb_addr == 0)            ? "None (headless)" :
@@ -106,19 +121,18 @@ static void settings_redraw(window_t* win) {
                                         "Multiboot LFB";
         sprintf(fb_str, "Driver: %s  |  VRAM @ 0x%08X", fb_type, (uint32_t)fb_addr);
 
-        draw_string(x + 10, content_y + 84,  0x4ADE80, fps_str);
+        draw_string(x + 10, content_y + 112, 0x4ADE80, fps_str);
 
-        // FPS bar (target 60)
-        int fps_bar_w = (live_fps * 120) / 60;
+        // FPS bar
+        int fps_bar_w = (live_fps * 120) / (tfps > 0 ? tfps : 60);
         if (fps_bar_w > 120) fps_bar_w = 120;
-        draw_rect(x + 100, content_y + 84, 120, 10, 0x1E293B);
-        uint32_t fps_col = (live_fps >= 55) ? 0x22C55E : (live_fps >= 30) ? 0xF59E0B : 0xEF4444;
-        draw_rect(x + 100, content_y + 84, fps_bar_w, 10, fps_col);
-        draw_string(x + 228, content_y + 84, 0x94A3B8, "/ 60 hz target");
+        draw_rect(x + 230, content_y + 112, 120, 10, 0x1E293B);
+        uint32_t fps_col = (live_fps >= tfps - 5) ? 0x22C55E : (live_fps >= 30) ? 0xF59E0B : 0xEF4444;
+        draw_rect(x + 230, content_y + 112, fps_bar_w, 10, fps_col);
 
-        draw_string(x + 10, content_y + 100, 0x38BDF8, res_str);
-        draw_string(x + 10, content_y + 116, 0x94A3B8, fb_str);
-        draw_string(x + 10, content_y + 132, 0xF59E0B, settings_msg);
+        draw_string(x + 10, content_y + 128, 0x38BDF8, res_str);
+        draw_string(x + 10, content_y + 144, 0x94A3B8, fb_str);
+        draw_string(x + 10, content_y + 160, 0xF59E0B, settings_msg);
     }
     else if (active_tab == 2) {
         // Tab 2: Personalization & Themes
@@ -238,6 +252,14 @@ static void settings_handle_click(window_t* win, int rel_x, int rel_y) {
             if      (rel_x >= 246 && rel_x <= 301) { brightness_level = 100; graphics_set_brightness(100); strcpy(settings_msg, "Brightness 100%."); }
             else if (rel_x >= 306 && rel_x <= 356) { brightness_level = 75;  graphics_set_brightness(75);  strcpy(settings_msg, "Brightness 75%.");  }
             else if (rel_x >= 361 && rel_x <= 411) { brightness_level = 50;  graphics_set_brightness(50);  strcpy(settings_msg, "Brightness 50%.");  }
+            settings_redraw(win);
+        }
+        // Target FPS row (fps_row_y: rel_y ~ 108..130)
+        else if (rel_y >= 108 && rel_y <= 130) {
+            if      (rel_x >= 120 && rel_x <= 180) { graphics_set_target_fps(30);  strcpy(settings_msg, "Target FPS set to 30 FPS."); }
+            else if (rel_x >= 185 && rel_x <= 250) { graphics_set_target_fps(60);  strcpy(settings_msg, "Target FPS set to 60 FPS."); }
+            else if (rel_x >= 255 && rel_x <= 325) { graphics_set_target_fps(120); strcpy(settings_msg, "Target FPS set to 120 FPS."); }
+            else if (rel_x >= 330 && rel_x <= 445) { graphics_set_target_fps(240); strcpy(settings_msg, "Target FPS set to Uncapped MAX."); }
             settings_redraw(win);
         }
     }

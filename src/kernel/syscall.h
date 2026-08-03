@@ -33,6 +33,17 @@
 #define SYS_STAT     27
 #define SYS_LSEEK    28
 #define SYS_IOCTL    29
+#define SYS_KILL     30
+#define SYS_SIGNAL   31
+#define SYS_GETPPID  32
+#define SYS_UNAME    33
+#define SYS_GETTIMEOFDAY  34
+#define SYS_CLOCK_GETTIME 35
+#define SYS_NANOSLEEP36
+#define SYS_BRK      37
+#define SYS_FSTAT    38
+#define SYS_POLL     39
+#define SYS_SELECT   40
 
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);

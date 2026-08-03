@@ -503,6 +503,9 @@ void clear_screen(uint32_t color) {
 }
 
 // ─── Theme / Brightness / Night Light ───────────────────────
+static int target_fps_limit = 60;
+void graphics_set_target_fps(int fps) { if (fps < 15) fps = 15; if (fps > 240) fps = 240; target_fps_limit = fps; }
+int  graphics_get_target_fps(void)    { return target_fps_limit; }
 void graphics_set_theme(int theme)    { current_theme = theme; }
 int  graphics_get_theme(void)         { return current_theme; }
 void graphics_set_brightness(int lvl) { if (lvl<10)lvl=10; if(lvl>100)lvl=100; brightness_level=lvl; }

@@ -215,6 +215,7 @@ void taskbar_render() {
             {"Term",     0x38BDF8},
             {"Explr",    0xF59E0B},
             {"Surf",     0x60A5FA},
+            {"Store",    0x0284C7},
             {"Notepad",  0xA78BFA},
             {"Clock",    0x34D399},
             {"Paint",    0xEC4899},
@@ -222,7 +223,6 @@ void taskbar_render() {
             {"SysMon",   0xF87171},
             {"Calendar", 0x4ADE80},
             {"Code",     0xFBBF24},
-            {"Instlr",   0x10B981},
             {"Calc",     0x818CF8},
         };
 
@@ -353,18 +353,22 @@ void taskbar_handle_click(int x, int y) {
                         browser_open("file:///docs/welcome.txt");
                         break;
                     }
-                    case 3: notepad_open("/docs/welcome.txt"); break; // Notepad
-                    case 4: { extern void clock_app_open(void); clock_app_open(); break; } // Clock
-                    case 5: { extern void paint_app_open(void); paint_app_open(); break; } // Paint
-                    case 6: settings_open(); break; // Settings
-                    case 7: sysmon_open(); break;   // SysMon
-                    case 8: { extern void calendar_open(void); calendar_open(); break; } // Calendar
-                    case 9: { // Code
+                    case 3: { // Store
+                        extern void store_open(void);
+                        store_open();
+                        break;
+                    }
+                    case 4: notepad_open("/docs/welcome.txt"); break; // Notepad
+                    case 5: { extern void clock_app_open(void); clock_app_open(); break; } // Clock
+                    case 6: { extern void paint_app_open(void); paint_app_open(); break; } // Paint
+                    case 7: settings_open(); break; // Settings
+                    case 8: sysmon_open(); break;   // SysMon
+                    case 9: { extern void calendar_open(void); calendar_open(); break; } // Calendar
+                    case 10: { // Code
                         extern void code_editor_open(const char* file_path);
                         code_editor_open("/src/main.c");
                         break;
                     }
-                    case 10: installer_open(); break; // Instlr
                     case 11: { // Calc
                         extern void calc_open(void);
                         calc_open();
