@@ -6,13 +6,13 @@
 [ORG 0x7C00]
 [BITS 16]
 
-KERNEL_BYTES        equ 1 * 1024 * 1024     ; 1MB Kernel capacity
+KERNEL_BYTES        equ 384 * 1024          ; 384KB Kernel stage 1 payload (0x10000 - 0x70000)
 KERNEL_SECTORS      equ KERNEL_BYTES / 512
 ISO_KERNEL_SECTORS  equ KERNEL_BYTES / 2048
 PARA_PER_SECTOR_512 equ 32
 PARA_PER_SECTOR_2K  equ 128
-MAX_CHUNK_512       equ 127
-MAX_CHUNK_2K        equ 32
+MAX_CHUNK_512       equ 64
+MAX_CHUNK_2K        equ 16
 
 start:
     cli
@@ -31,19 +31,11 @@ start:
 
     ; Select disk read path based on DL
     mov dl, [boot_drive]
-    cmp dl, 0x9F
-    je .cdemu
     cmp dl, 0xE0
     jae .iso
 
 .img:
     mov si, dap_img
-    mov bx, PARA_PER_SECTOR_512
-    mov cx, MAX_CHUNK_512
-    jmp .load
-
-.cdemu:
-    mov si, dap_cd_emu
     mov bx, PARA_PER_SECTOR_512
     mov cx, MAX_CHUNK_512
     jmp .load
@@ -58,11 +50,14 @@ start:
     jc .fallback
     mov ax, 0x1000
     mov es, ax
-    cmp dword [es:0x0000], 0x1BADB002
+    cmp dword [es:0x0000], 0x464C457F    ; ELF Magic \x7F ELF
+    je .boot_success
+    cmp dword [es:0x0000], 0x1BADB002    ; Multiboot Magic
+    je .boot_success
+    cmp dword [es:0x1000], 0x1BADB002    ; Multiboot Header at offset 0x1000
     je .boot_success
 
 .fallback:
-    ; Fallback to ISO DAP if IMG DAP failed (or vice versa)
     mov si, dap_iso
     mov bx, PARA_PER_SECTOR_2K
     mov cx, MAX_CHUNK_2K
@@ -71,8 +66,13 @@ start:
 
     mov ax, 0x1000
     mov es, ax
-    cmp dword [es:0x0000], 0x1BADB002
-    jne .load_fail
+    cmp dword [es:0x0000], 0x464C457F    ; ELF Magic \x7F ELF
+    je .boot_success
+    cmp dword [es:0x0000], 0x1BADB002    ; Multiboot Magic
+    je .boot_success
+    cmp dword [es:0x1000], 0x1BADB002    ; Multiboot Header at offset 0x1000
+    je .boot_success
+    jmp .load_fail
 
 .boot_success:
     mov si, msg_loaded
@@ -93,12 +93,6 @@ start:
 .dap_fail:
     mov si, msg_dap_fail
     call print_string
-    mov al, ah
-    call print_hex8
-    mov al, ':'
-    call print_char
-    mov al, dl
-    call print_hex8
     cli
     hlt
 
@@ -146,38 +140,14 @@ enable_a20:
     out 0x92, al
     ret
 
-print_char:
-    push ax
-    mov ah, 0x0E
-    int 0x10
-    pop ax
-    ret
-
-print_hex8:
-    push ax
-    push cx
-    mov cl, al
-    shr al, 4
-    call .nibble
-    mov al, cl
-    and al, 0x0F
-    call .nibble
-    pop cx
-    pop ax
-    ret
-.nibble:
-    add al, '0'
-    cmp al, '9'
-    jbe .out
-    add al, 7
-.out:
-    mov ah, 0x0E
-    int 0x10
-    ret
-
 dap_read_loop:
-    mov ax, [si+2]
+    mov ax, [si+2]          ; Total sector count
     mov word [load_remaining], ax
+    mov ax, [si+6]          ; Target segment
+    mov word [load_segment], ax
+    mov ax, [si+8]          ; LBA low
+    mov word [load_lba_low], ax
+
 .chunk:
     mov ax, [load_remaining]
     test ax, ax
@@ -187,22 +157,30 @@ dap_read_loop:
     jae .chunk_size
     mov di, ax
 .chunk_size:
+    push dword 0
+    push dword [load_lba_low]
+    push word [load_segment]
+    push word 0x0000
     push di
-    mov word [si+2], di
+    push word 0x0010
+
+    mov si, sp
     mov dl, [boot_drive]
     mov ah, 0x42
     int 0x13
-    pop di
+    add sp, 16
     jc .fail
+
     sub word [load_remaining], di
+
     mov ax, di
-    xor dx, dx
-    add word [si+8], ax
-    adc word [si+10], dx
+    add word [load_lba_low], ax
+
     mov ax, di
     mul bx
-    add word [si+6], ax
+    add word [load_segment], ax
     jmp .chunk
+
 .done:
     clc
     ret
@@ -224,13 +202,6 @@ dap_img:
     dw 0x0000, 0x1000
     dq 1
 
-align 4
-dap_cd_emu:
-    db 0x10, 0x00
-    dw KERNEL_SECTORS
-    dw 0x0000, 0x1000
-    dq 4
-
 align 8
 gdt32_start:
     dd 0, 0
@@ -248,10 +219,12 @@ gdt32_desc:
 
 boot_drive:     db 0
 load_remaining: dw 0
+load_segment:   dw 0
+load_lba_low:   dw 0
 
 msg_welcome:    db "Booting...", 13, 10, 0
 msg_loaded:     db "OK.", 13, 10, 0
-msg_dap_fail:   db "Fail : ", 0
+msg_dap_fail:   db "DAP Fail!", 13, 10, 0
 msg_bad_kernel: db "Bad Kernel!", 13, 10, 0
 
 times 510-($-$$) db 0
