@@ -277,24 +277,34 @@ int main(int argc, char* argv[]) {
     for (int i = 0; i < 16; i++) {
         if (i != 14) sum += words[i];
     }
-    val->checksum = (uint16_t)(0x10000 - (sum & 0xFFFF));
+    val->checksum = (uint16_t)((0x10000 - (sum & 0xFFFF)) & 0xFFFF);
 
     boot_catalog_entry_t* entry = (boot_catalog_entry_t*)(sector + 32);
     entry->boot_indicator  = 0x88; // Bootable
     entry->boot_media_type = 0x00; // No emulation
     entry->load_segment    = 0x0000;
-    entry->sector_count    = 4;    // 4 virtual 512B sectors (2048 bytes)
+    entry->sector_count    = (uint16_t)(boot_sectors * 4); // 4 virtual 512B sectors per 2048B ISO sector
     entry->load_rba        = boot_lba;
     fwrite(sector, 1, SECTOR_SIZE, f_iso);
 
     // 7. Sector 21+: Bootloader Payload
     uint8_t* boot_buf = (uint8_t*)calloc(boot_sectors, SECTOR_SIZE);
+    if (!boot_buf) {
+        fprintf(stderr, "[!] Error allocating memory for bootloader payload\n");
+        fclose(f_iso); fclose(f_boot); fclose(f_kern);
+        return 1;
+    }
     fread(boot_buf, 1, boot_size, f_boot);
     fwrite(boot_buf, 1, boot_sectors * SECTOR_SIZE, f_iso);
     free(boot_buf);
 
     // 8. Sector 22+: Kernel Payload (100% full kernel size dynamically)
     uint8_t* kern_buf = (uint8_t*)calloc(kern_sectors, SECTOR_SIZE);
+    if (!kern_buf) {
+        fprintf(stderr, "[!] Error allocating memory for kernel payload\n");
+        fclose(f_iso); fclose(f_boot); fclose(f_kern);
+        return 1;
+    }
     fread(kern_buf, 1, kern_size, f_kern);
     fwrite(kern_buf, 1, kern_sectors * SECTOR_SIZE, f_iso);
     free(kern_buf);

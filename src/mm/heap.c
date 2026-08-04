@@ -46,6 +46,7 @@ void heap_init(void) {
 }
 
 void* malloc(size_t size) {
+    if (size == 0 || size > HEAP_SIZE) return NULL;
     uint64_t flags = irq_save();
     if (!head) heap_init();
 
@@ -53,6 +54,8 @@ void* malloc(size_t size) {
     if (need < 16) need = 16;
 
     for (block_t* b = head; b; b = b->next) {
+        if ((uintptr_t)b < heap_start || (uintptr_t)b >= heap_end) break;
+        if (b->magic != BLOCK_MAGIC) break;
         if (b->used || b->size < need) continue;
 
         // Split when leftover can host a new block
@@ -63,7 +66,7 @@ void* malloc(size_t size) {
             nb->size = b->size - need - HEADER_SIZE;
             nb->magic = BLOCK_MAGIC;
             nb->used = 0;
-            if (b->next) b->next->prev = nb;
+            if (b->next && b->next->magic == BLOCK_MAGIC) b->next->prev = nb;
             b->next = nb;
             b->size = need;
         }
@@ -91,6 +94,7 @@ void* realloc(void* ptr, size_t size) {
     if (size == 0) { free(ptr); return NULL; }
     
     block_t* b = (block_t*)((char*)ptr - HEADER_SIZE);
+    if ((uintptr_t)b < heap_start || (uintptr_t)b >= heap_end) return NULL;
     if (b->magic != BLOCK_MAGIC) return NULL;
     
     if (b->size >= ALIGN16(size)) return ptr;
@@ -110,6 +114,10 @@ void free(void* ptr) {
 
     uint64_t flags = irq_save();
     block_t* b = (block_t*)((char*)ptr - HEADER_SIZE);
+    if ((uintptr_t)b < heap_start || (uintptr_t)b >= heap_end) {
+        irq_restore(flags);
+        return;
+    }
     if (b->magic != BLOCK_MAGIC) {
         irq_restore(flags);
         return;
@@ -118,19 +126,21 @@ void free(void* ptr) {
     b->used = 0;
 
     // Coalesce next free block
-    while (b->next && !b->next->used &&
+    while (b->next && (uintptr_t)b->next >= heap_start && (uintptr_t)b->next < heap_end &&
+           b->next->magic == BLOCK_MAGIC && !b->next->used &&
            (char*)b + HEADER_SIZE + b->size == (char*)b->next) {
         b->size += HEADER_SIZE + b->next->size;
         b->next = b->next->next;
-        if (b->next) b->next->prev = b;
+        if (b->next && b->next->magic == BLOCK_MAGIC) b->next->prev = b;
     }
 
     // Coalesce previous free block
-    if (b->prev && !b->prev->used &&
+    if (b->prev && (uintptr_t)b->prev >= heap_start && (uintptr_t)b->prev < heap_end &&
+        b->prev->magic == BLOCK_MAGIC && !b->prev->used &&
         (char*)b->prev + HEADER_SIZE + b->prev->size == (char*)b) {
         b->prev->size += HEADER_SIZE + b->size;
         b->prev->next = b->next;
-        if (b->next) b->next->prev = b->prev;
+        if (b->next && b->next->magic == BLOCK_MAGIC) b->next->prev = b->prev;
     }
     irq_restore(flags);
 }

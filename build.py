@@ -566,6 +566,18 @@ def run_qemu(mode="normal"):
     trigger_plugin_hook("before_qemu")
     cfg = load_config()
 
+    if mode in ["vbox", "virtualbox"]:
+        vbox_bin = shutil.which("VBoxManage") or shutil.which("VBoxManage.exe") or r"C:\Program Files\Oracle\VirtualBox\VBoxManage.exe"
+        if not os.path.exists(vbox_bin) and not shutil.which("VBoxManage"):
+            log_error("VirtualBox (VBoxManage) not found. Run 'python build.py -check' for instructions.")
+            sys.exit(1)
+        log_info(f"Launching VirtualBox VM 'FalkonOS' with ISO -> {PRIMARY_ISO}")
+        res = subprocess.run([vbox_bin, "startvm", "FalkonOS", "--type", "gui"])
+        if res.returncode != 0:
+            log_warning("VirtualBox startvm returned non-zero code. Trying controlvm resume / start fallback...")
+            subprocess.run([vbox_bin, "startvm", "FalkonOS"])
+        return
+
     qemu_bin = shutil.which("qemu-system-x86_64") or r"C:\Program Files\qemu\qemu-system-x86_64.exe"
     if not os.path.exists(qemu_bin) and not shutil.which("qemu-system-x86_64"):
         log_error("QEMU not found. Run 'python build.py -check' for instructions.")
@@ -1003,7 +1015,7 @@ def main():
     p_build.add_argument("-f", "--force", action="store_true")
 
     p_run = subparsers.add_parser("run")
-    p_run.add_argument("mode", nargs="?", default="normal", choices=["normal", "debug", "serial", "kvm", "snapshot", "gdb", "monitor"])
+    p_run.add_argument("mode", nargs="?", default="normal", choices=["normal", "vbox", "virtualbox", "debug", "serial", "kvm", "snapshot", "gdb", "monitor"])
 
     p_clean = subparsers.add_parser("clean")
     p_clean.add_argument("target", nargs="?", default="all", choices=["all", "cache", "out", "logs", "reports"])
@@ -1044,7 +1056,7 @@ def main():
 
     if "run" in args_raw or "-run" in args_raw:
         mode = "normal"
-        for m in ["debug", "serial", "kvm", "snapshot", "gdb", "monitor"]:
+        for m in ["vbox", "virtualbox", "debug", "serial", "kvm", "snapshot", "gdb", "monitor"]:
             if m in args_raw: mode = m
         run_qemu(mode)
         sys.exit(0)
