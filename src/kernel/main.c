@@ -140,10 +140,16 @@ void kmain(void* multiboot_info_addr) {
     boot_log_ok("RTC Time, ACPI Power Management & Clipboard Active");
     
     extern void pty_init(void);
+    extern int  rtl8139_init(void);
+    extern int  ahci_init(void);
+    extern int  ac97_init(void);
     pty_init();
     e1000_init();
+    rtl8139_init();
+    ahci_init();
+    ac97_init();
     ip_init();
-    boot_log_ok("Intel 82540EM Gigabit Ethernet NIC & POSIX PTY Subsystem Active");
+    boot_log_ok("Intel 82540EM/RTL8139 NIC, AHCI SATA, AC97 Audio & POSIX PTY Active");
 
 #include "gui/notify.h"
 
