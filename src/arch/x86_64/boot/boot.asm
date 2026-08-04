@@ -143,7 +143,7 @@ gdt64:
     dq 0x0000920000000000       ; 64-bit Data Segment (P=1, S=1, W=1)
 .pointer:
     dw $ - gdt64 - 1
-    dq gdt64
+    dd gdt64
 
 section .bss
 align 4096

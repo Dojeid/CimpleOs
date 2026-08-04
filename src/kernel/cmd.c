@@ -495,7 +495,12 @@ void cmd_process(const char* cmd) {
         } else if (!(file->d_inode && (file->d_inode->i_mode & 0x8000))) {
             cmd_print("cat: Target is a directory.");
         } else if (file->d_inode && file->d_inode->i_private && file->d_inode->i_size > 0) {
-            cmd_print((const char*)file->d_inode->i_private);
+            uint32_t sz = file->d_inode->i_size;
+            if (sz > 4095) sz = 4095;
+            char safe_buf[4096];
+            memcpy(safe_buf, file->d_inode->i_private, sz);
+            safe_buf[sz] = '\0';
+            cmd_print(safe_buf);
         } else {
             cmd_print("[File is empty]");
         }

@@ -92,7 +92,7 @@ static void paint_redraw(window_t* win) {
     for (int i = 0; i < 6; i++) {
         int bx = win->x + 10 + i * 30;
         int by = win->y + 4;
-        uint32_t bg = (g_paint_state->current_tool == i) ? 0x38BDF8 : 0x475569;
+        uint32_t bg = ((int)g_paint_state->current_tool == i) ? 0x38BDF8 : 0x475569;
         draw_rect(bx, by, 24, 24, bg);
         draw_string(bx + 8, by + 4, 0xFFFFFF, TOOL_LABELS[i]);
     }

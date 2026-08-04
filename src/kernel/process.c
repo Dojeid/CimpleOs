@@ -109,7 +109,7 @@ static void process_rebase_stack_copy(uint64_t old_base, uint64_t new_base, uint
 
     for (uint64_t i = 0; i < count; i++) {
         uint64_t value = words[i];
-        if (value >= old_base && value < old_end) {
+        if ((value % 8 == 0) && value >= old_base && value < old_end) {
             words[i] = (uint64_t)((int64_t)value + delta);
         }
     }

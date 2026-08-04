@@ -38,6 +38,7 @@
 #include "kernel/acpi.h"
 #include "gui/context_menu.h"
 #include "gui/clipboard.h"
+#include "gui/notify.h"
 #include "lib/printf.h"
 #include "drivers/net/e1000.h"
 #include "net/ip.h"
@@ -151,8 +152,6 @@ void kmain(void* multiboot_info_addr) {
     ip_init();
     boot_log_ok("Intel 82540EM/RTL8139 NIC, AHCI SATA, AC97 Audio & POSIX PTY Active");
 
-#include "gui/notify.h"
-
     desktop_init();
     taskbar_init();
     cursor_init();
@@ -210,6 +209,7 @@ void kmain(void* multiboot_info_addr) {
     terminal_instance_print(root_tty, "");
 
     int last_mouse_btn = 0;
+    int last_mouse_right = 0;
 
     while (1) {
         if (sys_runlevel == 5) {
@@ -277,7 +277,7 @@ void kmain(void* multiboot_info_addr) {
             }
             
             int mouse_right = mouse_button_right();
-            if (mouse_right) {
+            if (mouse_right && !last_mouse_right) {
                 int clicked_win = wm_get_window_at(mouse_x, mouse_y);
                 if (clicked_win != -1) {
                     context_menu_setup_window(clicked_win);
@@ -286,6 +286,7 @@ void kmain(void* multiboot_info_addr) {
                 }
                 context_menu_show(mouse_x, mouse_y);
             }
+            last_mouse_right = mouse_right;
 
             taskbar_render();
             notify_render();

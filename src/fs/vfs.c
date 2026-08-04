@@ -123,7 +123,7 @@ dentry_t* vfs_get_root(void) {
 }
 
 dentry_t* vfs_mkdir(dentry_t* parent, const char* name) {
-    if (!parent) return 0;
+    if (!parent || parent->d_child_count >= 32) return 0;
     dentry_t* dir = (dentry_t*)kmalloc(sizeof(dentry_t));
     memset(dir, 0, sizeof(dentry_t));
     strncpy(dir->d_name, name, VFS_MAX_FILENAME - 1);
@@ -159,7 +159,7 @@ static file_operations_t ram_fops = {
 };
 
 dentry_t* vfs_create_file(dentry_t* parent, const char* name, const uint8_t* data, uint32_t size) {
-    if (!parent) return 0;
+    if (!parent || parent->d_child_count >= 32) return 0;
     dentry_t* file = (dentry_t*)kmalloc(sizeof(dentry_t));
     memset(file, 0, sizeof(dentry_t));
     strncpy(file->d_name, name, VFS_MAX_FILENAME - 1);

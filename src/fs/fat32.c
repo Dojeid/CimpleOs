@@ -114,7 +114,7 @@ int fat32_list_dir(const char* path, char* out_buf, uint32_t max_len) {
             fat32_dir_entry_t* entry = (fat32_dir_entry_t*)&cluster_buf[i];
             
             if (entry->name[0] == 0x00) break; // End of directory
-            if (entry->name[0] == 0xE5) continue; // Deleted entry
+            if ((uint8_t)entry->name[0] == 0xE5) continue; // Deleted entry
             if (entry->attributes == FAT32_ATTR_LFN) continue; // Skip LFN for now
             if (entry->attributes & FAT32_ATTR_VOLUME_ID) continue; // Skip volume label
             
@@ -146,7 +146,7 @@ static int fat32_find_entry(uint32_t dir_cluster, const char* name, fat32_dir_en
             fat32_dir_entry_t* entry = (fat32_dir_entry_t*)&cluster_buf[i];
             
             if (entry->name[0] == 0x00) return -1; 
-            if (entry->name[0] == 0xE5) continue;
+            if ((uint8_t)entry->name[0] == 0xE5) continue;
             if (entry->attributes == FAT32_ATTR_LFN) continue;
             
             char filename[13];

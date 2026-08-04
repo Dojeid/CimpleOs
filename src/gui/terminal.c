@@ -117,6 +117,7 @@ void terminal_instance_render(terminal_instance_t* term, int x, int y) {
     
     // Draw Active POSIX GNU Bash Prompt & Live Typing Input Buffer
     extern char terminal_buffer[];
+    const char* input_txt = (active_terminal == term) ? terminal_buffer : term->input_buffer;
     const char* cwd = term->cwd[0] ? term->cwd : "/";
     char prompt_str[128];
     sprintf(prompt_str, "root@falkon-os:%s$ ", cwd);
@@ -126,12 +127,12 @@ void terminal_instance_render(terminal_instance_t* term, int x, int y) {
     draw_string(x + (15 + strlen(cwd)) * 8, line_y, 0xFFFFFF, "$ ");
     
     int prompt_width = strlen(prompt_str) * 8;
-    draw_string(x + prompt_width, line_y, 0xFFFFFF, terminal_buffer); // Live input text
+    draw_string(x + prompt_width, line_y, 0xFFFFFF, input_txt); // Live input text
     
-    // Blinking Green Cursor
+    // Blinking Green Cursor (focused active terminal only)
     extern volatile uint32_t timer_ticks;
-    if ((timer_ticks / 30) % 2 == 0) {
-        int cursor_x = x + prompt_width + (strlen(terminal_buffer) * 8);
+    if (active_terminal == term && (timer_ticks / 30) % 2 == 0) {
+        int cursor_x = x + prompt_width + (strlen(input_txt) * 8);
         draw_rect(cursor_x, line_y + 9, 8, 2, 0x4ADE80);
     }
 }

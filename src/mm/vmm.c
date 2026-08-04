@@ -263,9 +263,9 @@ void vmm_clone_pagetable(uint64_t new_pml4_pa, uint64_t old_pml4_pa) {
             uint64_t flags = PTE_FLAGS(new_pml4[i]);
             new_pml4[i] = pdpt_phys | flags;
             
-            // For each present PDPT entry, copy the PD
+            // For each present PDPT entry, copy the PD (skip 1GB huge pages)
             for (int j = 0; j < 512; j++) {
-                if (new_pdpt[j] & PTE_FLAG_PRESENT) {
+                if ((new_pdpt[j] & PTE_FLAG_PRESENT) && !(new_pdpt[j] & PTE_FLAG_HUGE)) {
                     uint64_t* old_pd = (uint64_t*)PTE_ADDR(new_pdpt[j]);
                     uint64_t* new_pd = vmm_alloc_pagetable_page();
                     if (!new_pd) continue;
@@ -280,9 +280,9 @@ void vmm_clone_pagetable(uint64_t new_pml4_pa, uint64_t old_pml4_pa) {
                     uint64_t pd_flags = PTE_FLAGS(new_pdpt[j]);
                     new_pdpt[j] = pd_phys | pd_flags;
                     
-                    // For each present PD entry, copy the PT
+                    // For each present PD entry, copy the PT (skip 2MB huge pages)
                     for (int k = 0; k < 512; k++) {
-                        if (new_pd[k] & PTE_FLAG_PRESENT) {
+                        if ((new_pd[k] & PTE_FLAG_PRESENT) && !(new_pd[k] & PTE_FLAG_HUGE)) {
                             uint64_t* old_pt = (uint64_t*)PTE_ADDR(new_pd[k]);
                             uint64_t* new_pt = vmm_alloc_pagetable_page();
                             if (!new_pt) continue;
