@@ -39,17 +39,32 @@ static int64_t mmap_first_free() {
 }
 
 void pmm_init(uint64_t mem_size) {
-    // Clamp to the range the bitmap can represent (4GB).
     if (mem_size > MAX_MANAGEABLE) mem_size = MAX_MANAGEABLE;
+    if (mem_size < 4 * 1024 * 1024) mem_size = 4 * 1024 * 1024;
     total_memory = mem_size;
-    used_frames = 4096; // Reserve initial 16MB kernel base allocation (4096 frames * 4KB)
     
+    uint64_t total_frames = mem_size / PAGE_SIZE;
+    uint64_t max_bitmap_frames = (uint64_t)BITMAP_SIZE * 32;
+    if (total_frames > max_bitmap_frames) total_frames = max_bitmap_frames;
+    
+    // Mark all frames as used (1) by default
     for (uint32_t i = 0; i < BITMAP_SIZE; i++) {
-        bitmap[i] = 0;
+        bitmap[i] = 0xFFFFFFFF;
     }
-    for (uint64_t f = 0; f < 4096; f++) {
-        mmap_set(f);
+
+    // Reserve 2MB (512 frames) for kernel base if RAM <= 16MB, else reserve 16MB (4096 frames)
+    uint64_t reserved_frames = (mem_size <= 16 * 1024 * 1024) ? 512 : 4096;
+    if (reserved_frames >= total_frames) reserved_frames = total_frames / 2;
+    if (reserved_frames < 256) reserved_frames = 256;
+
+    for (uint64_t f = 0; f < total_frames; f++) {
+        if (f >= reserved_frames) {
+            mmap_unset(f);
+        } else {
+            mmap_set(f);
+        }
     }
+    used_frames = reserved_frames;
 }
 
 #include "drivers/video/vga.h"

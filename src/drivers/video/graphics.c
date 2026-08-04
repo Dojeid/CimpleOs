@@ -7,6 +7,7 @@
 #include "lib/string.h"
 #include "lib/io.h"
 #include "mm/heap.h"
+#include "mm/pmm.h"
 #include "drivers/bus/pci.h"
 #include <stddef.h>
 
@@ -123,12 +124,20 @@ void graphics_init(struct multiboot_info* mb) {
     }
 
 #include "drivers/video/vga.h"
+#include "mm/pmm.h"
 
     uint32_t buffer_size = screen_w * screen_h * sizeof(uint32_t);
-    back_buffer = (uint32_t*)malloc(buffer_size);
-    if (!back_buffer) {
-        vga_print("[Graphics] WARNING: Out of memory for back buffer, falling back to direct video memory\n");
-        back_buffer = video_memory;
+    if (pmm_get_total_memory() <= 16 * 1024 * 1024 && video_memory) {
+        // Zero System-RAM Overhead: Use upper VRAM page for back_buffer
+        back_buffer = video_memory + (screen_w * screen_h);
+    } else {
+        back_buffer = (uint32_t*)malloc(buffer_size);
+        if (!back_buffer && video_memory) {
+            vga_print("[Graphics] Low RAM: Placing back_buffer in upper VRAM offset\n");
+            back_buffer = video_memory + (screen_w * screen_h);
+        } else if (!back_buffer) {
+            back_buffer = video_memory;
+        }
     }
     if (!video_memory) video_memory = back_buffer;
 }
@@ -143,9 +152,16 @@ void graphics_set_mode(int width, int height, int bpp) {
     }
     screen_w = width; screen_h = height;
     uint32_t buffer_size = screen_w * screen_h * sizeof(uint32_t);
-    if (back_buffer && back_buffer != video_memory) free(back_buffer);
-    back_buffer = (uint32_t*)malloc(buffer_size);
-    if (!back_buffer) back_buffer = video_memory;
+    if (back_buffer && back_buffer != video_memory && (video_memory == NULL || back_buffer < video_memory || back_buffer >= video_memory + (screen_w * screen_h * 2))) {
+        free(back_buffer);
+    }
+    if (pmm_get_total_memory() <= 16 * 1024 * 1024 && video_memory) {
+        back_buffer = video_memory + (screen_w * screen_h);
+    } else {
+        back_buffer = (uint32_t*)malloc(buffer_size);
+        if (!back_buffer && video_memory) back_buffer = video_memory + (screen_w * screen_h);
+        else if (!back_buffer) back_buffer = video_memory;
+    }
     clear_screen(current_theme == THEME_DARK ? 0x0D1117 : 0xF3F4F6);
     if (video_memory && back_buffer && video_memory != back_buffer) {
         memcpy(video_memory, back_buffer, buffer_size);

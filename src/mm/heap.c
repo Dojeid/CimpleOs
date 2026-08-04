@@ -35,12 +35,23 @@ static void irq_restore(uint64_t flags) {
 }
 
 void heap_init(void) {
-    heap_start = HEAP_START;
-    heap_end = HEAP_START + HEAP_SIZE;
+    uint64_t total_ram = pmm_get_total_memory();
+    if (total_ram > 0 && total_ram <= 16 * 1024 * 1024) {
+        // Low RAM profile (e.g. 4MB to 16MB)
+        heap_start = 0x200000; // 2MB mark
+        heap_end = (uintptr_t)total_ram;
+        if (heap_end <= heap_start + 512 * 1024) {
+            heap_end = heap_start + 1024 * 1024;
+        }
+    } else {
+        heap_start = HEAP_START; // 16MB mark
+        heap_end = HEAP_START + HEAP_SIZE; // 64MB
+    }
+
     head = (block_t*)heap_start;
     head->next = NULL;
     head->prev = NULL;
-    head->size = heap_end - heap_start - HEADER_SIZE;
+    head->size = (heap_end > heap_start + HEADER_SIZE) ? (heap_end - heap_start - HEADER_SIZE) : 1024;
     head->magic = BLOCK_MAGIC;
     head->used = 0;
 }
