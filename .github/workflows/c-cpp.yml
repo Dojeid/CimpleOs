@@ -5,6 +5,8 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+  release:
+    types: [ published ]
 
 jobs:
   build:
@@ -16,10 +18,40 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y gcc nasm cmake xorriso mtools
+        sudo apt-get install -y gcc nasm cmake xorriso mtools ccache
 
-    - name: Build kernel and ISO
+    # 1. Restore cache only for normal commits / PRs (skips on release)
+    - name: Cache Build Artifacts & Ccache
+      if: github.event_name != 'release'
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cache/ccache
+          build/
+        key: ${{ runner.os }}-build-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-build-
+
+    # 2. Fresh Build on Release (deletes old build dir if present)
+    - name: Fresh Build kernel and ISO (Release)
+      if: github.event_name == 'release'
+      run: |
+        rm -rf build/
+        python3 build.py -build -f
+
+    # 3. Cached Build on Normal Commits / PRs
+    - name: Cached Build kernel and ISO
+      if: github.event_name != 'release'
       run: python3 build.py -build -f
 
     - name: Run artifact verification tests
       run: python3 build.py -test
+
+    # 4. Upload ISO to GitHub Release Assets
+    - name: Upload ISO to Release
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: "*.iso" # Update this path/pattern if your ISO is in a folder (e.g., build/*.iso)
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
