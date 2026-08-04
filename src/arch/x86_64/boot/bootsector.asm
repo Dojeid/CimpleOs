@@ -11,8 +11,8 @@ KERNEL_SECTORS      equ KERNEL_BYTES / 512
 ISO_KERNEL_SECTORS  equ KERNEL_BYTES / 2048
 PARA_PER_SECTOR_512 equ 32
 PARA_PER_SECTOR_2K  equ 128
-MAX_CHUNK_512       equ 64
-MAX_CHUNK_2K        equ 16
+MAX_CHUNK_512       equ 1
+MAX_CHUNK_2K        equ 1
 
 start:
     cli
@@ -29,48 +29,34 @@ start:
     mov si, msg_welcome
     call print_string
 
-    ; Select disk read path based on DL
-    mov dl, [boot_drive]
-    cmp dl, 0xE0
-    jae .iso
+    ; Try ISO 9660 path first (LBA 22, 2048-byte sectors)
+.try_iso:
+    mov si, dap_iso
+    mov bx, PARA_PER_SECTOR_2K
+    mov cx, MAX_CHUNK_2K
+    call dap_read_loop
+    jc .try_img
 
-.img:
+    mov ax, 0x1000
+    mov es, ax
+    cmp dword [es:0x0000], 0x1BADB002
+    je .boot_success
+    cmp dword [es:0x0000], 0x464C457F
+    je .boot_success
+
+    ; Try Raw HDD path second (LBA 1, 512-byte sectors)
+.try_img:
     mov si, dap_img
     mov bx, PARA_PER_SECTOR_512
     mov cx, MAX_CHUNK_512
-    jmp .load
-
-.iso:
-    mov si, dap_iso
-    mov bx, PARA_PER_SECTOR_2K
-    mov cx, MAX_CHUNK_2K
-
-.load:
     call dap_read_loop
-    jc .fallback
-    mov ax, 0x1000
-    mov es, ax
-    cmp dword [es:0x0000], 0x464C457F    ; ELF Magic \x7F ELF
-    je .boot_success
-    cmp dword [es:0x0000], 0x1BADB002    ; Multiboot Magic
-    je .boot_success
-    cmp dword [es:0x1000], 0x1BADB002    ; Multiboot Header at offset 0x1000
-    je .boot_success
-
-.fallback:
-    mov si, dap_iso
-    mov bx, PARA_PER_SECTOR_2K
-    mov cx, MAX_CHUNK_2K
-    call dap_read_loop
-    jc .dap_fail
+    jc .load_fail
 
     mov ax, 0x1000
     mov es, ax
-    cmp dword [es:0x0000], 0x464C457F    ; ELF Magic \x7F ELF
+    cmp dword [es:0x0000], 0x1BADB002
     je .boot_success
-    cmp dword [es:0x0000], 0x1BADB002    ; Multiboot Magic
-    je .boot_success
-    cmp dword [es:0x1000], 0x1BADB002    ; Multiboot Header at offset 0x1000
+    cmp dword [es:0x0000], 0x464C457F
     je .boot_success
     jmp .load_fail
 
@@ -89,12 +75,6 @@ start:
     or eax, 1
     mov cr0, eax
     jmp 0x08:init_32
-
-.dap_fail:
-    mov si, msg_dap_fail
-    call print_string
-    cli
-    hlt
 
 .load_fail:
     mov si, msg_bad_kernel
@@ -120,6 +100,10 @@ init_32:
 
     mov eax, 0x2BADB002
     mov ebx, 0
+    cmp dword [0x00100000], 0x1BADB002
+    je .flat_jump
+    jmp dword 0x00101010
+.flat_jump:
     jmp dword 0x00100010
 
 [BITS 16]
@@ -145,8 +129,8 @@ dap_read_loop:
     mov word [load_remaining], ax
     mov ax, [si+6]          ; Target segment
     mov word [load_segment], ax
-    mov ax, [si+8]          ; LBA low
-    mov word [load_lba_low], ax
+    mov eax, [si+8]         ; Read full 32-bit LBA low
+    mov dword [load_lba_low], eax
 
 .chunk:
     mov ax, [load_remaining]
@@ -173,8 +157,8 @@ dap_read_loop:
 
     sub word [load_remaining], di
 
-    mov ax, di
-    add word [load_lba_low], ax
+    movzx eax, di
+    add dword [load_lba_low], eax
 
     mov ax, di
     mul bx
@@ -220,11 +204,10 @@ gdt32_desc:
 boot_drive:     db 0
 load_remaining: dw 0
 load_segment:   dw 0
-load_lba_low:   dw 0
+load_lba_low:   dd 0
 
 msg_welcome:    db "Booting...", 13, 10, 0
 msg_loaded:     db "OK.", 13, 10, 0
-msg_dap_fail:   db "DAP Fail!", 13, 10, 0
 msg_bad_kernel: db "Bad Kernel!", 13, 10, 0
 
 times 510-($-$$) db 0

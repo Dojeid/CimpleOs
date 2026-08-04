@@ -419,8 +419,14 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
         sys.exit(1)
     t_cmp = time.time() - t0
 
-    kern_raw = BUILD_DIR / "FalkonOS_flat.bin"
-    kern_bin = kern_raw if kern_raw.exists() else (BUILD_DIR / "FalkonOS.bin")
+    elf_bin = BUILD_DIR / "FalkonOS.bin"
+    flat_bin = BUILD_DIR / "FalkonOS_flat.bin"
+    objcopy_bin = shutil.which("llvm-objcopy") or shutil.which("objcopy") or shutil.which("llvm-objcopy.exe") or r"D:\msys64\ucrt64\bin\llvm-objcopy.exe"
+    if objcopy_bin and os.path.exists(objcopy_bin) and elf_bin.exists():
+        subprocess.run([objcopy_bin, "-O", "binary", str(elf_bin), str(flat_bin)], capture_output=True)
+
+    kern_raw = flat_bin
+    kern_bin = kern_raw if (kern_raw.exists() and kern_raw.stat().st_size > 0) else elf_bin
     boot_bin = BUILD_DIR / "bootsector.bin"
     def _find_nasm():
         p = shutil.which("nasm") or shutil.which("nasm.exe")
@@ -503,15 +509,16 @@ def create_history_entry(target_iso, kern_bin):
 
 def print_stats_summary(kern_bin, target_iso, t_tot):
     flat_bin = BUILD_DIR / "FalkonOS_flat.bin"
-    raw_size = flat_bin.stat().st_size if flat_bin.exists() else (kern_bin.stat().st_size if kern_bin.exists() else 0)
-    elf_size = kern_bin.stat().st_size if kern_bin.exists() else 0
+    elf_bin = BUILD_DIR / "FalkonOS.bin"
+    raw_size = flat_bin.stat().st_size if flat_bin.exists() else 0
+    elf_size = elf_bin.stat().st_size if elf_bin.exists() else 0
     i_size = target_iso.stat().st_size if target_iso.exists() else 0
     c_files = len(glob.glob(str(SRC_DIR / "**" / "*.c"), recursive=True))
 
     print(f"\n{Color.GREEN}{Color.BOLD}=== Falkon-OS Build Statistics ==={Color.RESET}")
     print(f"  Source Files Compiled : {c_files}")
-    print(f"  Kernel Payload (Raw)  : {raw_size / 1024:.1f} KB")
-    print(f"  Kernel ELF (Debug)    : {elf_size / 1024:.1f} KB")
+    print(f"  Executable Machine Code Payload : {raw_size / 1024:.1f} KB (100% Code & Data)")
+    print(f"  Kernel ELF (With GDB Symbols)   : {elf_size / 1024:.1f} KB")
     print(f"  Output ISO Image Size : {i_size / (1024*1024):.2f} MB ({i_size / 1024:.1f} KB)")
     print(f"  Build Duration        : {t_tot:.2f} seconds")
     print(f"{Color.GREEN}=================================={Color.RESET}\n")
