@@ -39,6 +39,8 @@
 #include "gui/context_menu.h"
 #include "gui/clipboard.h"
 #include "lib/printf.h"
+#include "drivers/net/e1000.h"
+#include "net/ip.h"
 
 extern char terminal_buffer[];
 extern int term_idx;
@@ -139,6 +141,8 @@ void kmain(void* multiboot_info_addr) {
     
     extern void pty_init(void);
     pty_init();
+    e1000_init();
+    ip_init();
     boot_log_ok("Intel 82540EM Gigabit Ethernet NIC & POSIX PTY Subsystem Active");
 
 #include "gui/notify.h"
@@ -155,8 +159,8 @@ void kmain(void* multiboot_info_addr) {
     vfs_init();
     ext4_init();
     
-    if (vfs_mount("hda", "/", "ext4") != 0) {
-        boot_log_ok("Mounted EXT4 Root Filesystem on /dev/sda1");
+    if (vfs_mount("hda", "/", "ext4") == 0) {
+        boot_log_ok("Mounted EXT4 Root Filesystem on /dev/hda");
     }
 
     ramdisk_init();

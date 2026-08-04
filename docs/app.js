@@ -37,7 +37,7 @@ function switchTab(event, tabId) {
     }
 }
 
-// Cyberpunk Theme Toggle
+// Theme Toggle
 function toggleTheme() {
     const body = document.body;
     const btn = document.getElementById('themeToggle');
@@ -45,13 +45,11 @@ function toggleTheme() {
     if (body.classList.contains('dark-theme')) {
         body.classList.remove('dark-theme');
         body.classList.add('light-theme');
-        btn.innerHTML = '🌙 Dark Cyber Mode';
-        showToast('System theme set to Light Cyber Matrix');
+        btn.innerHTML = '🌙 Dark Mode';
     } else {
         body.classList.remove('light-theme');
         body.classList.add('dark-theme');
-        btn.innerHTML = '⚡ Cyber Neon Mode';
-        showToast('System theme set to Obsidian Neon Cyan');
+        btn.innerHTML = '☀️ Light Mode';
     }
 }
 
@@ -99,5 +97,4 @@ window.addEventListener('DOMContentLoaded', () => {
     if (hash) {
         showSection(hash);
     }
-    showToast('Falkon-OS Cyberpunk Web Interface Initialized');
 });

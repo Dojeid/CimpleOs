@@ -1,12 +1,8 @@
 #include "net/ip.h"
 #include "net/tcp.h"
+#include "drivers/net/e1000.h"
 #include "lib/string.h"
 #include "lib/printf.h"
-
-// e1000 declarations
-extern int e1000_send_packet(const uint8_t* data, uint16_t len);
-typedef struct { uint8_t mac[6]; int link_up; } e1000_device_t;
-extern e1000_device_t* e1000_get_device(void);
 
 static uint32_t ip_self = MAKE_IP(10,0,2,15);
 static uint32_t ip_gateway = MAKE_IP(10,0,2,2);
