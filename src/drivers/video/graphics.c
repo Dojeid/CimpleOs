@@ -470,15 +470,21 @@ static int      current_real_fps = 60;
 
 void swap_buffers(void) {
     if (video_memory && back_buffer && video_memory != back_buffer) {
-        // Full-frame 64-bit copy — reliable, no partial-tracking glitches
-        // At 1024x768x32bpp this is ~3MB, fast enough for 60fps
+        // High-throughput 4x unrolled 64-bit VRAM copy (32 bytes per loop iteration)
         uint64_t* dst = (uint64_t*)video_memory;
         uint64_t* src = (uint64_t*)back_buffer;
-        size_t count = ((size_t)screen_w * screen_h * 4) / 8;
-        for (size_t i = 0; i < count; i++) dst[i] = src[i];
-        // Handle odd pixel if screen_w * screen_h is odd
-        size_t rem = ((size_t)screen_w * screen_h) & 1;
-        if (rem) video_memory[screen_w * screen_h - 1] = back_buffer[screen_w * screen_h - 1];
+        size_t total_words = ((size_t)screen_w * screen_h * 4) / 8;
+        size_t unrolled = total_words / 4;
+        for (size_t i = 0; i < unrolled; i++) {
+            size_t idx = i * 4;
+            dst[idx + 0] = src[idx + 0];
+            dst[idx + 1] = src[idx + 1];
+            dst[idx + 2] = src[idx + 2];
+            dst[idx + 3] = src[idx + 3];
+        }
+        for (size_t i = unrolled * 4; i < total_words; i++) {
+            dst[i] = src[i];
+        }
     }
     extern volatile uint32_t timer_ticks;
     frame_count_sec++;

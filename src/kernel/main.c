@@ -297,9 +297,10 @@ void kmain(void* multiboot_info_addr) {
             swap_buffers();
             int tfps = graphics_get_target_fps();
             if (tfps <= 30) {
-                timer_wait(3);
-            } else if (tfps <= 60) {
-                timer_wait(1);
+                timer_wait(2);
+            } else if (tfps < 120) {
+                // Smooth frame pacing without hard 10ms stalls
+                asm volatile("pause");
             } else {
                 // 120 FPS / Uncapped mode: no artificial delay
             }
