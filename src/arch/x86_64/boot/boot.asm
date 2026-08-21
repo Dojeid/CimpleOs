@@ -162,7 +162,7 @@ pd_table_3:
 
 align 16
 stack_bottom:
-resb 32768
+resb 262144
 stack_top:
 
 section .text

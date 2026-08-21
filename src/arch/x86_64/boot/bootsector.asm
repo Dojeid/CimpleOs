@@ -1,18 +1,16 @@
 ; =============================================================================
-; Falkon-OS Custom Stage 1 Boot Sector (16-bit BIOS Real Mode -> Protected Mode)
+; Falkon-OS Custom Stage 1 Boot Sector (Unreal Mode BIOS ISO/HDD Payload Loader)
 ; Address: 0x7C00 | Size: 512 bytes | Boot Signature: 0xAA55
 ; =============================================================================
 
 [ORG 0x7C00]
 [BITS 16]
 
-KERNEL_BYTES        equ 384 * 1024          ; 384KB Kernel stage 1 payload (0x10000 - 0x70000)
+KERNEL_BYTES        equ 2048 * 1024         ; 2048KB (2MB) Kernel stage 1 payload capacity
 KERNEL_SECTORS      equ KERNEL_BYTES / 512
 ISO_KERNEL_SECTORS  equ KERNEL_BYTES / 2048
-PARA_PER_SECTOR_512 equ 32
-PARA_PER_SECTOR_2K  equ 128
-MAX_CHUNK_512       equ 1
-MAX_CHUNK_2K        equ 1
+MAX_CHUNK_512       equ 32                  ; 16KB per read call
+MAX_CHUNK_2K        equ 16                  ; 32KB per read call
 
 start:
     cli
@@ -24,50 +22,45 @@ start:
     mov sp, 0x7C00
     sti
 
-    mov [boot_drive], dl    ; Save BIOS boot drive number
+    mov [boot_drive], dl
 
     mov si, msg_welcome
     call print_string
 
+    call enable_a20
+    call enable_unreal_mode
+
     ; Try ISO 9660 path first (LBA 22, 2048-byte sectors)
 .try_iso:
     mov si, dap_iso
-    mov bx, PARA_PER_SECTOR_2K
+    mov bx, 2048
     mov cx, MAX_CHUNK_2K
-    call dap_read_loop
-    jc .try_img
-
-    mov ax, 0x1000
-    mov es, ax
-    cmp dword [es:0x0000], 0x1BADB002
-    je .boot_success
-    cmp dword [es:0x0000], 0x464C457F
-    je .boot_success
+    call read_payload
+    jnc .boot_success
 
     ; Try Raw HDD path second (LBA 1, 512-byte sectors)
 .try_img:
     mov si, dap_img
-    mov bx, PARA_PER_SECTOR_512
+    mov bx, 512
     mov cx, MAX_CHUNK_512
-    call dap_read_loop
+    call read_payload
     jc .load_fail
 
-    mov ax, 0x1000
-    mov es, ax
-    cmp dword [es:0x0000], 0x1BADB002
-    je .boot_success
-    cmp dword [es:0x0000], 0x464C457F
-    je .boot_success
-    jmp .load_fail
-
 .boot_success:
-    mov si, msg_loaded
+    mov si, msg_ok
     call print_string
+
+    mov ax, 0x4F01
+    mov cx, 0x0118
+    mov di, 0x5000
+    int 0x10
+
+    mov eax, [di + 0x28]
+    mov dword [0x500], eax
 
     mov ax, 0x4F02
     mov bx, 0x4118          ; VBE 1024x768 32bpp LFB mode
     int 0x10
-    call enable_a20
 
     cli
     lgdt [gdt32_desc]
@@ -77,7 +70,7 @@ start:
     jmp 0x08:init_32
 
 .load_fail:
-    mov si, msg_bad_kernel
+    mov si, msg_err
     call print_string
     cli
     hlt
@@ -91,12 +84,6 @@ init_32:
     mov gs, ax
     mov ss, ax
     mov esp, 0x90000
-
-    mov esi, 0x10000
-    mov edi, 0x100000
-    mov ecx, (KERNEL_BYTES / 4)
-    cld
-    rep movsd
 
     mov eax, 0x2BADB002
     mov ebx, 0
@@ -124,52 +111,99 @@ enable_a20:
     out 0x92, al
     ret
 
-dap_read_loop:
-    mov ax, [si+2]          ; Total sector count
-    mov word [load_remaining], ax
-    mov ax, [si+6]          ; Target segment
-    mov word [load_segment], ax
-    mov eax, [si+8]         ; Read full 32-bit LBA low
-    mov dword [load_lba_low], eax
+enable_unreal_mode:
+    cli
+    lgdt [gdt32_desc]
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax            ; Enter Protected Mode temporarily
+    mov ax, 0x10            ; Load 4GB flat data descriptor into ES
+    mov es, ax
+    mov eax, cr0
+    and eax, ~1
+    mov cr0, eax            ; Exit Protected Mode back to Real Mode
+    xor ax, ax
+    mov ds, ax
+    sti
+    ret
 
-.chunk:
+read_payload:
+    mov [sector_bytes], bx
+    mov [max_chunk], cx
+    mov ax, [si+2]
+    mov word [load_remaining], ax
+    mov eax, [si+8]
+    mov dword [load_lba_low], eax
+    mov dword [dest_phys], 0x00100000
+
+.chunk_loop:
     mov ax, [load_remaining]
     test ax, ax
-    jz .done
+    jz .read_done
+
+    mov cx, [max_chunk]
     mov di, cx
     cmp ax, cx
-    jae .chunk_size
+    jae .do_read
     mov di, ax
-.chunk_size:
+
+.do_read:
     push dword 0
     push dword [load_lba_low]
-    push word [load_segment]
+    push word 0x1000        ; Buffer at 0x1000:0000 (0x10000 physical)
     push word 0x0000
     push di
     push word 0x0010
 
+    push si
     mov si, sp
+    add si, 2
     mov dl, [boot_drive]
     mov ah, 0x42
     int 0x13
+    pop si
     add sp, 16
-    jc .fail
+    jc .read_fail
 
     sub word [load_remaining], di
-
     movzx eax, di
     add dword [load_lba_low], eax
 
     mov ax, di
-    mul bx
-    add word [load_segment], ax
-    jmp .chunk
+    mul word [sector_bytes]
+    mov word [chunk_bytes], ax
 
-.done:
+    call copy_chunk_unreal
+    jmp .chunk_loop
+
+.read_done:
     clc
     ret
-.fail:
+.read_fail:
     stc
+    ret
+
+copy_chunk_unreal:
+    push ds
+    push si
+    push di
+    push cx
+
+    mov ax, 0x1000
+    mov ds, ax
+    xor si, si
+    mov edi, [cs:dest_phys]
+    movzx ecx, word [cs:chunk_bytes]
+    shr ecx, 2
+    cld
+    a32 rep movsd
+
+    mov [cs:dest_phys], edi
+
+    pop cx
+    pop di
+    pop si
+    pop ds
     ret
 
 align 4
@@ -203,12 +237,15 @@ gdt32_desc:
 
 boot_drive:     db 0
 load_remaining: dw 0
-load_segment:   dw 0
 load_lba_low:   dd 0
+dest_phys:      dd 0x00100000
+chunk_bytes:    dw 0
+sector_bytes:   dw 0
+max_chunk:      dw 0
 
 msg_welcome:    db "Booting...", 13, 10, 0
-msg_loaded:     db "OK.", 13, 10, 0
-msg_bad_kernel: db "Bad Kernel!", 13, 10, 0
+msg_ok:         db "OK.", 13, 10, 0
+msg_err:        db "ERR!", 13, 10, 0
 
 times 510-($-$$) db 0
 dw 0xAA55

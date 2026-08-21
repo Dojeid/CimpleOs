@@ -363,7 +363,8 @@ def clear_cmake_config_cache():
 
 def run_cmake_configure(cmake_cmd):
     res = subprocess.run(cmake_cmd, cwd=ROOT_DIR, capture_output=True, text=True)
-    with open(LOGS_DIR / "cmake.log", "w") as f:
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    with open(LOGS_DIR / "cmake.log", "w", encoding="utf-8") as f:
         f.write(res.stdout + "\n" + res.stderr)
     return res
 
@@ -393,6 +394,17 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
 
     draw_progress_bar(10, "Configuring Engine")
     t0 = time.time()
+
+    # Prepare musl-1.2.6 headers
+    prep_script = TOOLS_DIR / "prepare_musl.py"
+    if prep_script.exists():
+        subprocess.run([sys.executable, str(prep_script)], cwd=ROOT_DIR, capture_output=True)
+
+    # Prepare GNU Bash headers
+    prep_bash = TOOLS_DIR / "prepare_bash.py"
+    if prep_bash.exists():
+        subprocess.run([sys.executable, str(prep_bash)], cwd=ROOT_DIR, capture_output=True)
+
     cmake_cmd = ["cmake", "-B", str(BUILD_DIR)]
     preferred_generator = "Ninja" if shutil.which("ninja") else None
     if preferred_generator:
@@ -420,7 +432,8 @@ def build_kernel(profile="dev", do_save=False, force_rebuild=False):
     t0 = time.time()
     build_cmd = ["cmake", "--build", str(BUILD_DIR), "--parallel", str(threads)]
     res = subprocess.run(build_cmd, cwd=ROOT_DIR, capture_output=True, text=True)
-    with open(LOGS_DIR / "compiler.log", "w") as f: f.write(res.stdout + "\n" + res.stderr)
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    with open(LOGS_DIR / "compiler.log", "w", encoding="utf-8") as f: f.write(res.stdout + "\n" + res.stderr)
 
     if res.returncode != 0:
         log_error(f"Compilation failed. See {LOGS_DIR / 'compiler.log'}")
@@ -571,11 +584,13 @@ def run_qemu(mode="normal"):
         if not os.path.exists(vbox_bin) and not shutil.which("VBoxManage"):
             log_error("VirtualBox (VBoxManage) not found. Run 'python build.py -check' for instructions.")
             sys.exit(1)
+        log_info(f"Ensuring VirtualBox VM RAM (512MB) & VRAM (64MB) for Falkon-OS...")
+        subprocess.run([vbox_bin, "modifyvm", "Falkonos", "--memory", "512", "--vram", "64"], capture_output=True)
+        subprocess.run([vbox_bin, "modifyvm", "FalkonOS", "--memory", "512", "--vram", "64"], capture_output=True)
         log_info(f"Launching VirtualBox VM 'FalkonOS' with ISO -> {PRIMARY_ISO}")
         res = subprocess.run([vbox_bin, "startvm", "FalkonOS", "--type", "gui"])
         if res.returncode != 0:
-            log_warning("VirtualBox startvm returned non-zero code. Trying controlvm resume / start fallback...")
-            subprocess.run([vbox_bin, "startvm", "FalkonOS"])
+            res = subprocess.run([vbox_bin, "startvm", "Falkonos", "--type", "gui"])
         return
 
     qemu_bin = shutil.which("qemu-system-x86_64") or r"C:\Program Files\qemu\qemu-system-x86_64.exe"
@@ -837,6 +852,22 @@ def run_check():
             "binaries": ["git"],
             "windows_fallbacks": [r"C:\Program Files\Git\cmd\git.exe"],
             "unix_fallbacks": ["/usr/bin/git", "/usr/local/bin/git"]
+        },
+        {
+            "id": "musl",
+            "name": "musl-1.2.6 C Standard Library",
+            "required": True,
+            "binaries": ["python", "python3"],
+            "windows_fallbacks": [str(ROOT_DIR / "musl-1.2.6" / "README")],
+            "unix_fallbacks": [str(ROOT_DIR / "musl-1.2.6" / "README")]
+        },
+        {
+            "id": "bash",
+            "name": "GNU Bash Shell (/bin/bash)",
+            "required": True,
+            "binaries": ["python", "python3"],
+            "windows_fallbacks": [str(ROOT_DIR / "bash" / "README")],
+            "unix_fallbacks": [str(ROOT_DIR / "bash" / "README")]
         }
     ]
 

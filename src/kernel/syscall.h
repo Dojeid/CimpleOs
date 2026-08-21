@@ -60,6 +60,52 @@
 #define SYS_SETUID         54
 #define SYS_GETGID         55
 
+/* Linux x86_64 Syscall Numbers for musl compatibility */
+#define LINUX_SYS_READ              0
+#define LINUX_SYS_WRITE             1
+#define LINUX_SYS_OPEN              2
+#define LINUX_SYS_CLOSE             3
+#define LINUX_SYS_STAT              4
+#define LINUX_SYS_FSTAT             5
+#define LINUX_SYS_LSTAT             6
+#define LINUX_SYS_POLL              7
+#define LINUX_SYS_LSEEK             8
+#define LINUX_SYS_MMAP              9
+#define LINUX_SYS_MPROTECT          10
+#define LINUX_SYS_MUNMAP            11
+#define LINUX_SYS_BRK               12
+#define LINUX_SYS_RT_SIGACTION      13
+#define LINUX_SYS_RT_SIGPROCMASK    14
+#define LINUX_SYS_IOCTL             16
+#define LINUX_SYS_SCHED_YIELD       24
+#define LINUX_SYS_GETPID            39
+#define LINUX_SYS_SOCKET            41
+#define LINUX_SYS_CONNECT           42
+#define LINUX_SYS_ACCEPT            43
+#define LINUX_SYS_SENDTO            44
+#define LINUX_SYS_RECVFROM          45
+#define LINUX_SYS_CLONE             56
+#define LINUX_SYS_FORK              57
+#define LINUX_SYS_EXECVE            59
+#define LINUX_SYS_EXIT              60
+#define LINUX_SYS_WAIT4             61
+#define LINUX_SYS_UNAME             63
+#define LINUX_SYS_GETCWD            79
+#define LINUX_SYS_CHDIR             80
+#define LINUX_SYS_MKDIR             83
+#define LINUX_SYS_RMDIR             84
+#define LINUX_SYS_UNLINK            87
+#define LINUX_SYS_GETUID            102
+#define LINUX_SYS_GETGID            104
+#define LINUX_SYS_ARCH_PRCTL        158
+#define LINUX_SYS_SET_TID_ADDRESS   218
+#define LINUX_SYS_EXIT_GROUP        231
+
+#define ARCH_SET_GS 0x1001
+#define ARCH_SET_FS 0x1002
+#define ARCH_GET_FS 0x1003
+#define ARCH_GET_GS 0x1004
+
 void syscall_init(void);
 int64_t syscall_handler(uint64_t sys_num, uint64_t arg1, uint64_t arg2, uint64_t arg3);
 uint64_t syscall_interrupt_handler(cpu_registers_t* frame);

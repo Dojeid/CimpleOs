@@ -10,6 +10,10 @@ if(WIN32)
     set(CMAKE_CXX_COMPILER "clang++")
     set(CMAKE_C_COMPILER_TARGET   "x86_64-elf")
     set(CMAKE_CXX_COMPILER_TARGET "x86_64-elf")
+    set(CMAKE_C_STANDARD_LIBRARIES "" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_STANDARD_LIBRARIES "" CACHE STRING "" FORCE)
+    set(CMAKE_C_IMPLICIT_LINK_LIBRARIES "" CACHE STRING "" FORCE)
+    set(CMAKE_CXX_IMPLICIT_LINK_LIBRARIES "" CACHE STRING "" FORCE)
 endif()
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
@@ -90,13 +94,20 @@ string(REPLACE ";" " " CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 # Source Discovery
 include_directories(src src/include)
 
+# Subproject: musl-1.2.6 C Standard Library
+add_subdirectory(musl-1.2.6)
+
+# Subproject: GNU Bash Software Shell
+add_subdirectory(bash)
+
+
 file(GLOB_RECURSE ASM_SOURCES "src/arch/x86_64/*.asm")
 list(FILTER ASM_SOURCES EXCLUDE REGEX ".*/bootsector\\.asm$")
 file(GLOB_RECURSE C_SOURCES   "src/*.c")
 file(GLOB_RECURSE CXX_SOURCES "src/*.cpp")
 
 # Kernel Executable Target
-add_executable(FalkonOS.bin ${ASM_SOURCES} ${C_SOURCES} ${CXX_SOURCES})
+add_executable(FalkonOS.bin ${ASM_SOURCES} ${C_SOURCES} ${CXX_SOURCES} $<TARGET_OBJECTS:bash>)
 
 set_target_properties(FalkonOS.bin PROPERTIES
     SUFFIX       ""
@@ -104,6 +115,8 @@ set_target_properties(FalkonOS.bin PROPERTIES
     OUTPUT_NAME  "FalkonOS.bin"
     ENABLE_EXPORTS FALSE
 )
+
+target_link_libraries(FalkonOS.bin PRIVATE musl)
 
 find_program(OBJCOPY_BIN NAMES objcopy llvm-objcopy REQUIRED)
 

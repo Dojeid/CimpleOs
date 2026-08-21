@@ -127,16 +127,12 @@ isr_common_stub:
     mov ax, 0x10
     mov ds, ax
     mov es, ax
-    mov fs, ax
-    mov gs, ax
     
     mov rdi, rsp
     call isr_handler
     
-    pop rax
-    mov gs, ax
-    pop rax
-    mov fs, ax
+    pop rax                 ; Pop dummy gs
+    pop rax                 ; Pop dummy fs
     pop rax
     mov es, ax
     pop rax
@@ -190,8 +186,6 @@ irq_common_stub:
     mov ax, 0x10
     mov ds, ax
     mov es, ax
-    mov fs, ax
-    mov gs, ax
     
     mov rdi, rsp
     call irq_handler
@@ -201,10 +195,8 @@ irq_common_stub:
     mov rsp, rax
 .no_switch:
     
-    pop rax
-    mov gs, ax
-    pop rax
-    mov fs, ax
+    pop rax                 ; Pop dummy gs
+    pop rax                 ; Pop dummy fs
     pop rax
     mov es, ax
     pop rax
@@ -258,8 +250,6 @@ syscall_common_stub:
     mov ax, 0x10
     mov ds, ax
     mov es, ax
-    mov fs, ax
-    mov gs, ax
     
     mov rdi, rsp
     call syscall_interrupt_handler
@@ -269,10 +259,8 @@ syscall_common_stub:
     mov rsp, rax
 .no_switch:
     
-    pop rax
-    mov gs, ax
-    pop rax
-    mov fs, ax
+    pop rax                 ; Pop dummy gs
+    pop rax                 ; Pop dummy fs
     pop rax
     mov es, ax
     pop rax

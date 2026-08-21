@@ -40,6 +40,8 @@ typedef struct process {
     int exit_code;
     int wait_pid;
     int wait_result;
+    uint64_t fs_base;
+    uint64_t tid_address;
     file_t* fd_table[MAX_PROCESS_FDS];
 } process_t;
 

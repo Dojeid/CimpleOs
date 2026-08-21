@@ -940,6 +940,20 @@ void cmd_process(const char* cmd) {
         cmd_print("Date and time printed from RTC.");
         cmd_print("");
     }
+    else if (strncmp(cmd, "bash", 4) == 0) {
+        extern int bash_main(int argc, char **argv, char **env);
+        cmd_print("[GNU Bash 5.2 (x86_64-falkon-elf musl-1.2.6)]");
+        const char* arg = cmd + 4;
+        while (*arg == ' ') arg++;
+        if (*arg == '\0') {
+            cmd_print("GNU Bash 5.2 POSIX Interactive Engine (linked via libmusl.a).");
+            cmd_print("Type GNU Bash commands or scripts.");
+        } else {
+            char* bash_argv[] = { "bash", "-c", (char*)arg, NULL };
+            bash_main(3, bash_argv, NULL);
+        }
+        cmd_print("");
+    }
     else {
         cmd_print("Unknown command. Type 'help' for available commands.");
         cmd_print("");

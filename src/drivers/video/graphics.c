@@ -97,21 +97,20 @@ static uint16_t bga_read(uint16_t index) {
 void graphics_init(struct multiboot_info* mb) {
     screen_w = 1024; screen_h = 768; video_memory = NULL;
 
-    // BUG FIX #26: Bit 12 (0x1000) indicates Multiboot framebuffer info present
-    if (mb && (mb->flags & 0x1000) && mb->framebuffer_addr != 0) {
+    uint32_t boot_lfb = *(volatile uint32_t*)0x500;
+    if (boot_lfb != 0 && boot_lfb != 0xFFFFFFFF && (boot_lfb % 4096 == 0)) {
+        video_memory = (uint32_t*)(uintptr_t)boot_lfb;
+    }
+
+    if (!video_memory && mb && (mb->flags & 0x1000) && mb->framebuffer_addr != 0) {
         video_memory = (uint32_t*)(uintptr_t)mb->framebuffer_addr;
         screen_w = (int)mb->framebuffer_width;
         screen_h = (int)mb->framebuffer_height;
     }
 
     if (!video_memory) {
-        uint16_t bga_id = bga_read(0);
-        if (bga_id >= 0xB0C0 && bga_id <= 0xB0C6) {
-            bga_write(4, 0); bga_write(1, 1024); bga_write(2, 768);
-            bga_write(3, 32); bga_write(4, 0x01 | 0x40);
-        }
         struct pci_device pci_vga;
-        if (pci_find_device(0x03, 0x00, 0x00, &pci_vga) || pci_find_device(0x03, 0x80, 0x00, &pci_vga)) {
+        if (pci_find_display_adapter(&pci_vga) || pci_find_device(0x03, 0x00, 0x00, &pci_vga)) {
             if (pci_vga.bar0 != 0)
                 video_memory = (uint32_t*)(uintptr_t)pci_vga.bar0;
         }

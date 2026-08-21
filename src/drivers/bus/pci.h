@@ -28,5 +28,6 @@ uint32_t pci_read_config(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset
 void pci_write_config(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t value);
 int pci_find_device(uint8_t class_code, uint8_t subclass, uint8_t prog_if, struct pci_device* out);
 int pci_find_by_id(uint16_t vendor_id, uint16_t device_id, struct pci_device* out);
+int pci_find_display_adapter(struct pci_device* out);
 
 #endif

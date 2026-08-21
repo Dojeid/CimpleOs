@@ -74,3 +74,35 @@ int pci_find_by_id(uint16_t vendor_id, uint16_t device_id, struct pci_device* ou
     }
     return 0;
 }
+
+int pci_find_display_adapter(struct pci_device* out) {
+    for (uint16_t bus = 0; bus < 256; bus++) {
+        for (uint8_t slot = 0; slot < 32; slot++) {
+            uint32_t vendor = pci_read_config(bus, slot, 0, 0);
+            if ((vendor & 0xFFFF) == 0xFFFF) continue;
+            
+            uint32_t class_info = pci_read_config(bus, slot, 0, 0x08);
+            uint8_t dev_class = (class_info >> 24) & 0xFF;
+            
+            if (dev_class == 0x03) { // 0x03 = Display Controller (VGA/SVGA/VBox/Bochs)
+                uint32_t bar0 = pci_read_config(bus, slot, 0, 0x10) & 0xFFFFFFF0;
+                if (bar0 != 0) {
+                    out->bus = bus;
+                    out->slot = slot;
+                    out->func = 0;
+                    out->vendor_id = vendor & 0xFFFF;
+                    out->device_id = (vendor >> 16) & 0xFFFF;
+                    out->class_code = dev_class;
+                    out->subclass = (class_info >> 16) & 0xFF;
+                    out->prog_if = (class_info >> 8) & 0xFF;
+                    out->bar0 = bar0;
+                    out->bar1 = pci_read_config(bus, slot, 0, 0x14) & 0xFFFFFFF0;
+                    uint32_t irq_info = pci_read_config(bus, slot, 0, 0x3C);
+                    out->interrupt_line = irq_info & 0xFF;
+                    return 1;
+                }
+            }
+        }
+    }
+    return 0;
+}
