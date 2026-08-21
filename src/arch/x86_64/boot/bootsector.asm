@@ -58,10 +58,6 @@ start:
     mov eax, [di + 0x28]
     mov dword [0x500], eax
 
-    mov ax, 0x4F02
-    mov bx, 0x4118          ; VBE 1024x768 32bpp LFB mode
-    int 0x10
-
     cli
     lgdt [gdt32_desc]
     mov eax, cr0

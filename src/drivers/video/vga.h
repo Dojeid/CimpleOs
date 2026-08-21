@@ -16,5 +16,8 @@ uint16_t vga_entry(char c, uint8_t color);
 void vga_clear();
 void vga_putchar(char c);
 void vga_print(const char* str);
+void vga_putchar_color(char c, uint8_t color);
+void vga_print_color(const char* str, uint8_t color);
+void vga_print_boot_ok(const char* message);
 
 #endif

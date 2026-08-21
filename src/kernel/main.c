@@ -48,7 +48,7 @@ extern int term_idx;
 extern int mouse_x, mouse_y;
 extern void init_mouse();
 
-int sys_runlevel = 5; // Default 5 = Graphical Desktop GUI Mode (with TTY Runlevel 3 fallback)
+int sys_runlevel = 3; // Default 3 = Linux Console Text Mode (with green [ OK ] boot log)
 
 void sys_set_runlevel(int level) {
     if (level == 3 || level == 5) {
@@ -87,8 +87,7 @@ static void boot_log_ok(const char* message) {
     char line[160];
     sprintf(line, "[  OK  ] %s", message);
     if (tty) terminal_instance_print(tty, line);
-    vga_print(line);
-    vga_print("\n");
+    vga_print_boot_ok(message);
 }
 
 static void gui_compositor_task(void) { while(1) { asm volatile("pause"); } }

@@ -22,12 +22,12 @@ void vga_clear() {
     vga_col = 0;
 }
 
-void vga_putchar(char c) {
+void vga_putchar_color(char c, uint8_t color) {
     if (c == '\n') {
         vga_col = 0;
         vga_row++;
     } else {
-        vga_buffer[vga_row * VGA_WIDTH + vga_col] = vga_entry(c, 0x0F);
+        vga_buffer[vga_row * VGA_WIDTH + vga_col] = vga_entry(c, color);
         vga_col++;
         if (vga_col >= VGA_WIDTH) {
             vga_col = 0;
@@ -35,16 +35,12 @@ void vga_putchar(char c) {
         }
     }
     
-    // BUG FIX #4: Only scroll when row actually exceeds height
-    // Check at the END of the function to allow row == VGA_HEIGHT once
     if (vga_row >= VGA_HEIGHT) {
-        // Scroll the screen up by one row
         for (int y = 1; y < VGA_HEIGHT; y++) {
             for (int x = 0; x < VGA_WIDTH; x++) {
                 vga_buffer[(y - 1) * VGA_WIDTH + x] = vga_buffer[y * VGA_WIDTH + x];
             }
         }
-        // Clear the last row
         for (int x = 0; x < VGA_WIDTH; x++) {
             vga_buffer[(VGA_HEIGHT - 1) * VGA_WIDTH + x] = vga_entry(' ', 0x0F);
         }
@@ -52,9 +48,25 @@ void vga_putchar(char c) {
     }
 }
 
-void vga_print(const char* str) {
+void vga_putchar(char c) {
+    vga_putchar_color(c, 0x0F);
+}
+
+void vga_print_color(const char* str, uint8_t color) {
     while (*str) {
-        vga_putchar(*str);
+        vga_putchar_color(*str, color);
         str++;
     }
+}
+
+void vga_print(const char* str) {
+    vga_print_color(str, 0x0F);
+}
+
+void vga_print_boot_ok(const char* message) {
+    vga_print_color("[  ", 0x07);              // Light Gray
+    vga_print_color("OK", 0x0A);               // Bright Green
+    vga_print_color("  ] ", 0x07);             // Light Gray
+    vga_print_color(message, 0x0F);            // Bright White
+    vga_print_color("\n", 0x0F);
 }
