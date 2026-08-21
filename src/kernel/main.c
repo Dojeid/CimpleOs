@@ -149,8 +149,13 @@ void kmain(void* multiboot_info_addr) {
     rtl8139_init();
     ahci_init();
     ac97_init();
-    ip_init();
-    boot_log_ok("Intel 82540EM/RTL8139 NIC, AHCI SATA, AC97 Audio & POSIX PTY Active");
+    extern void pcie_init(void);
+    extern void wifi_init(void);
+    extern void bluetooth_init(void);
+    pcie_init();
+    wifi_init();
+    bluetooth_init();
+    boot_log_ok("PCIe MMCONFIG ECAM, 802.11 Wi-Fi & USB Bluetooth 5.3 Active");
 
     desktop_init();
     taskbar_init();
