@@ -24,34 +24,45 @@ global pd_table_2
 global pd_table_3
 extern kmain
 
+align 8
+gdt64:
+    dq 0                        ; Null Descriptor
+.code: equ $ - gdt64
+    dq 0x00209A0000000000       ; 64-bit Code Segment (L=1, D=0, P=1, S=1, C/R=1)
+.data: equ $ - gdt64
+    dq 0x0000920000000000       ; 64-bit Data Segment (P=1, S=1, W=1)
+.pointer:
+    dw $ - gdt64 - 1
+    dd gdt64
+
 start:
     mov esp, stack_top
     push ebx
-    
+
     call check_cpuid
     call check_long_mode
     call setup_page_tables
-    
+
     ; Enable PAE
     mov eax, cr4
     or eax, 1 << 5
     mov cr4, eax
-    
+
     ; Load PML4
     mov eax, pml4_table
     mov cr3, eax
-    
+
     ; Enable long mode
     mov ecx, 0xC0000080
     rdmsr
     or eax, 1 << 8
     wrmsr
-    
+
     ; Enable paging
     mov eax, cr0
     or eax, 1 << 31
     mov cr0, eax
-    
+
     lgdt [gdt64.pointer]
     jmp gdt64.code:long_mode_start
 
@@ -92,29 +103,29 @@ setup_page_tables:
     mov ecx, (4096 * 6) / 4     ; Clear PML4, PDPT, and 4 PD tables (6 pages total)
     xor eax, eax
     rep stosd
-    
+
     ; PML4[0] -> PDPT
     mov eax, pdpt_table
     or eax, 0b11
     mov [pml4_table], eax
-    
+
     ; PDPT[0..3] -> pd_table_0 .. pd_table_3 (4GB identity mapped)
     mov eax, pd_table_0
     or eax, 0b11
     mov [pdpt_table + 0], eax
-    
+
     mov eax, pd_table_1
     or eax, 0b11
     mov [pdpt_table + 8], eax
-    
+
     mov eax, pd_table_2
     or eax, 0b11
     mov [pdpt_table + 16], eax
-    
+
     mov eax, pd_table_3
     or eax, 0b11
     mov [pdpt_table + 24], eax
-    
+
     ; Identity-map full 4GB (2048 entries of 2MB huge pages)
     mov edi, pd_table_0
     mov eax, 0x00000083         ; Present | R/W | PS (2MB page)
@@ -124,7 +135,7 @@ setup_page_tables:
     add eax, 0x200000
     add edi, 8
     loop .map_pd
-    
+
     ret
 
 error:
@@ -132,18 +143,6 @@ error:
     mov dword [0xb8004], 0x4f3a4f52
     mov byte [0xb8008], al
     hlt
-
-section .rodata
-align 8
-gdt64:
-    dq 0                        ; Null Descriptor
-.code: equ $ - gdt64
-    dq 0x00209A0000000000       ; 64-bit Code Segment (L=1, D=0, P=1, S=1, C/R=1)
-.data: equ $ - gdt64
-    dq 0x0000920000000000       ; 64-bit Data Segment (P=1, S=1, W=1)
-.pointer:
-    dw $ - gdt64 - 1
-    dd gdt64
 
 section .bss
 align 4096
@@ -174,12 +173,12 @@ long_mode_start:
     mov fs, ax
     mov gs, ax
     mov ss, ax
-    
+
     mov rsp, stack_top
     xor edi, edi            ; No Multiboot info structure available (mbi = NULL)
-    
+
     call kmain
-    
+
     cli
 .hang:
     hlt
